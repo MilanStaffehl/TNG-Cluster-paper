@@ -1,0 +1,12 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra"
+testpaths = [
+    "src/tests",
+]
+pythonpath = "src"
+
+[tool.isort]
+profile = "black"
+src_paths = ["src", "notebooks"]
+skip_glob = ["docs/*", "external/*"]

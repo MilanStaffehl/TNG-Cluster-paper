@@ -4,7 +4,7 @@ Short overview over project TODOs.
 
 ## First plots
 
-- [ ] Determine a definition for "cold": plot histograms for the gas temperature of 
+- [ ] Determine a definition for "cold": plot histograms for the gas temperature (fraction of gas mass vs. temperature) of 
   - [ ] Halos in different mass bins (individual)
   - [ ] Halos in different mass bins (stacked)
   - [ ] All halos in total
