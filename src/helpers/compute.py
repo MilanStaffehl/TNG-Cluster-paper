@@ -31,6 +31,10 @@ def get_temperature(internal_energy, electron_abundance):
     :return: temperature of the gas in Kelvin
     """
     # constants are in cgs
-    molecular_weight = 4 * m_p.cgs.value / (1 + 3 * X_H + 4 * X_H * electron_abundance)
-    temperature = 2 / 3 * internal_energy / k_B.cgs.value * 1e10 * molecular_weight
+    molecular_weight = (
+        4 * m_p.cgs.value / (1 + 3 * X_H + 4 * X_H * electron_abundance)
+    )
+    temperature = (
+        2 / 3 * internal_energy / k_B.cgs.value * 1e10 * molecular_weight
+    )
     return temperature
