@@ -7,13 +7,16 @@ in the simulation data and instead has to be calculated from internal
 energy and electron abundance. 
 """
 import numpy as np
+from numpy.typing import ArrayLike
 from astropy.constants import k_B, m_p
 
 from constants import X_H
 
 
 @np.vectorize
-def get_temperature(internal_energy, electron_abundance):
+def get_temperature(
+    internal_energy: float | ArrayLike, electron_abundance: float | ArrayLike
+) -> float | ArrayLike:
     """
     Return the temperature of the cell(s) given.
 
