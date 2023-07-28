@@ -1,6 +1,8 @@
 illustris_python>=1.0.0
 numpy
 astropy
+matplotlib
+numba
 pytest
 flake8
 isort
