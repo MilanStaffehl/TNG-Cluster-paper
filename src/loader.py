@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-import numpy as np
-import numpy.ma as ma
 from typing import TYPE_CHECKING
 
 import illustris_python as il
+import numpy as np
+import numpy.ma as ma
 
 import constants
 
 if TYPE_CHECKING:
     from numpy.typing import ArrayLike
+
     import config
 
 

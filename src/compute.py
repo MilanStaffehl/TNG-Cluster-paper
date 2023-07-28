@@ -7,8 +7,8 @@ in the simulation data and instead has to be calculated from internal
 energy and electron abundance. 
 """
 import numpy as np
-from numpy.typing import ArrayLike
 from astropy.constants import k_B, m_p
+from numpy.typing import ArrayLike
 
 from constants import X_H
 

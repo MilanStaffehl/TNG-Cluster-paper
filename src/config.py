@@ -24,3 +24,22 @@ class Config:
     base_path: str | Path
     snap_num: int
     mass_field: str
+
+
+def get_config(
+    sim: str, snap: int = 99, mass_field: str = "Group_M_Crit200"
+) -> Config:
+    """
+    Return a configuration for the specified simulation.
+
+    :param sim: name of the simulation as used in the simulation file
+        directory, e.g. TNG50-3
+    :param snap: snapshot number to use, defaults to 99 (z = 0)
+    :param mass_field: name of the simulation field that signifies the
+        halo mass, defaults to M_crit200
+    :return: configuration for this specific 
+    """
+    final_config  = Config(
+        f"/virgotng/universe/IllustrisTNG/{sim}/output", snap, mass_field
+    )
+    return final_config

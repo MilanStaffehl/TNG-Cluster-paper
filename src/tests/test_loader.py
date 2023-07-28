@@ -1,11 +1,10 @@
-import pytest
-import numpy as np
-
 import illustris_python as il
+import numpy as np
+import pytest
 
 import config
-import loader
 import constants
+import loader
 
 
 @pytest.fixture
