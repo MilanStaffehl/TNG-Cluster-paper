@@ -7,10 +7,9 @@ in the simulation data and instead has to be calculated from internal
 energy and electron abundance. 
 """
 import numpy as np
-from astropy.constants import k_B, m_p
 from numpy.typing import ArrayLike
 
-from constants import X_H
+from constants import X_H, m_p, k_B
 
 
 @np.vectorize
@@ -35,9 +34,9 @@ def get_temperature(
     """
     # constants are in cgs
     molecular_weight = (
-        4 * m_p.cgs.value / (1 + 3 * X_H + 4 * X_H * electron_abundance)
+        4 * m_p / (1 + 3 * X_H + 4 * X_H * electron_abundance)
     )
     temperature = (
-        2 / 3 * internal_energy / k_B.cgs.value * 1e10 * molecular_weight
+        2 / 3 * internal_energy / k_B * 1e10 * molecular_weight
     )
     return temperature

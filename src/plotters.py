@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import multiprocessing as mp
+from typing import TYPE_CHECKING, ClassVar
 
 import illustris_python as il
 import numpy as np
+import numpy.ma as ma
+import matplotlib.pyplot as plt
+import tqdm
+from numpy.typing import ArrayLike
 
 import compute
 import config
-import loader
+import constants
 
 if TYPE_CHECKING:
     import logging
@@ -24,6 +29,10 @@ class TemperatureDistributionPlotter:
     as for stacked halos from a single mass bin.
     """
 
+    # number of bins in temperature histogram
+    n_bins: ClassVar[int] = 50
+    temperature_range: ClassVar[tuple[float]] = (3.0, 8.0)
+
     def __init__(
         self, sim: str, mass_bins: list[float], logger: logging.Logger
     ) -> None:
@@ -33,9 +42,10 @@ class TemperatureDistributionPlotter:
         self.mass_bins = mass_bins
         self.n_mass_bins = len(mass_bins) - 1
         # create attributes for data
-        self.binned_indices = None
-        self.binned_masses = None
-        self.binned_temperature_hists = None  # histograms of temp
+        self.indices = None
+        self.masses = None
+        self.bin_masker = None  # set by get_mask
+        self.hist_data = None  # histograms of temp
 
     def get_data(self) -> None:
         """
@@ -47,11 +57,31 @@ class TemperatureDistributionPlotter:
 
         :return: None
         """
-        data = loader.get_halos_binned_by_mass(self.mass_bins, self.config)
-        self.binned_indices = data[0]
-        self.binned_masses = data[1]
+        self.logger.info("Loading halo masses.")
+        halo_masses = il.groupcat.loadHalos(
+            self.config.base_path, 
+            self.config.snap_num, 
+            fields=self.config.mass_field,
+        )
+        num_halos = len(halo_masses)
+        self.indices = np.indices([num_halos], sparse=True)[0]
+        self.masses = halo_masses * 1e10 / constants.HUBBLE
+        self.logger.info("Finished setting up data.")
 
-    def get_hists(self) -> list[int]:
+    def get_mask(self) -> None:
+        """
+        Create an array of bin indices matching the halos to their bin.
+
+        The array will hold numbers from 0 to ``self.n_mass_bins`` - 1, 
+        where each number corresponds to the mass bin into which the
+        corresponding halo with the same array indx falls into, i.e.
+        if the i-th entry of the list is equals to 1, then the i-th
+        halo falls into the second mass bin (that is, it has a mass 
+        between ``self.bins[1]`` and ``self.bins[2]``).
+        """
+        self.bin_masker = np.digitize(self.masses, self.mass_bins)
+
+    def get_hists(self, processes: int = 16) -> None:
         """
         Load the histogram data for every halo in the dataset. 
 
@@ -65,86 +95,164 @@ class TemperatureDistributionPlotter:
         bins. This tuple is then assigned to the ``binned_temperature_hists``
         attribute.
 
-        Some halos might not have any gas (shallow dark halos). these
-        are skipped in the pocessing. This means that the final lists
-        of histogram data might not match one-to-one with the lists of
-        halo masses and indices anymore and instead are shorter! To be
-        able to account for this issue, the method will return a list of
-        all halo IDs of those halos that were skipped due to not having
-        any gas particles.
-
         This method will take considerable computation time.
 
-        :return: list of halo IDs that are not present in the hist
-            data due to not having any gas particles.
+        :param processes: number of processes to use for calculation
+            with multiprocessing (i.e. number of CPU cores to use)
+        :return: None
         """
-        N_BINS = 45
-
-        if self.binned_indices is None or self.binned_masses is None:
+        if self.indices is None or self.masses is None:
             raise TypeError(
                 "Data is not loaded yet, please use 'get_data' to load it first."
             )
         
-        temperature_hists = []
-        skipped_halo_ids = []
-
-        self.logger.info("Beginning histogram data generation.")
-        for mass_bin_index in range(self.n_mass_bins):
-            self.logger.info(
-                f"Processing halos in mass bin "
-                f"{mass_bin_index}/{self.n_mass_bins}."
+        self.logger.info("Start processing halo data.")
+        # multiprocess the entire problem
+        chunksize = round(len(self.indices) / processes, -3)
+        with mp.Pool(processes=processes) as pool:
+            results = pool.map(
+                self._get_hists_step, self.indices, chunksize=chunksize
             )
-            cur_mass_bin_hist_data = []
-            num_halos = len(self.binned_masses[mass_bin_index])
+            pool.close()
+            pool.join()
+        self.logger.info("Finished processing halo data.")
 
-            for i, halo_index in enumerate(self.binned_indices[mass_bin_index]):
-                # status report
-                print(
-                    (f"Processing halo with ID {halo_index} ({i}/{num_halos}) "
-                     f"{i / num_halos * 100:.0f} %"), 
-                    end="\r"
-                )
-                # load halo gas cell fields
-                fields = ["InternalEnergy", "ElectronAbundance", "Masses"]
-                gas_data = il.snapshot.loadHalo(
-                    self.config.base_path,
-                    self.config.snap_num,
-                    halo_index,
-                    partType=0,  # gas
-                    fields=fields,
-                )
-                # sort out all halos without gas particles
-                if gas_data["count"] == 0:
-                    self.logger.debug(
-                        f"Halo {halo_index} does not contain any gas cells, "
-                        "skipped."
-                    )
-                    skipped_halo_ids.append(halo_index)
-                    continue
-                # calculate gas mass fraction and temperature
-                total_gas_mass = np.sum(gas_data["Masses"])
-                gas_mass_frac = gas_data["Masses"] / total_gas_mass
-                temperatures = compute.get_temperature(
-                    gas_data["InternalEnergy"], gas_data["ElectronAbundance"]
-                )
-                # generate hist data
-                hist = np.histogram(
-                    temperatures, N_BINS, weights=gas_mass_frac
-                )
-                # add hist data to list of hist data for current mass bin
-                cur_mass_bin_hist_data.append(hist)
+        # assign array of hist data to attribute
+        self.hist_data = np.array(results)
 
-            self.logger.info(
-                f"Finished processing mass bin {mass_bin_index}/"
-                f"{self.n_mass_bins}, processed {len(cur_mass_bin_hist_data)} "
-                "halos."
+    def get_hists_lin(self):
+        """
+        Load the histogram data for every halo in the dataset. 
+
+        Requires that the halo mass data has already been loaded with 
+        ``get_data``. It loads, for every bin, the gas cells of every
+        halo and computes both the gas mass fraction as well as the 
+        temperature of the every gas cell. It then calculates histogram 
+        data for every halo (for a gas mass fration vs. temperature
+        histogram). The histograms are packed into a list which in turn
+        is placed into a tuple of as many members as there are mass
+        bins. This tuple is then assigned to the ``binned_temperature_hists``
+        attribute.
+
+        This method will take considerable computation time.
+
+        :param processes: number of processes to use for calculation
+            with multiprocessing (i.e. number of CPU cores to use)
+        :return: None
+        """
+        if self.indices is None or self.masses is None:
+            raise TypeError(
+                "Data is not loaded yet, please use 'get_data' to load it first."
             )
-            # add list of hist data to final binned tuple
-            temperature_hists.append(cur_mass_bin_hist_data)
+        self.logger.info("Start processing halo data.")
+        n_halos = len(self.indices)
+        self.hist_data = np.zeros((n_halos, self.n_bins))
+        for i, halo_id in enumerate(self.indices):
+            perc = i / n_halos * 100
+            print(
+                f"Processing halo {halo_id}/{n_halos} ({perc:.1f}%)", end="\r"
+            )
+            self.hist_data[halo_id] = self._get_hists_step(halo_id)
+        self.logger.info("Finished processing halo data.")
 
-        # assign generated data to attribute
-        self.binned_temperature_hists = tuple(temperature_hists)
-        return skipped_halo_ids
+    def plot_stacked_hist(self, bin_num: int) -> None:
+        """
+        Plot the distribution of temperatures for all halos of the mass bin.
+
+        Plots a histogram using the data of all halos in the specified 
+        mass bin. The mass bin must be given as an array index, i.e.
+        starting from zero.
+
+        :param bin_num: mass bin index, starting from zero
+        """
+        self.logger.info(f"Plotting temperature hist for mass bin {bin_num}.")
+        fig, axes = plt.subplots(figsize=(4, 4))
+        fig.set_tight_layout(True)
+        axes.set_title(
+            rf"${np.log10(self.mass_bins[bin_num])} < \log \ M_\odot "
+            rf"< {np.log10(self.mass_bins[bin_num + 1])}$"
+        )
+        axes.set_xlabel("Gas temperature [log K]")
+        axes.set_ylabel("Average gas mass fraction")
+
+        # calculate bin positions
+        _, bins = np.histogram(
+            np.array([0]), bins=self.n_bins, range=self.temperature_range
+        )
+        width = bins[1] - bins[0]
+        centers = (bins[:-1] + bins[1:]) / 2
+
+        # mask histogram data
+        mask = np.where(self.bin_masker == bin_num + 1, 1, 0)
+        halo_hists = ma.masked_array(self.hist_data).compress(mask, axis=0)
+        data = np.average(halo_hists, axis=0)
+
+        # plot data
+        plot_config = {
+            "align": "center",
+            "color": "lightblue",
+            "edgecolor": "black",
+            "log": True,
+        }
+        axes.bar(centers, data, width=width, **plot_config)
+
+        # save figure 
+        fig.savefig(
+            f"./../figures/001_temperature_hist_{bin_num}.pdf", 
+            bbox_inches="tight"
+        )
+    
+    def _get_hists_step(self, halo_id: int) -> int:
+        """
+        Calculate the hist data for a single halo and place it into attr.
+
+        Calculates the temperature for all gas cells of the halo and
+        from the temperature calculates the temperature distribution
+        weighted by gas mas fraction as histogram data. The resulting
+        histogram data - an array of shape ``(N, self.n_bins)`` is then
+        assigned to its index position of the ``self.hist_data`` array,
+        which must be created first by calling ``get_data``. 
+
+        Returns numpy array containing the histogram data.
+
+        :param halo_id: ID of the halo to process
+        :return: numpy array of hist data
+        """
+        # load required halo data
+        gas_data = il.snapshot.loadHalo(
+            self.config.base_path,
+            self.config.snap_num,
+            halo_id,
+            partType=0,  # gas
+            fields=["InternalEnergy", "ElectronAbundance", "Masses"],
+        )
+
+        # some halos do not contain gas
+        if gas_data["count"] == 0:
+            self.logger.debug(
+                f"Halo {halo_id} contains no gas. Returning an empty hist."
+            )
+            return np.zeros(self.n_bins)
+        
+        # calculate hist and return it
+        return self._calculate_hist_data(gas_data)
+
+    def _calculate_hist_data(self, gas_data: dict[str, ArrayLike]) -> ArrayLike:
+        # calculate helper quantities
+        total_gas_mass = np.sum(gas_data["Masses"])
+        gas_mass_fracs = gas_data["Masses"] / total_gas_mass
+        temperatures = compute.get_temperature(
+            gas_data["InternalEnergy"], gas_data["ElectronAbundance"]
+        )
+
+        # generate and assign hist data
+        hist, _ = np.histogram(
+            np.log10(temperatures), 
+            bins=self.n_bins, 
+            range=self.temperature_range,
+            weights=gas_mass_fracs,
+        )
+        return hist
     
     def __str__(self) -> str:
         """
@@ -152,15 +260,20 @@ class TemperatureDistributionPlotter:
 
         :return: information on currently loaded mass bins
         """
-        if self.binned_indices is None or self.binned_masses is None:
+        if self.indices is None or self.masses is None:
             return "No data loaded yet."
+        if self.bin_masker is None:
+            return "No bin mask created yet."
         
         ret_str = ""
-        for i, bin_ in enumerate(self.binned_indices):
+        unique, counts = np.unique(self.bin_masker, return_counts=True)
+        halos_per_bin = dict(zip(unique, counts))
+        for i in range(self.n_mass_bins):
             ret_str += (
                 f"Bin {i} [{self.mass_bins[i]:.2e}, "
                 f"{self.mass_bins[i + 1]:.2e}]): "
-                f"{len(bin_)} halos\n"
+                f"{halos_per_bin[i + 1]} halos\n"
             )
+        ret_str += f"Total halos: {np.sum(counts[1:])}\n"
         return ret_str
 
