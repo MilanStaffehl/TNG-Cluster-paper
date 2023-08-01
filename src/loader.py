@@ -15,14 +15,14 @@ if TYPE_CHECKING:
 
 
 def get_halos_binned_by_mass(
-    bins: ArrayLike, 
-    config: config.Config, 
+    bins: ArrayLike,
+    config: config.Config,
 ) -> tuple[list[ArrayLike]]:
     """
     Return an array of halo data, sorted by mass into bins.
 
     The function takes an array or Sequence of bin boundaries for the
-    mass in units of solar masses. It then loads all halos from the 
+    mass in units of solar masses. It then loads all halos from the
     simulation set in the config given and sorts them into the bins by
     mass.
 
@@ -37,7 +37,7 @@ def get_halos_binned_by_mass(
         number of bins desired and must be monotonic
     :param config: configuration object holding at least the base path
         for the current simulation, the snapshot number for the snapshot
-        to use and the field name for the halo mass field preferred 
+        to use and the field name for the halo mass field preferred
         (e.g. 'Group_M_Crit_200')
     :return: tuple of two lists, each containing arrays. The first list
         holds arrays which hold the halo IDs, the second list holds
@@ -68,19 +68,19 @@ def get_halos_binned_by_mass(
 
         mass_list.append(masses)
         index_list.append(indices)
-    
+
     return index_list, mass_list
 
 
 def generate_halos_binned_by_mass(
-    bins: ArrayLike, 
-    config: config.Config, 
+    bins: ArrayLike,
+    config: config.Config,
 ) -> tuple[list[ArrayLike]]:
     """
     Yield an array of halo data, sorted by mass into bins.
 
     The function takes an array or Sequence of bin boundaries for the
-    mass in units of solar masses. It then loads all halos from the 
+    mass in units of solar masses. It then loads all halos from the
     simulation set in the config given and sorts them into the bins by
     mass.
 
@@ -92,10 +92,10 @@ def generate_halos_binned_by_mass(
         number of bins desired and must be monotonic
     :param config: configuration object holding at least the base path
         for the current simulation, the snapshot number for the snapshot
-        to use and the field name for the halo mass field preferred 
+        to use and the field name for the halo mass field preferred
         (e.g. 'Group_M_Crit_200')
     :yield: tuple of arrays, first holding halo IDs, second holding
-        halo masses in units of solar masses 
+        halo masses in units of solar masses
     """
     n_bins = len(bins) - 1
     # load halos from simulation

@@ -81,17 +81,15 @@ def test_loader_get_halo_binned_by_mass_lengths(test_config):
     # test adds up the lengths of the return arrays and ensures it will
     # no exceed the number of halos in the dataset
     halos = il.groupcat.loadHalos(
-        test_config.base_path, 
-        test_config.snap_num, 
+        test_config.base_path,
+        test_config.snap_num,
         fields=test_config.mass_field,
     )
     total_num_halos = len(halos)
 
     # load test data such that all halos should be included
     bins = [0, 1e10, 1e11, 1e12, 1e13, 1e20]
-    test_data = loader.get_halos_binned_by_mass(
-        bins, test_config
-    )
+    test_data = loader.get_halos_binned_by_mass(bins, test_config)
 
     # check that all halos are included in lists
     index_num = sum([len(index_list) for index_list in test_data[0]])

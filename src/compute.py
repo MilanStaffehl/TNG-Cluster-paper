@@ -1,10 +1,10 @@
 """
 Compute complex quantities from simulation data.
 
-This module provides functions to compute cell values from simulation 
-data, most prominently temperature: temperature is not directly given 
-in the simulation data and instead has to be calculated from internal 
-energy and electron abundance. 
+This module provides functions to compute cell values from simulation
+data, most prominently temperature: temperature is not directly given
+in the simulation data and instead has to be calculated from internal
+energy and electron abundance.
 """
 import numpy as np
 from numpy.typing import ArrayLike
@@ -33,10 +33,6 @@ def get_temperature(
     :return: temperature of the gas in Kelvin
     """
     # constants are in cgs
-    molecular_weight = (
-        4 * m_p / (1 + 3 * X_H + 4 * X_H * electron_abundance)
-    )
-    temperature = (
-        2 / 3 * internal_energy / k_B * 1e10 * molecular_weight
-    )
+    molecular_weight = (4 * m_p / (1 + 3 * X_H + 4 * X_H * electron_abundance))
+    temperature = (2 / 3 * internal_energy / k_B * 1e10 * molecular_weight)
     return temperature

@@ -12,7 +12,7 @@ class Config:
     example, one can use two different Config instances with different
     base paths to test code with a lower resolution simulation and to
     run actual analysis with higher resolution data. In such a scenario,
-    depending on which config is desired, the client can pass different 
+    depending on which config is desired, the client can pass different
     Config instances.
 
     :param base_path: the base path of the simulation to use
@@ -37,9 +37,9 @@ def get_config(
     :param snap: snapshot number to use, defaults to 99 (z = 0)
     :param mass_field: name of the simulation field that signifies the
         halo mass, defaults to M_crit200
-    :return: configuration for this specific 
+    :return: configuration for this specific
     """
-    final_config  = Config(
+    final_config = Config(
         f"/virgotng/universe/IllustrisTNG/{sim}/output", snap, mass_field
     )
     return final_config

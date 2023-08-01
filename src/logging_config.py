@@ -8,6 +8,7 @@ def get_logging_config(logging_level: str | int) -> None:
     :param logging_level: logging level to use
     :return: logging config for use with ``dictConfig`` of logging module
     """
+    # yapf: disable
     logging_config = {
         "version": 1,
         "formatters": {
@@ -16,18 +17,19 @@ def get_logging_config(logging_level: str | int) -> None:
             }
         },
         "handlers": {
-            "base": {
-                "class": "logging.StreamHandler",
-                "level": logging_level,
-                "formatter": "stdout",
-                "stream": "ext://sys.stdout"
-            }
+            "base":
+                {
+                    "class": "logging.StreamHandler",
+                    "level": logging_level,
+                    "formatter": "stdout",
+                    "stream": "ext://sys.stdout"
+                }
         },
         "root": {
-            "level": logging_level,
-            "handlers": ["base"]
+            "level": logging_level, "handlers": ["base"]
         },
     }
+    # yapf: enable
     return logging_config
 
 

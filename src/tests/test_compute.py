@@ -16,6 +16,7 @@ def test_compute_get_temperature_float():
     temp = compute.get_temperature(10, 0.5)
     assert temp == pytest.approx(673.04, 0.2)
 
+
 def test_compute_get_temperature_array():
     """
     Test the get temperature function with array input

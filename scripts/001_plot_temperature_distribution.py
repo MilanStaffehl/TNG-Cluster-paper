@@ -13,9 +13,9 @@ import plotters
 
 
 def main(
-    sim: str, 
-    multiproc: bool = True, 
-    processes: int = 16, 
+    sim: str,
+    multiproc: bool = True,
+    processes: int = 16,
     to_file: bool = False,
     suppress_plots: bool = False,
     quiet: bool = False,
@@ -40,7 +40,7 @@ def main(
     hist_plotter = plotters.TemperatureDistributionPlotter(
         SIMULATION, MASS_BINS, logger
     )
-    
+
     # time the full calculation process
     begin = time.time()
     if multiproc:
@@ -66,45 +66,59 @@ if __name__ == "__main__":
         description="Plot temperature distribution of halos in TNG",
     )
     parser.add_argument(
-        "-s", "--sim", 
-        help=("Type of the simulation to use; main sim is TNG300-1, dev sim "
-              "is TNG50-3 and test sim is TNG50-4"), 
+        "-s",
+        "--sim",
+        help=(
+            "Type of the simulation to use; main sim is TNG300-1, dev sim "
+            "is TNG50-3 and test sim is TNG50-4"
+        ),
         dest="sim",
-        type=str, 
-        default="MAIN_SIM", 
+        type=str,
+        default="MAIN_SIM",
         choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
     )
     parser.add_argument(
-        "-m", "--multiproc",
+        "-m",
+        "--multiproc",
         help="Use multiprocessing",
         dest="multiproc",
         action="store_true",
     )
     parser.add_argument(
-        "-p", "--processes",
-        help=("Number of processes to use for multiprocessing. Ignored if -m "
-              "is not used."),
+        "-p",
+        "--processes",
+        help=(
+            "Number of processes to use for multiprocessing. Ignored if -m "
+            "is not used."
+        ),
         dest="processes",
         type=int,
         default=16,
     )
     parser.add_argument(
-        "-f", "--to-file",
+        "-f",
+        "--to-file",
         help="Whether to write the histogram data to .npy file",
         dest="to_file",
         action="store_true",
     )
     parser.add_argument(
-        "-n", "--no-plots",
-        help=("Suppresses creation of plots, use to prevent overwriting "
-              "existing files."),
+        "-n",
+        "--no-plots",
+        help=(
+            "Suppresses creation of plots, use to prevent overwriting "
+            "existing files."
+        ),
         dest="no_plots",
         action="store_true",
     )
     parser.add_argument(
-        "-q", "--quiet",
-        help=("Prevent progress information to be emitted. Has no effect when "
-              "multiprocessing is used."),
+        "-q",
+        "--quiet",
+        help=(
+            "Prevent progress information to be emitted. Has no effect when "
+            "multiprocessing is used."
+        ),
         dest="quiet",
         action="store_true",
     )
@@ -113,10 +127,10 @@ if __name__ == "__main__":
     try:
         args = parser.parse_args()
         main(
-            args.sim, 
-            args.multiproc, 
-            args.processes, 
-            args.to_file, 
+            args.sim,
+            args.multiproc,
+            args.processes,
+            args.to_file,
             args.no_plots,
             args.quiet,
         )

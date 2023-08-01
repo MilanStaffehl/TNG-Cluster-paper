@@ -60,8 +60,8 @@ class TemperatureDistributionPlotter:
         """
         self.logger.info("Loading halo masses.")
         halo_masses = il.groupcat.loadHalos(
-            self.config.base_path, 
-            self.config.snap_num, 
+            self.config.base_path,
+            self.config.snap_num,
             fields=self.config.mass_field,
         )
         num_halos = len(halo_masses)
@@ -73,11 +73,11 @@ class TemperatureDistributionPlotter:
         """
         Create an array of bin indices matching the halos to their bin.
 
-        The array will hold numbers from 0 to ``self.n_mass_bins`` - 1, 
+        The array will hold numbers from 0 to ``self.n_mass_bins`` - 1,
         where each number corresponds to the mass bin into which the
         corresponding halo with the same array indx falls into, i.e.
         if the i-th entry of the list is equals to 1, then the i-th
-        halo falls into the second mass bin (that is, it has a mass 
+        halo falls into the second mass bin (that is, it has a mass
         between ``self.bins[1]`` and ``self.bins[2]``).
         """
         if self.masses is None or self.indices is None:
@@ -89,12 +89,12 @@ class TemperatureDistributionPlotter:
 
     def get_hists(self, processes: int = 16) -> None:
         """
-        Load the histogram data for every halo in the dataset. 
+        Load the histogram data for every halo in the dataset.
 
-        Requires that the halo mass data has already been loaded with 
+        Requires that the halo mass data has already been loaded with
         ``get_data``. It loads, for every bin, the gas cells of every
-        halo and computes both the gas mass fraction as well as the 
-        temperature of the every gas cell. It then calculates histogram 
+        halo and computes both the gas mass fraction as well as the
+        temperature of the every gas cell. It then calculates histogram
         data for every halo (for a gas mass fration vs. temperature
         histogram). The histograms are packed into a list which in turn
         is placed into a tuple of as many members as there are mass
@@ -111,7 +111,7 @@ class TemperatureDistributionPlotter:
             self.logger.info("No data loaded yet, start loading now.")
             self.get_data()
             self.get_mask()
-        
+
         self.logger.info("Start processing halo data.")
         # multiprocess the entire problem
         chunksize = round(len(self.indices) / processes / 4, -2)
@@ -129,12 +129,12 @@ class TemperatureDistributionPlotter:
 
     def get_hists_lin(self, quiet: bool = False):
         """
-        Load the histogram data for every halo in the dataset. 
+        Load the histogram data for every halo in the dataset.
 
-        Requires that the halo mass data has already been loaded with 
+        Requires that the halo mass data has already been loaded with
         ``get_data``. It loads, for every bin, the gas cells of every
-        halo and computes both the gas mass fraction as well as the 
-        temperature of the every gas cell. It then calculates histogram 
+        halo and computes both the gas mass fraction as well as the
+        temperature of the every gas cell. It then calculates histogram
         data for every halo (for a gas mass fration vs. temperature
         histogram). The histograms are packed into a list which in turn
         is placed into a tuple of as many members as there are mass
@@ -159,12 +159,12 @@ class TemperatureDistributionPlotter:
             if not quiet:
                 perc = i / n_halos * 100
                 print(
-                    f"Processing halo {halo_id}/{n_halos} ({perc:.1f}%)", 
+                    f"Processing halo {halo_id}/{n_halos} ({perc:.1f}%)",
                     end="\r"
                 )
             # halos outside of the mass bin needn't be procesed
-            if (self.masses[halo_id] < self.mass_bins[0] 
-                or self.masses[halo_id] > self.mass_bins[-1]):
+            if (self.masses[halo_id] < self.mass_bins[0]
+                    or self.masses[halo_id] > self.mass_bins[-1]):
                 continue
             self.hist_data[halo_id] = self._get_hists_step(halo_id)
         self.logger.info("Finished processing halo data.")
@@ -200,7 +200,7 @@ class TemperatureDistributionPlotter:
         """
         Plot the distribution of temperatures for all halos of the mass bin.
 
-        Plots a histogram using the data of all halos in the specified 
+        Plots a histogram using the data of all halos in the specified
         mass bin. The mass bin must be given as an array index, i.e.
         starting from zero.
 
@@ -235,12 +235,12 @@ class TemperatureDistributionPlotter:
         }
         axes.bar(centers, self.histograms[bin_num], width=width, **plot_config)
 
-        # save figure 
+        # save figure
         fig.savefig(
-            f"./../figures/001/temperature_hist_{bin_num}{suffix}.pdf", 
+            f"./../figures/001/temperature_hist_{bin_num}{suffix}.pdf",
             bbox_inches="tight"
         )
-    
+
     def _get_hists_step(self, halo_id: int) -> int:
         """
         Calculate the hist data for a single halo and place it into attr.
@@ -250,7 +250,7 @@ class TemperatureDistributionPlotter:
         weighted by gas mas fraction as histogram data. The resulting
         histogram data - an array of shape ``(N, self.n_bins)`` is then
         assigned to its index position of the ``self.hist_data`` array,
-        which must be created first by calling ``get_data``. 
+        which must be created first by calling ``get_data``.
 
         Returns numpy array containing the histogram data.
 
@@ -258,8 +258,8 @@ class TemperatureDistributionPlotter:
         :return: numpy array of hist data
         """
         # check if the halo needs to be loaded
-        if (self.masses[halo_id] < self.mass_bins[0] 
-            or self.masses[halo_id] > self.mass_bins[-1]):
+        if (self.masses[halo_id] < self.mass_bins[0]
+                or self.masses[halo_id] > self.mass_bins[-1]):
             return np.zeros(self.n_bins)
         # load required halo data
         gas_data = il.snapshot.loadHalo(
@@ -276,11 +276,13 @@ class TemperatureDistributionPlotter:
                 f"Halo {halo_id} contains no gas. Returning an empty hist."
             )
             return np.zeros(self.n_bins)
-        
+
         # calculate hist and return it
         return self._calculate_hist_data(gas_data)
 
-    def _calculate_hist_data(self, gas_data: dict[str, ArrayLike]) -> ArrayLike:
+    def _calculate_hist_data(
+        self, gas_data: dict[str, ArrayLike]
+    ) -> ArrayLike:
         """
         Calculate gas temperature and bin them into histogram data.
 
@@ -288,7 +290,7 @@ class TemperatureDistributionPlotter:
             have keys for internal energy, electron abundance and for
             gas mass
         :return: histogram data, i.e. the binned temperature counts,
-            weighted by gas mass fraction 
+            weighted by gas mass fraction
         """
         # calculate helper quantities
         total_gas_mass = np.sum(gas_data["Masses"])
@@ -299,13 +301,13 @@ class TemperatureDistributionPlotter:
 
         # generate and assign hist data
         hist, _ = np.histogram(
-            np.log10(temperatures), 
-            bins=self.n_bins, 
+            np.log10(temperatures),
+            bins=self.n_bins,
             range=self.temperature_range,
             weights=gas_mass_fracs,
         )
         return hist
-    
+
     def __str__(self) -> str:
         """
         Return a string containing information on the current mass bins.
@@ -316,7 +318,7 @@ class TemperatureDistributionPlotter:
             return "No data loaded yet."
         if self.bin_masker is None:
             return "No bin mask created yet."
-        
+
         ret_str = ""
         unique, counts = np.unique(self.bin_masker, return_counts=True)
         halos_per_bin = dict(zip(unique, counts))
@@ -328,4 +330,3 @@ class TemperatureDistributionPlotter:
             )
         ret_str += f"Total halos: {np.sum(counts[1:])}\n"
         return ret_str
-
