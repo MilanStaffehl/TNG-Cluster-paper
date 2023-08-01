@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import multiprocessing as mp
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 import illustris_python as il
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
-import matplotlib.pyplot as plt
-import tqdm
 from numpy.typing import ArrayLike
 
 import compute
@@ -46,6 +46,7 @@ class TemperatureDistributionPlotter:
         self.masses = None
         self.bin_masker = None  # set by get_mask
         self.hist_data = None  # histograms of temp
+        self.histograms = None  # stacked histograms per mass bin
 
     def get_data(self) -> None:
         """
@@ -79,6 +80,11 @@ class TemperatureDistributionPlotter:
         halo falls into the second mass bin (that is, it has a mass 
         between ``self.bins[1]`` and ``self.bins[2]``).
         """
+        if self.masses is None or self.indices is None:
+            self.logger.info(
+                "No masses to create mask from yet. Loading masses now."
+            )
+            self.get_data()
         self.bin_masker = np.digitize(self.masses, self.mass_bins)
 
     def get_hists(self, processes: int = 16) -> None:
@@ -102,16 +108,17 @@ class TemperatureDistributionPlotter:
         :return: None
         """
         if self.indices is None or self.masses is None:
-            raise TypeError(
-                "Data is not loaded yet, please use 'get_data' to load it first."
-            )
+            self.logger.info("No data loaded yet, start loading now.")
+            self.get_data()
+            self.get_mask()
         
         self.logger.info("Start processing halo data.")
         # multiprocess the entire problem
-        chunksize = round(len(self.indices) / processes, -3)
+        chunksize = round(len(self.indices) / processes / 4, -2)
+        self.logger.info(f"Starting subprocesses with chunksize {chunksize}.")
         with mp.Pool(processes=processes) as pool:
             results = pool.map(
-                self._get_hists_step, self.indices, chunksize=chunksize
+                self._get_hists_step, self.indices, chunksize=int(chunksize)
             )
             pool.close()
             pool.join()
@@ -120,7 +127,7 @@ class TemperatureDistributionPlotter:
         # assign array of hist data to attribute
         self.hist_data = np.array(results)
 
-    def get_hists_lin(self):
+    def get_hists_lin(self, quiet: bool = False):
         """
         Load the histogram data for every halo in the dataset. 
 
@@ -136,26 +143,60 @@ class TemperatureDistributionPlotter:
 
         This method will take considerable computation time.
 
-        :param processes: number of processes to use for calculation
-            with multiprocessing (i.e. number of CPU cores to use)
+        :param quiet: whether to suppress writing progress report to
+            stdout
         :return: None
         """
         if self.indices is None or self.masses is None:
-            raise TypeError(
-                "Data is not loaded yet, please use 'get_data' to load it first."
-            )
+            self.logger.info("No data loaded yet, start loading now.")
+            self.get_data()
+            self.get_mask()
+
         self.logger.info("Start processing halo data.")
         n_halos = len(self.indices)
         self.hist_data = np.zeros((n_halos, self.n_bins))
         for i, halo_id in enumerate(self.indices):
-            perc = i / n_halos * 100
-            print(
-                f"Processing halo {halo_id}/{n_halos} ({perc:.1f}%)", end="\r"
-            )
+            if not quiet:
+                perc = i / n_halos * 100
+                print(
+                    f"Processing halo {halo_id}/{n_halos} ({perc:.1f}%)", 
+                    end="\r"
+                )
+            # halos outside of the mass bin needn't be procesed
+            if (self.masses[halo_id] < self.mass_bins[0] 
+                or self.masses[halo_id] > self.mass_bins[-1]):
+                continue
             self.hist_data[halo_id] = self._get_hists_step(halo_id)
         self.logger.info("Finished processing halo data.")
 
-    def plot_stacked_hist(self, bin_num: int) -> None:
+    def stack_bins(self, to_file: bool = False, suffix: str = "") -> None:
+        """
+        Stack all histograms per mass bin for average histogram.
+
+        The method will average all histograms in every mass bin and
+        assign the resulting average histogram data to the ``histograms``
+        attribute. Optionally, the data can also be written to a numpy
+        readable binary file.
+
+        :param to_file: whether to write the resulting array of histograms
+            to file, defaults to False
+        :return: None
+        """
+        self.histograms = np.zeros((self.n_mass_bins, self.n_bins))
+        for bin_num in range(self.n_mass_bins):
+            # mask histogram data
+            mask = np.where(self.bin_masker == bin_num + 1, 1, 0)
+            halo_hists = ma.masked_array(self.hist_data).compress(mask, axis=0)
+            self.histograms[bin_num] = np.average(halo_hists, axis=0)
+
+        if to_file:
+            cur_dir = Path(__file__).parent.resolve()
+            file_path = (
+                cur_dir.parent / "data" / f"temperature_hists{suffix}.npy"
+            )
+            np.save(file_path, self.histograms)
+
+    def plot_stacked_hist(self, bin_num: int, suffix: str = "") -> None:
         """
         Plot the distribution of temperatures for all halos of the mass bin.
 
@@ -165,6 +206,9 @@ class TemperatureDistributionPlotter:
 
         :param bin_num: mass bin index, starting from zero
         """
+        if self.histograms is None:
+            self.stack_bins(suffix=suffix)
+
         self.logger.info(f"Plotting temperature hist for mass bin {bin_num}.")
         fig, axes = plt.subplots(figsize=(4, 4))
         fig.set_tight_layout(True)
@@ -182,11 +226,6 @@ class TemperatureDistributionPlotter:
         width = bins[1] - bins[0]
         centers = (bins[:-1] + bins[1:]) / 2
 
-        # mask histogram data
-        mask = np.where(self.bin_masker == bin_num + 1, 1, 0)
-        halo_hists = ma.masked_array(self.hist_data).compress(mask, axis=0)
-        data = np.average(halo_hists, axis=0)
-
         # plot data
         plot_config = {
             "align": "center",
@@ -194,11 +233,11 @@ class TemperatureDistributionPlotter:
             "edgecolor": "black",
             "log": True,
         }
-        axes.bar(centers, data, width=width, **plot_config)
+        axes.bar(centers, self.histograms[bin_num], width=width, **plot_config)
 
         # save figure 
         fig.savefig(
-            f"./../figures/001_temperature_hist_{bin_num}.pdf", 
+            f"./../figures/001/temperature_hist_{bin_num}{suffix}.pdf", 
             bbox_inches="tight"
         )
     
@@ -218,6 +257,10 @@ class TemperatureDistributionPlotter:
         :param halo_id: ID of the halo to process
         :return: numpy array of hist data
         """
+        # check if the halo needs to be loaded
+        if (self.masses[halo_id] < self.mass_bins[0] 
+            or self.masses[halo_id] > self.mass_bins[-1]):
+            return np.zeros(self.n_bins)
         # load required halo data
         gas_data = il.snapshot.loadHalo(
             self.config.base_path,
@@ -238,6 +281,15 @@ class TemperatureDistributionPlotter:
         return self._calculate_hist_data(gas_data)
 
     def _calculate_hist_data(self, gas_data: dict[str, ArrayLike]) -> ArrayLike:
+        """
+        Calculate gas temperature and bin them into histogram data.
+
+        :param gas_data: dictionary holding arrays with gas data. Must
+            have keys for internal energy, electron abundance and for
+            gas mass
+        :return: histogram data, i.e. the binned temperature counts,
+            weighted by gas mass fraction 
+        """
         # calculate helper quantities
         total_gas_mass = np.sum(gas_data["Masses"])
         gas_mass_fracs = gas_data["Masses"] / total_gas_mass

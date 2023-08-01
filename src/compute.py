@@ -9,7 +9,7 @@ energy and electron abundance.
 import numpy as np
 from numpy.typing import ArrayLike
 
-from constants import X_H, m_p, k_B
+from constants import X_H, k_B, m_p
 
 
 @np.vectorize
