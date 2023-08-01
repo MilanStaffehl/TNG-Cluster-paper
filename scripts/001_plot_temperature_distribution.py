@@ -51,7 +51,11 @@ def main(
     FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}"
     hist_plotter.stack_bins(to_file=to_file, suffix=FILE_SUFFIX)
     end = time.time()
-    logger.info(f"Spent {end - begin:.2f} seconds on execution.")
+
+    # get time spent on computation
+    time_diff = end - begin
+    time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
+    logger.info(f"Spent {time_fmt} hours on execution.")
 
     if suppress_plots:
         sys.exit(0)

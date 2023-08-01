@@ -89,7 +89,7 @@ class TemperatureDistributionPlotter:
 
     def get_hists(self, processes: int = 16) -> None:
         """
-        Load the histogram data for every halo in the dataset.
+        Load the histogram data for every halo using multiprocessing.
 
         Requires that the halo mass data has already been loaded with
         ``get_data``. It loads, for every bin, the gas cells of every
@@ -101,7 +101,24 @@ class TemperatureDistributionPlotter:
         bins. This tuple is then assigned to the ``binned_temperature_hists``
         attribute.
 
-        This method will take considerable computation time.
+        The number of processes should be set such that the method can
+        take full advantage of all available CPU cores. It will default
+        to 16 processes. The number of processes should be at most equal
+        to the number of CPU cores on the executing host, otherwise the
+        performance will suffer.
+
+        Chunksize for the processes is calculated automatically. It
+        takes into account that not all chunks of a list of halos will
+        take equal amount of computation time: lower mass halos will
+        typically be orders of magnitude faster. Therefore, the chunk
+        size is only a quarter of the maximum possible chunk size, to
+        allow processes that have finished their chunk faster to be
+        assigned a new chunk instead of idling.
+
+        This method will take considerable computation time. Computation
+        is roughly reduced by a factor equal to the number of processes
+        compared to usage of `get_hists_lin`, provided the file system
+        is fast and does not add considerable overhead through file IO.
 
         :param processes: number of processes to use for calculation
             with multiprocessing (i.e. number of CPU cores to use)
@@ -129,7 +146,7 @@ class TemperatureDistributionPlotter:
 
     def get_hists_lin(self, quiet: bool = False):
         """
-        Load the histogram data for every halo in the dataset.
+        Load the histogram data for every halo without multiprocessing.
 
         Requires that the halo mass data has already been loaded with
         ``get_data``. It loads, for every bin, the gas cells of every
@@ -141,7 +158,10 @@ class TemperatureDistributionPlotter:
         bins. This tuple is then assigned to the ``binned_temperature_hists``
         attribute.
 
-        This method will take considerable computation time.
+        This method will take considerable computation time. For large
+        simulations with many halos, it is recommended to use ``get_hists``
+        instead, setting an appropriate number of subprocesses. This is
+        typically much faster, provided the file system is fast.
 
         :param quiet: whether to suppress writing progress report to
             stdout
@@ -196,7 +216,45 @@ class TemperatureDistributionPlotter:
             )
             np.save(file_path, self.histograms)
 
-    def plot_stacked_hist(self, bin_num: int, suffix: str = "") -> None:
+    def load_stacked_hist(self, np_file: str | Path) -> None:
+        """
+        Load stacked (averaged) histogram data from file.
+
+        The file needs to be a numpy-loadable file, containing a 2D
+        array, with the first axis matching in length the number of
+        mass bins and the second axis matching the number of histogram
+        bins ``self.n_bins``.
+
+        The loaded data is placed into the ``histograms`` attribute.
+
+        :param file: file name of the numpy data file
+        """
+        if not isinstance(np_file, Path):
+            np_file = Path(np_file)
+
+        if not np_file.is_file():
+            self.logger.error(
+                f"The given file {str(np_file)} is not a valid file."
+            )
+            return
+
+        # attempt to load the data
+        hist_data = np.load(np_file)
+
+        # verify data:
+        if not hist_data.shape == (self.n_mass_bins, self.n_bins):
+            self.logger.error(
+                f"Loaded histogram data does not match expected data in "
+                f"shape:\nExpected shape: {(self.n_mass_bins, self.n_bins)}, "
+                f"received shape: {hist_data.shape}"
+            )
+            return
+        else:
+            self.histograms = hist_data
+
+    def plot_stacked_hist(
+        self, bin_num: int, suffix: str = "", log: bool = True
+    ) -> None:
         """
         Plot the distribution of temperatures for all halos of the mass bin.
 
@@ -205,6 +263,10 @@ class TemperatureDistributionPlotter:
         starting from zero.
 
         :param bin_num: mass bin index, starting from zero
+        :param suffix: suffix appended to output file name, defaults to
+            an empty string (no suffix)
+        :param log: whether to plot the histograms in logarithmic scale
+            on the y-axis, defaults to False
         """
         if self.histograms is None:
             self.stack_bins(suffix=suffix)
@@ -231,7 +293,7 @@ class TemperatureDistributionPlotter:
             "align": "center",
             "color": "lightblue",
             "edgecolor": "black",
-            "log": True,
+            "log": log,
         }
         axes.bar(centers, self.histograms[bin_num], width=width, **plot_config)
 
