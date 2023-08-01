@@ -1,8 +1,10 @@
 illustris_python>=1.0.0
-numpy
-astropy
-matplotlib
-numba
-pytest
-flake8
-isort
+notebook>=7.0.0
+numpy>=1.24.4
+astropy>=5.3.1
+matplotlib>=3.7.2
+pytest>=7.4.0
+flake8>=6.0.0
+flake8-bugbear>=23.7.10
+isort>=5.12.0
+pre-commit>=3.3.3
