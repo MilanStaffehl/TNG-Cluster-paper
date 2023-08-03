@@ -19,6 +19,7 @@ def main(
     to_file: bool = False,
     suppress_plots: bool = False,
     quiet: bool = False,
+    overplot: bool = True,
 ) -> None:
     """Create histograms of temperature distribution"""
     logging_cfg = logging_config.get_logging_config("INFO")
@@ -59,14 +60,28 @@ def main(
 
     if suppress_plots:
         sys.exit(0)
+
+    # plots require virial temperature data
+    if overplot and multiproc:
+        hist_plotter.get_virial_temperatures(
+            processes=processes, to_file=to_file
+        )
+    elif overplot and not multiproc:
+        hist_plotter.get_virial_temperatures_lin(
+            quiet=quiet, to_file=to_file, suffix=FILE_SUFFIX
+        )
+    else:
+        pass  # skip intensive calculation, it is not needed
     # plot histograms
     for i in range(len(MASS_BINS) - 1):
-        hist_plotter.plot_stacked_hist(i, suffix=FILE_SUFFIX)
+        hist_plotter.plot_stacked_hist(
+            i, suffix=FILE_SUFFIX, plot_vir_temp=overplot
+        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog="python 001_plot_temperature_distribution.py",
+        prog=f"python {Path(__file__).name}",
         description="Plot temperature distribution of halos in TNG",
     )
     parser.add_argument(
@@ -102,7 +117,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f",
         "--to-file",
-        help="Whether to write the histogram data to .npy file",
+        help=(
+            "Whether to write the histogram and virial temperature data "
+            "calclated to file"
+        ),
         dest="to_file",
         action="store_true",
     )
@@ -126,6 +144,13 @@ if __name__ == "__main__":
         dest="quiet",
         action="store_true",
     )
+    parser.add_argument(
+        "-o",
+        "--no-overplot",
+        help="Suppress overplotting of virial temperature regions",
+        dest="overplot",
+        action="store_false",
+    )
 
     # parse arguments
     try:
@@ -137,6 +162,7 @@ if __name__ == "__main__":
             args.to_file,
             args.no_plots,
             args.quiet,
+            args.overplot,
         )
     except KeyboardInterrupt:
         print(

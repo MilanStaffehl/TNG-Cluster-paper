@@ -21,4 +21,5 @@ export OMP_NUM_THREADS=1
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/001/plot_temperature_distribution.py -m -p $SLURM_CPUS_PER_TASK -f
+source ~/venvs/illustris/bin/activate
+srun python3 ~/thesisProject/scripts/001/plot_temperature_distribution.py -s TEST_SIM -p $SLURM_CPUS_PER_TASK > output/hists.out

@@ -9,6 +9,9 @@ import astropy.constants
 HUBBLE = 0.6774
 X_H = 0.76
 
-# physical constants (copied to avoid repeated reference to astropy)
+# physical constants (copied to minimze lookup time)
+G = copy.copy(astropy.constants.G.cgs.value)
 k_B = copy.copy(astropy.constants.k_B.cgs.value)
+kpc = copy.copy(astropy.constants.kpc.cgs.value)
 m_p = copy.copy(astropy.constants.m_p.cgs.value)
+M_sol = copy.copy(astropy.constants.M_sun.cgs.value)

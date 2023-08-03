@@ -6,12 +6,12 @@ from pathlib import Path
 
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
-sys.path.append(str(cur_dir.parent / "src"))
+sys.path.append(str(cur_dir.parent.parent / "src"))
 import logging_config
 from plotters import temperature_hists
 
 
-def main(sim: str) -> None:
+def main(sim: str, vir_temp: bool = True) -> None:
     logging_cfg = logging_config.get_logging_config("INFO")
     logging.config.dictConfig(logging_cfg)
     logger = logging.getLogger("root")
@@ -33,13 +33,28 @@ def main(sim: str) -> None:
     )
 
     # load hist data from file
-    hist_plotter.load_stacked_hist("~/thesisProject/data/")
+    FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}"
+    filename = f"temperature_hists{FILE_SUFFIX}.npz"
+    filepath = Path().home() / "thesisProject" / "data" / "001"
+    hist_plotter.load_stacked_hist(filepath / filename)
+    if vir_temp:
+        filename = f"virial_temperatures{FILE_SUFFIX}.npy"
+        hist_plotter.load_virial_temperatures(filepath / filename)
+
+    # plot the historgram with the file data
+    for i in range(len(MASS_BINS) - 1):
+        hist_plotter.plot_stacked_hist(
+            i, suffix=FILE_SUFFIX, plot_vir_temp=vir_temp
+        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog="python 001_plot_temperature_distribution.py",
-        description="Plot temperature distribution of halos in TNG",
+        prog=f"python {Path(__file__).name}",
+        description=(
+            "Plot temperature distribution of halos in TNG, using "
+            "data from file"
+        ),
     )
     parser.add_argument(
         "-s",
@@ -53,15 +68,18 @@ if __name__ == "__main__":
         default="MAIN_SIM",
         choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
     )
+    parser.add_argument(
+        "-n",
+        "--no-virial-temperatures",
+        help="Suppress plotting virial temperature region overlay",
+        dest="virial_temperatures",
+        action="store_false",
+    )
 
     # parse arguments
     try:
         args = parser.parse_args()
-        main(args.sim)
+        main(args.sim, args.virial_temperatures)
     except KeyboardInterrupt:
-        print(
-            "Execution forcefully stopped. Some subprocesses might still be "
-            "running and need to be killed manually if multiprocessing was "
-            "used."
-        )
+        print("Execution forcefully stopped by user.")
         sys.exit(1)

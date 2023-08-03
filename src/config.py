@@ -19,15 +19,21 @@ class Config:
     :param snap_num: number of the snapshot to use
     :param mass_field: the field name to use as mass indicator for
         groups/halos
+    :param radius_field: the field name to use as radius indicator for
+        groups/halos
     """
 
     base_path: str | Path
     snap_num: int
     mass_field: str
+    radius_field: str
 
 
 def get_config(
-    sim: str, snap: int = 99, mass_field: str = "Group_M_Crit200"
+    sim: str,
+    snap: int = 99,
+    mass_field: str = "Group_M_Crit200",
+    radius_field: str = "Group_R_Crit200"
 ) -> Config:
     """
     Return a configuration for the specified simulation.
@@ -37,9 +43,14 @@ def get_config(
     :param snap: snapshot number to use, defaults to 99 (z = 0)
     :param mass_field: name of the simulation field that signifies the
         halo mass, defaults to M_crit200
+    :param radius_field: name of the simulation field that signifies the
+        halo radius, defaults to R_crit200
     :return: configuration for this specific
     """
     final_config = Config(
-        f"/virgotng/universe/IllustrisTNG/{sim}/output", snap, mass_field
+        f"/virgotng/universe/IllustrisTNG/{sim}/output",
+        snap_num=snap,
+        mass_field=mass_field,
+        radius_field=radius_field,
     )
     return final_config
