@@ -45,7 +45,7 @@ class TemperatureDistributionPlotter:
         self.indices = None
         self.masses = None
         self.bin_masker = None  # set by get_mask
-        self.hist_data = None  # histograms of temp
+        self.hist_data = None  # histograms of temperature
         self.histograms = None  # stacked histograms per mass bin
 
     def get_data(self) -> None:

@@ -7,9 +7,9 @@ from pathlib import Path
 
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
-sys.path.append(str(cur_dir.parent / "src"))
+sys.path.append(str(cur_dir.parent.parent / "src"))
 import logging_config
-import plotters
+from plotters import temperature_hists
 
 
 def main(
@@ -37,7 +37,7 @@ def main(
 
     # plot hist data
     MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
-    hist_plotter = plotters.TemperatureDistributionPlotter(
+    hist_plotter = temperature_hists.TemperatureDistributionPlotter(
         SIMULATION, MASS_BINS, logger
     )
 

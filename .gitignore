@@ -33,8 +33,9 @@ external/
 figures/
 data/
 
-# nohup output files
+# nohup and batch output files
 scripts/*nohup.out
+scripts/*/output/
 
 # temporary scripts
 scripts/tmp*.py
