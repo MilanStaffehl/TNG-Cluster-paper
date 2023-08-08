@@ -11,40 +11,47 @@ import logging_config
 from plotters import temperature_hists
 
 
-def main(sim: str, vir_temp: bool = True) -> None:
+def main(args: argparse.Namespace) -> None:
+    """Plot temperature distribution from data in files"""
     logging_cfg = logging_config.get_logging_config("INFO")
     logging.config.dictConfig(logging_cfg)
     logger = logging.getLogger("root")
 
     # sim data
-    if sim == "TEST_SIM":
+    if args.sim == "TEST_SIM":
         SIMULATION = "TNG50-4"
-    elif sim == "DEV_SIM":
+    elif args.sim == "DEV_SIM":
         SIMULATION = "TNG50-3"
-    elif sim == "MAIN_SIM":
+    elif args.sim == "MAIN_SIM":
         SIMULATION = "TNG300-1"
     else:
-        raise ValueError(f"Unknown simulation type {sim}.")
+        raise ValueError(f"Unknown simulation type {args.sim}.")
+
+    # histogram weights
+    if args.total_mass:
+        weight_type = "mass"
+    else:
+        weight_type = "frac"
 
     # plot hist data
     MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
     hist_plotter = temperature_hists.TemperatureDistributionPlotter(
-        SIMULATION, MASS_BINS, logger
+        SIMULATION, MASS_BINS, logger, weight=weight_type
     )
 
     # load hist data from file
-    FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}"
+    FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}_{weight_type}"
     filename = f"temperature_hists{FILE_SUFFIX}.npz"
     filepath = Path().home() / "thesisProject" / "data" / "001"
     hist_plotter.load_stacked_hist(filepath / filename)
-    if vir_temp:
-        filename = f"virial_temperatures{FILE_SUFFIX}.npy"
+    if args.virial_temperatures:
+        filename = f"virial_temperatures_{SIMULATION.replace('-', '_')}.npy"
         hist_plotter.load_virial_temperatures(filepath / filename)
 
     # plot the historgram with the file data
     for i in range(len(MASS_BINS) - 1):
         hist_plotter.plot_stacked_hist(
-            i, suffix=FILE_SUFFIX, plot_vir_temp=vir_temp
+            i, suffix=FILE_SUFFIX, plot_vir_temp=args.virial_temperatures
         )
 
 
@@ -75,11 +82,18 @@ if __name__ == "__main__":
         dest="virial_temperatures",
         action="store_false",
     )
+    parser.add_argument(
+        "-t",
+        "--total-mass",
+        help="Use the histograms weighted by gas mass instead of gas fraction",
+        dest="total_mass",
+        action="store_true",
+    )
 
     # parse arguments
     try:
         args = parser.parse_args()
-        main(args.sim, args.virial_temperatures)
+        main(args)
     except KeyboardInterrupt:
         print("Execution forcefully stopped by user.")
         sys.exit(1)

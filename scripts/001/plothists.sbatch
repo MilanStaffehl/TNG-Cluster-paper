@@ -5,15 +5,15 @@
 #SBATCH -o ./output/out.%j
 #SBATCH -e ./output/err.%j
 #SBATCH -D ./
-#SBATCH -J MS_PLOT_HISTS
+#SBATCH -J ms001plt
 #SBATCH --nodes=1             # request a full node
 #SBATCH --ntasks-per-node=1   # only start 1 task via srun because Python multiprocessing starts more tasks internally
 #SBATCH --cpus-per-task=72    # assign all the cores to that first task to make room for Python's multiprocessing tasks
 #SBATCH --time=00:30:00
 
 module purge
-module load gcc/10 impi/2021.2
-module load anaconda/3/2021.05
+module load gcc/13 impi/2021.9
+module load anaconda/3/2023.03
 
 # Important:
 # Set the number of OMP threads *per process* to avoid overloading of the node!
@@ -22,4 +22,5 @@ export OMP_NUM_THREADS=1
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
 source ~/venvs/illustris/bin/activate
-srun python3 ~/thesisProject/scripts/001/plot_temperature_distribution.py -s TEST_SIM -p $SLURM_CPUS_PER_TASK > output/hists.out
+srun python3 ~/thesisProject/scripts/001/plot_temperature_distribution.py -s DEV_SIM -m -p $SLURM_CPUS_PER_TASK
+srun python3 ~/thesisProject/scripts/001/plot_temperature_distribution.py -s DEV_SIM -m -p $SLURM_CPUS_PER_TASK --total-mass

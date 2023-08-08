@@ -12,45 +12,43 @@ import logging_config
 from plotters import temperature_hists
 
 
-def main(
-    sim: str,
-    multiproc: bool = True,
-    processes: int = 16,
-    to_file: bool = False,
-    suppress_plots: bool = False,
-    quiet: bool = False,
-    overplot: bool = True,
-) -> None:
+def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
     logging_cfg = logging_config.get_logging_config("INFO")
     logging.config.dictConfig(logging_cfg)
     logger = logging.getLogger("root")
 
     # sim data
-    if sim == "TEST_SIM":
+    if args.sim == "TEST_SIM":
         SIMULATION = "TNG50-4"
-    elif sim == "DEV_SIM":
+    elif args.sim == "DEV_SIM":
         SIMULATION = "TNG50-3"
-    elif sim == "MAIN_SIM":
+    elif args.sim == "MAIN_SIM":
         SIMULATION = "TNG300-1"
     else:
-        raise ValueError(f"Unknown simulation type {sim}.")
+        raise ValueError(f"Unknown simulation type {args.sim}.")
 
-    # plot hist data
+    # histogram weights
+    if args.total_mass:
+        weight_type = "mass"
+    else:
+        weight_type = "frac"
+
+    # plotter for hist data
     MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
     hist_plotter = temperature_hists.TemperatureDistributionPlotter(
-        SIMULATION, MASS_BINS, logger
+        SIMULATION, MASS_BINS, logger, weight=weight_type
     )
 
     # time the full calculation process
     begin = time.time()
-    if multiproc:
-        hist_plotter.get_hists(processes=processes)
+    if args.multiproc:
+        hist_plotter.get_hists(processes=args.processes)
     else:
-        hist_plotter.get_hists_lin(quiet=quiet)
+        hist_plotter.get_hists_lin(quiet=args.quiet)
     # calculate average hist data
-    FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}"
-    hist_plotter.stack_bins(to_file=to_file, suffix=FILE_SUFFIX)
+    FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}_{weight_type}"
+    hist_plotter.stack_bins(to_file=args.to_file, suffix=FILE_SUFFIX)
     end = time.time()
 
     # get time spent on computation
@@ -58,24 +56,25 @@ def main(
     time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
     logger.info(f"Spent {time_fmt} hours on execution.")
 
-    if suppress_plots:
+    if args.no_plots:
         sys.exit(0)
 
     # plots require virial temperature data
-    if overplot and multiproc:
+    VT_SUFFIX = f"_{SIMULATION.replace('-', '_')}"
+    if args.overplot and args.multiproc:
         hist_plotter.get_virial_temperatures(
-            processes=processes, to_file=to_file
+            processes=args.processes, to_file=args.to_file, suffix=VT_SUFFIX
         )
-    elif overplot and not multiproc:
+    elif args.overplot and not args.multiproc:
         hist_plotter.get_virial_temperatures_lin(
-            quiet=quiet, to_file=to_file, suffix=FILE_SUFFIX
+            quiet=args.quiet, to_file=args.to_file, suffix=VT_SUFFIX
         )
     else:
         pass  # skip intensive calculation, it is not needed
     # plot histograms
     for i in range(len(MASS_BINS) - 1):
         hist_plotter.plot_stacked_hist(
-            i, suffix=FILE_SUFFIX, plot_vir_temp=overplot
+            i, suffix=FILE_SUFFIX, plot_vir_temp=args.overplot
         )
 
 
@@ -151,19 +150,18 @@ if __name__ == "__main__":
         dest="overplot",
         action="store_false",
     )
+    parser.add_argument(
+        "-t",
+        "--total-mass",
+        help="Use gas mass as hist weights instead of gas mass fraction",
+        dest="total_mass",
+        action="store_true",
+    )
 
     # parse arguments
     try:
         args = parser.parse_args()
-        main(
-            args.sim,
-            args.multiproc,
-            args.processes,
-            args.to_file,
-            args.no_plots,
-            args.quiet,
-            args.overplot,
-        )
+        main(args)
     except KeyboardInterrupt:
         print(
             "Execution forcefully stopped. Some subprocesses might still be "

@@ -34,11 +34,16 @@ class TemperatureDistributionPlotter:
     temperature_range: ClassVar[tuple[float]] = (3.0, 8.0)
 
     def __init__(
-        self, sim: str, mass_bins: list[float], logger: logging.Logger
+        self,
+        sim: str,
+        mass_bins: list[float],
+        logger: logging.Logger,
+        weight: str = "frac",
     ) -> None:
         self.logger = logger
         self.config = config.get_config(sim=sim)
         self.sim = sim
+        self.weight = weight
         self.mass_bins = mass_bins
         self.n_mass_bins = len(mass_bins) - 1
         # create attributes for data
@@ -245,7 +250,7 @@ class TemperatureDistributionPlotter:
         self.logger.info(f"Starting subprocesses with chunksize {chunksize}.")
         with mp.Pool(processes=processes) as pool:
             results = pool.starmap(
-                compute.get_virial_temperature,
+                self._get_virial_temperatures_step,
                 mass_radius_pairs,
                 chunksize=int(chunksize)
             )
@@ -476,7 +481,10 @@ class TemperatureDistributionPlotter:
             rf"< {np.log10(self.mass_bins[bin_num + 1])}$"
         )
         axes.set_xlabel("Gas temperature [log K]")
-        axes.set_ylabel("Average gas mass fraction")
+        if self.weight == "frac":
+            axes.set_ylabel("Average gas mass fraction")
+        else:
+            axes.set_ylabel(r"Average gas mass per cell [$M_\odot$]")
 
         # calculate bin positions
         _, bins = np.histogram(
@@ -485,9 +493,10 @@ class TemperatureDistributionPlotter:
         centers = (bins[:-1] + bins[1:]) / 2
 
         # plot data
+        facecolor = "lightblue" if self.weight == "frac" else "lightcoral"
         plot_config = {
             "histtype": "stepfilled",
-            "facecolor": "lightblue",
+            "facecolor": facecolor,
             "edgecolor": "black",
             "log": log,
         }
@@ -516,8 +525,8 @@ class TemperatureDistributionPlotter:
             **error_config
         )
 
-        # overplot virial temperatures
-        if self.virial_temperatures is None:
+        # overplot virial temperatures, if desired and possible:
+        if plot_vir_temp and self.virial_temperatures is None:
             self.logger.warning(
                 "Virial temperatures have not been calculated, skipping "
                 "overplotting of virial temperatures!"
@@ -586,7 +595,7 @@ class TemperatureDistributionPlotter:
         axes.fill_between(xs, 0, 1, **fill_config)
         return axes
 
-    def _get_hists_step(self, halo_id: int) -> int:
+    def _get_hists_step(self, halo_id: int) -> ArrayLike:
         """
         Calculate the hist data for a single halo and place it into attr.
 
@@ -625,9 +634,26 @@ class TemperatureDistributionPlotter:
         # calculate hist and return it
         return self._calculate_hist_data(gas_data)
 
-    def _calculate_hist_data(
-        self, gas_data: dict[str, ArrayLike]
-    ) -> ArrayLike:
+    def _get_virial_temperatures_step(
+        self, mass: float, radius: float
+    ) -> float:
+        """
+        Helper method, return virial temperature for a halo.
+
+        This method is needed as the decorated function within the
+        compute module cannot be used in multiprocessing directly.
+        It also is needed to avoid division by zero when the radius
+        of a given halo is zero.
+
+        :param mass: mass of halo in solar masses
+        :param radius: radius of halo in kpc
+        :return: virial temperature in Kelvin
+        """
+        if radius == 0:
+            return 0.0
+        return compute.get_virial_temperature(mass, radius)
+
+    def _calculate_hist_data(self, gas_data: ArrayLike) -> ArrayLike:
         """
         Calculate gas temperature and bin them into histogram data.
 
@@ -637,19 +663,22 @@ class TemperatureDistributionPlotter:
         :return: histogram data, i.e. the binned temperature counts,
             weighted by gas mass fraction
         """
-        # calculate helper quantities
-        total_gas_mass = np.sum(gas_data["Masses"])
-        gas_mass_fracs = gas_data["Masses"] / total_gas_mass
         temperatures = compute.get_temperature(
             gas_data["InternalEnergy"], gas_data["ElectronAbundance"]
         )
+        # determine weights for hist
+        if self.weight == "frac":
+            total_gas_mass = np.sum(gas_data["Masses"])
+            weights = gas_data["Masses"] / total_gas_mass
+        else:
+            weights = gas_data["Masses"]
 
         # generate and assign hist data
         hist, _ = np.histogram(
             np.log10(temperatures),
             bins=self.n_bins,
             range=self.temperature_range,
-            weights=gas_mass_fracs,
+            weights=weights,
         )
         return hist
 
