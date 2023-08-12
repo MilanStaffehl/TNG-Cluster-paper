@@ -8,7 +8,6 @@ import illustris_python as il
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
-from numpy.typing import ArrayLike
 
 import compute
 import config
@@ -16,6 +15,8 @@ import constants
 
 if TYPE_CHECKING:
     import logging
+
+    from numpy.typing import ArrayLike
 
 
 class TemperatureDistributionPlotter:
@@ -143,7 +144,10 @@ class TemperatureDistributionPlotter:
         self.logger.info("Start processing halo data.")
         # multiprocess the entire problem
         chunksize = round(len(self.indices) / processes / 4, -2)
-        self.logger.info(f"Starting subprocesses with chunksize {chunksize}.")
+        self.logger.info(
+            f"Starting subprocesses with chunksize {chunksize} on {processes} "
+            "processes."
+        )
         with mp.Pool(processes=processes) as pool:
             results = pool.map(
                 self._get_hists_step, self.indices, chunksize=int(chunksize)
@@ -477,6 +481,7 @@ class TemperatureDistributionPlotter:
         fig, axes = plt.subplots(figsize=(5, 4))
         fig.set_tight_layout(True)
         axes.set_title(
+            r"$M_{200c}$: "
             rf"${np.log10(self.mass_bins[bin_num])} < \log \ M_\odot "
             rf"< {np.log10(self.mass_bins[bin_num + 1])}$"
         )
@@ -536,10 +541,8 @@ class TemperatureDistributionPlotter:
             self._overplot_virial_temperatures(axes, bin_num)
 
         # save figure
-        fig.savefig(
-            f"./../../figures/001/temperature_hist_{bin_num}{suffix}.pdf",
-            bbox_inches="tight"
-        )
+        filename = f"temperature_hist_{bin_num}{suffix}.pdf"
+        fig.savefig(f"./../../figures/001/{filename}", bbox_inches="tight")
 
     def _overplot_virial_temperatures(
         self, axes: plt.Axes, mass_bin: int
@@ -616,12 +619,18 @@ class TemperatureDistributionPlotter:
                 or self.masses[halo_id] > self.mass_bins[-1]):
             return np.zeros(self.n_bins)
         # load required halo data
+        fields = [
+            "InternalEnergy",
+            "ElectronAbundance",
+            "Masses",
+            "StarFormationRate"
+        ]
         gas_data = il.snapshot.loadHalo(
             self.config.base_path,
             self.config.snap_num,
             halo_id,
             partType=0,  # gas
-            fields=["InternalEnergy", "ElectronAbundance", "Masses"],
+            fields=fields,
         )
 
         # some halos do not contain gas
@@ -664,7 +673,9 @@ class TemperatureDistributionPlotter:
             weighted by gas mass fraction
         """
         temperatures = compute.get_temperature(
-            gas_data["InternalEnergy"], gas_data["ElectronAbundance"]
+            gas_data["InternalEnergy"],
+            gas_data["ElectronAbundance"],
+            gas_data["StarFormationRate"],
         )
         # determine weights for hist
         if self.weight == "frac":

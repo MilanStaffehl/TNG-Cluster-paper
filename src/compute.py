@@ -14,24 +14,34 @@ from constants import X_H, G, M_sol, k_B, kpc, m_p
 
 @np.vectorize
 def get_temperature(
-    internal_energy: float | ArrayLike, electron_abundance: float | ArrayLike
+    internal_energy: float | ArrayLike,
+    electron_abundance: float | ArrayLike,
+    star_formation_rate: float | ArrayLike
 ) -> float | ArrayLike:
     """
     Return the temperature of the cell(s) given.
 
     Temperature is calculated according to the temperature formula from
     the `data access FAQ`_, using the quantities and values described
-    therein.
+    therein. As described therein, the electron abundance for star forming
+    gas is not physically accurate. Since star forming gas is generally
+    cold, it is therefore assigned an artificial temperature of 10^3 K.
 
     The function is vectorized, meaning it also takes arrays as args.
     However, these arrays must be of shape (N,) and have the same length.
+
+    .. _data access FAQ: https://www.tng-project.org/data/docs/faq/#gen6
 
     :param internal_energy: internal energy of the gas cell in units of
         km/s^2
     :param electron_abundance: number density of electrons in the gas as
         fraction of the hydrogen number density (n_e / n_H)
+    :param star_formation_rate: the SFR of the gas cell in solar masses
+        per year
     :return: temperature of the gas in Kelvin
     """
+    if star_formation_rate > 0:
+        return 1e3  # star forming gas electron abundance is not accurate
     # constants are in cgs
     molecular_weight = (4 * m_p / (1 + 3 * X_H + 4 * X_H * electron_abundance))
     temperature = (2 / 3 * internal_energy / k_B * 1e10 * molecular_weight)
