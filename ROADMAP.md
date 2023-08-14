@@ -12,10 +12,10 @@ A brief overview over the steps taken. The numbers match the subdirectory names 
 
 GitHub issues for tasks:
 
-- [ ] [#4 Plot: plot temperature distribution in halos](https://github.com/MilanStaffehl/thesisProject/issues/4)
+- [x] [#4 Plot: plot temperature distribution in halos](https://github.com/MilanStaffehl/thesisProject/issues/4)
 - [x] [#10 Adjust: adjust the plots of temperature distribution](https://github.com/MilanStaffehl/thesisProject/issues/10)
-- [ ] [#11 Plot: distribution of temperatures weighted by mass](https://github.com/MilanStaffehl/thesisProject/issues/11)
-- [ ] [#13 Plot: treat star-forming gas differently in plot](https://github.com/MilanStaffehl/thesisProject/issues/13)
+- [x] [#11 Plot: distribution of temperatures weighted by mass](https://github.com/MilanStaffehl/thesisProject/issues/11)
+- [x] [#13 Plot: treat star-forming gas differently in plot](https://github.com/MilanStaffehl/thesisProject/issues/13)
 
 ## 002: Gas mass trends with halo mass
 
