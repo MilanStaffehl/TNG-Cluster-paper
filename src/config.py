@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+# overrides for default data and figures directories
+DATA_HOME = None
+FIGURES_HOME = None
+
 
 @dataclass
 class Config:
@@ -27,9 +31,11 @@ class Config:
     snap_num: int
     mass_field: str
     radius_field: str
+    data_home: str | Path
+    figures_home: str | Path
 
 
-def get_config(
+def get_default_config(
     sim: str,
     snap: int = 99,
     mass_field: str = "Group_M_Crit200",
@@ -47,10 +53,16 @@ def get_config(
         halo radius, defaults to R_crit200
     :return: configuration for this specific
     """
+    cur_dir = Path(__file__).parent.resolve()
+    root_dir = cur_dir.parent
+    data_home = root_dir / "data" if DATA_HOME is None else DATA_HOME
+    fig_home = root_dir / "figures" if FIGURES_HOME is None else FIGURES_HOME
     final_config = Config(
         f"/virgotng/universe/IllustrisTNG/{sim}/output",
         snap_num=snap,
         mass_field=mass_field,
         radius_field=radius_field,
+        data_home=data_home,
+        figures_home=fig_home,
     )
     return final_config

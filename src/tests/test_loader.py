@@ -10,8 +10,7 @@ import loader
 @pytest.fixture
 def test_config():
     """Prepare a testing config instance"""
-    path = "/virgotng/universe/IllustrisTNG/TNG50-3/output"
-    test_cfg = config.Config(path, 99, "Group_M_Crit200")
+    test_cfg = config.get_default_config("TNG50-3")
     yield test_cfg
 
 
