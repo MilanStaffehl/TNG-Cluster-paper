@@ -78,7 +78,7 @@ memory.
 
 If you want to use this code outside of the Vera cluster of the MPIA, you will
 need to update the directory of the simulation data inside the 
-[`get_default_config`](./src/config.py#L51) function to wherever the simulation 
+[`get_default_config`](./src/config.py#L61) function to wherever the simulation 
 data is stored. If you are using this code on the Vera cluster, it should work 
 "out of the box".
 
