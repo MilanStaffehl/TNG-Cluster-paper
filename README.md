@@ -1,16 +1,19 @@
 # Master thesis: cold gas in galaxy clusters
 
 This repository contains the source code for my master thesis about cold gas in
-galaxy clusters. 
+galaxy clusters at the ITA (University Heidelberg).
 
 ## Prerequisites
 
-The code in this repository requires Python 3.10 to run.
+The code in this repository requires Python 3.10 or higher to run.
+
+You need access to the simulation data of the IllustrisTNG simulation.
+Visit the [TNG website](https://www.tng-project.org/) for details.
 
 
 ## Installation
 
-Technically speaking, the code base an be used by simply cloning it onto any
+Technically speaking, the code base can be used by simply cloning it onto any
 local machine. However, there are three major obstacles to using it this way:
 
 1. The code expects certain subdirectories to exist that are not tracked by VC.
@@ -75,19 +78,26 @@ memory.
 
 If you want to use this code outside of the Vera cluster of the MPIA, you will
 need to update the directory of the simulation data inside the 
-[`get_config`](./src/config.py#L51) function to wherever the simulation data is
-stored.
+[`get_default_config`](./src/config.py#L51) function to wherever the simulation 
+data is stored. If you are using this code on the Vera cluster, it should work 
+"out of the box".
+
+The intended way for this code to be executed is by using the Python scripts
+inside the `scripts` directory. They come alongside batch scripts for submission
+to slurm, in order to make use of the full computational power of the cluster.
+Use either the Python scripts (be careful with RAM and CPU cores usage on login
+nodes!) or submit batch jobs using the batch scripts.
 
 
 ## Milestones
 
 You will notice that directories set up by the install script, the GitHub
 milestones and the [ROADMAP](./ROADMAP.md) all contain three-digit numbers.
-These numbers denote the milestones of this project. A milestone in the context
-of this project is a small task, usually consisting of a single type of plot to
-produce. Every milestone aims to answer a small scientific question: how is the
-temperture in halo gas distributed? How does the cold gas mass change with halo
-mass? 
+These numbers denote the "milestones" of this project. A milestone in the 
+context of this project is a small task, usually consisting of a single type of 
+plot to produce. Every milestone aims to answer a small scientific question: 
+how is the temperture in halo gas distributed? How does the cold gas mass change
+with halo mass? 
 
 The milestones are documented in the [ROADMAP](./ROADMAP.md). Here you can find
 a comprehensive list of all milestones, the question they seek to answer and a
@@ -116,9 +126,9 @@ The repository is organized into the following directories:
   contain classes that are responsible for doing the bulk of the work: They
   load, process and plot data, all in one. The scripts inside the `scripts`
   directory do little more than instantiate one of these processor classes and
-  call their methods in the desired order to produce the desired output.
+  call their methods in the correct order to produce the desired output.
   Wherever possible, re-usable code is factored out of these classes into the 
-  `src` directory.
+  `src` directory or the base processor class.
 
 Alongside these directories tracked by the VC, the install script will also
 create directories that will be populated by the Python and/or batch scripts:
