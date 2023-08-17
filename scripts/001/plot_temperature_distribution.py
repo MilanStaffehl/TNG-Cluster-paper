@@ -9,7 +9,7 @@ from pathlib import Path
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "src"))
 import logging_config
-from plotters import temperature_hists
+from processors import temperature_hists
 
 
 def main(args: argparse.Namespace) -> None:
@@ -36,19 +36,33 @@ def main(args: argparse.Namespace) -> None:
 
     # plotter for hist data
     MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
-    hist_plotter = temperature_hists.TemperatureDistributionPlotter(
-        SIMULATION, MASS_BINS, logger, weight=weight_type
+    hist_plotter = temperature_hists.TemperatureDistributionProcessor(
+        sim=SIMULATION,
+        logger=logger,
+        n_temperature_bins=args.bins,
+        mass_bins=MASS_BINS,
+        weight=weight_type,
     )
+
+    # assemble pre- and post processing kwargs
+    aux_kwargs = {
+        "virial_temperatures": args.overplot,
+        "to_file": args.to_file,
+        "suffix": f"_{SIMULATION.replace('-', '_')}",
+    }
+    post_kwargs = {
+        "to_file": args.to_file,
+        "suffix": f"_{SIMULATION.replace('-', '_')}_{weight_type}"
+    }
 
     # time the full calculation process
     begin = time.time()
-    if args.multiproc:
-        hist_plotter.get_hists(processes=args.processes)
-    else:
-        hist_plotter.get_hists_lin(quiet=args.quiet)
-    # calculate average hist data
-    FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}_{weight_type}"
-    hist_plotter.stack_bins(to_file=args.to_file, suffix=FILE_SUFFIX)
+    hist_plotter.get_data(
+        args.processes,
+        args.quiet,
+        aux_kwargs=aux_kwargs,
+        post_kwargs=post_kwargs
+    )
     end = time.time()
 
     # get time spent on computation
@@ -59,22 +73,12 @@ def main(args: argparse.Namespace) -> None:
     if args.no_plots:
         sys.exit(0)
 
-    # plots require virial temperature data
-    VT_SUFFIX = f"_{SIMULATION.replace('-', '_')}"
-    if args.overplot and args.multiproc:
-        hist_plotter.get_virial_temperatures(
-            processes=args.processes, to_file=args.to_file, suffix=VT_SUFFIX
-        )
-    elif args.overplot and not args.multiproc:
-        hist_plotter.get_virial_temperatures_lin(
-            quiet=args.quiet, to_file=args.to_file, suffix=VT_SUFFIX
-        )
-    else:
-        pass  # skip intensive calculation, it is not needed
     # plot histograms
     for i in range(len(MASS_BINS) - 1):
-        hist_plotter.plot_stacked_hist(
-            i, suffix=FILE_SUFFIX, plot_vir_temp=args.overplot
+        hist_plotter.plot_data(
+            i,
+            suffix=f"_{SIMULATION.replace('-', '_')}_{weight_type}",
+            plot_vir_temp=args.overplot,
         )
 
 
@@ -96,22 +100,13 @@ if __name__ == "__main__":
         choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
     )
     parser.add_argument(
-        "-m",
-        "--multiproc",
-        help="Use multiprocessing",
-        dest="multiproc",
-        action="store_true",
-    )
-    parser.add_argument(
         "-p",
         "--processes",
-        help=(
-            "Number of processes to use for multiprocessing. Ignored if -m "
-            "is not used."
-        ),
-        dest="processes",
+        help="Use multiprocessing, optionally define a number of processes",
         type=int,
-        default=16,
+        nargs="?",
+        default=0,
+        dest="processes",
     )
     parser.add_argument(
         "-f",
@@ -156,6 +151,14 @@ if __name__ == "__main__":
         help="Use gas mass as hist weights instead of gas mass fraction",
         dest="total_mass",
         action="store_true",
+    )
+    parser.add_argument(
+        "-b",
+        "--bins",
+        help="The number of temperature bins, defaults to 50",
+        dest="bins",
+        type=int,
+        default=50,
     )
 
     # parse arguments

@@ -8,7 +8,7 @@ from pathlib import Path
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "src"))
 import logging_config
-from plotters import temperature_hists
+from processors import temperature_hists
 
 
 def main(args: argparse.Namespace) -> None:
@@ -35,22 +35,26 @@ def main(args: argparse.Namespace) -> None:
 
     # plot hist data
     MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
-    hist_plotter = temperature_hists.TemperatureDistributionPlotter(
-        SIMULATION, MASS_BINS, logger, weight=weight_type
+    hist_plotter = temperature_hists.TemperatureDistributionProcessor(
+        sim=SIMULATION,
+        logger=logger,
+        n_temperature_bins=args.bins,
+        mass_bins=MASS_BINS,
+        weight=weight_type,
     )
 
     # load hist data from file
     FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}_{weight_type}"
     filename = f"temperature_hists{FILE_SUFFIX}.npz"
     filepath = Path().home() / "thesisProject" / "data" / "001"
-    hist_plotter.load_stacked_hist(filepath / filename)
+    hist_plotter.load_data(filepath / filename)
     if args.virial_temperatures:
         filename = f"virial_temperatures_{SIMULATION.replace('-', '_')}.npy"
         hist_plotter.load_virial_temperatures(filepath / filename)
 
     # plot the historgram with the file data
     for i in range(len(MASS_BINS) - 1):
-        hist_plotter.plot_stacked_hist(
+        hist_plotter.plot_data(
             i, suffix=FILE_SUFFIX, plot_vir_temp=args.virial_temperatures
         )
 
@@ -88,6 +92,17 @@ if __name__ == "__main__":
         help="Use the histograms weighted by gas mass instead of gas fraction",
         dest="total_mass",
         action="store_true",
+    )
+    parser.add_argument(
+        "-b",
+        "--bins",
+        help=(
+            "The number of temperature bins which must match the number of "
+            "bins in the saved data, defaults to 50"
+        ),
+        dest="bins",
+        type=int,
+        default=50,
     )
 
     # parse arguments

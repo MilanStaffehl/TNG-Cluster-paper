@@ -78,8 +78,13 @@ class MassDependenceOfGasMassPlotter:
             part_type,
             fields=fields
         )
-        size = sys.getsizeof(self.gas_data) / 1024. / 1024.
-        self.logger.info(f"Finished loading {size:,.2f} MB of gas data.")
+        # estimate memory size
+        size = sys.getsizeof(self.gas_data["InternalEnergy"])
+        size += sys.getsizeof(self.gas_data["ElectronAbundance"])
+        size += sys.getsizeof(self.gas_data["StarFormationRate"])
+        size += sys.getsizeof(self.gas_data["Masses"])
+        size = size / 1024. / 1024. / 1024.  # conversion to GiB
+        self.logger.info(f"Finished loading {size:,.2f} GB of gas data.")
 
     def get_halo_data(self) -> None:
         """
