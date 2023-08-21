@@ -30,7 +30,6 @@ GitHub issues for tasks:
 GitHub issues for tasks:
 
 - [ ] [#26 Plot temperature distribution normalized to virial temperature](https://github.com/MilanStaffehl/thesisProject/issues/26)
-- [ ] #26
 
 ## 003: Gas fraction trends with halo mass
 

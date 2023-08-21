@@ -7,17 +7,17 @@ in the simulation data and instead has to be calculated from internal
 energy and electron abundance.
 """
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import NDArray
 
-from constants import X_H, G, M_sol, k_B, kpc, m_p
+from constants import HUBBLE, X_H, G, M_sol, k_B, kpc, m_p
 
 
 @np.vectorize
 def get_temperature(
-    internal_energy: float | ArrayLike,
-    electron_abundance: float | ArrayLike,
-    star_formation_rate: float | ArrayLike
-) -> float | ArrayLike:
+    internal_energy: float | NDArray,
+    electron_abundance: float | NDArray,
+    star_formation_rate: float | NDArray
+) -> NDArray:
     """
     Return the temperature of the cell(s) given.
 
@@ -49,16 +49,43 @@ def get_temperature(
 
 
 @np.vectorize
-def get_virial_temperature(mass: float, radius: float) -> float:
+def get_virial_temperature(
+    mass: float | NDArray, radius: float | NDArray
+) -> NDArray:
     """
-    Return the virial temperature of a cluster with the given mass and radius.
+    Return the virial temperature of a halo with the given mass and radius.
 
     The function calculates the virial temperature of a galaxy cluster
     using the common relation 2U = K and relating the kinetic energy to
     temperature as K ~ T.
 
-    :param mass: mass of the cluster in solar masses
-    :param radius: radius of the cluster in kpc
-    :return: virial temperature of the cluster in Kelvin
+    Follows the formula for virial temperature in Barkana & Loeb (2001),
+    using the virial radius from the simulation data instead of calculating
+    it from the virial mass. The coefficients are combined assuming
+    a value of 0.6 for the mean molecular weight.
+
+    :param mass: mass of the halo in solar masses
+    :param radius: radius of the halo in kpc
+    :return: virial temperature of the halo in Kelvin
     """
-    return (2 / 5) * G * mass * M_sol * m_p / (radius * kpc * k_B)
+    return 0.3 * G * mass * M_sol * m_p / (radius * kpc * k_B)
+
+
+@np.vectorize
+def get_virial_temperature_only_mass(mass: float | NDArray) -> NDArray:
+    """
+    Return the virial temperature of a halo of the given mass.
+
+    This method is based on the virial temperature estimation in Nelson
+    et al. (2013) and makes an approximation for the virial radius based
+    on mass. It will produce estimates lower than that of the alternative
+    method :meth:`get_virial_temperature` by usually ~0.3 orders of
+    magnitude.
+
+    This method is meant to be used in cases where the virial radius is
+    not directly available.
+
+    :param mass: mass of the halo in solar masses
+    :return: virial temperature of the halo in K
+    """
+    return 4e5 * (mass / (1e11 * HUBBLE**(-1)))**(2 / 3) / 3
