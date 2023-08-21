@@ -62,6 +62,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         self.bin_masker = None  # set by get_mask
         self.histograms = None  # stacked histograms per mass bin
         self.histograms_std = None  # standard deviation of bins
+        self.histograms_minmax = None  # min and max values per bin
         self.virial_temperatures = None
 
     def plot_data(
@@ -99,11 +100,14 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             rf"${np.log10(self.mass_bins[bin_num])} < \log \ M_\odot "
             rf"< {np.log10(self.mass_bins[bin_num + 1])}$"
         )
-        axes.set_xlabel("Gas temperature [log K]")
+        labelsize = 12
+        axes.set_xlabel("Gas temperature [log K]", fontsize=labelsize)
         if self.weight == "frac":
-            axes.set_ylabel("Average gas mass fraction")
+            axes.set_ylabel("Average gas mass fraction", fontsize=labelsize)
         else:
-            axes.set_ylabel(r"Average gas mass per cell [$M_\odot$]")
+            axes.set_ylabel(
+                r"Average gas mass per cell [$M_\odot$]", fontsize=labelsize
+            )
 
         # calculate bin positions
         _, bins = np.histogram(
@@ -112,7 +116,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         centers = (bins[:-1] + bins[1:]) / 2
 
         # plot data
-        facecolor = "lightblue" if self.weight == "frac" else "lightcoral"
+        facecolor = "lightblue" if self.weight == "frac" else "pink"
         plot_config = {
             "histtype": "stepfilled",
             "facecolor": facecolor,
@@ -132,9 +136,9 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         error_config = {
             "fmt": "",
             "linestyle": "none",
-            "ecolor": "grey",
-            "color": "grey",
-            "alpha": 0.7,
+            "ecolor": "dimgrey",
+            "color": "dimgrey",
+            "alpha": 0.8,
             "capsize": 2.0,
         }
         axes.errorbar(
@@ -156,8 +160,10 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         # save figure
         filename = f"temperature_hist_{bin_num}{suffix}.pdf"
+        sim = self.config.sim.replace("-", "_")
         fig.savefig(
-            self.config.figures_home / "001" / filename, bbox_inches="tight"
+            self.config.figures_home / "001" / sim / filename,
+            bbox_inches="tight"
         )
 
     def load_data(self, filepath: str | Path) -> None:
@@ -532,12 +538,15 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         self.histograms = np.zeros((self.n_mass_bins, self.len_data))
         self.histograms_std = np.zeros((self.n_mass_bins, self.len_data))
+        self.histograms_minmax = np.zeros((self.n_mass_bins, self.len_data, 2))
         for bin_num in range(self.n_mass_bins):
             # mask histogram data
             mask = np.where(self.bin_masker == bin_num + 1, 1, 0)
             halo_hists = ma.masked_array(self.data).compress(mask, axis=0)
             self.histograms[bin_num] = np.average(halo_hists, axis=0)
             self.histograms_std[bin_num] = np.std(halo_hists, axis=0)
+            self.histograms_minmax[bin_num, :, 0] = np.min(halo_hists, axis=0)
+            self.histograms_minmax[bin_num, :, 1] = np.max(halo_hists, axis=0)
 
         if to_file:
             file_name = f"temperature_hists{suffix}.npz"
@@ -546,6 +555,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
                 file_path,
                 hist_mean=self.histograms,
                 hist_std=self.histograms_std,
+                hist_minmax=self.histograms_minmax,
             )
 
     def _process_temperatures(

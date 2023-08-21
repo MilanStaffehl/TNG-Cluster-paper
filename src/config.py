@@ -19,6 +19,8 @@ class Config:
     depending on which config is desired, the client can pass different
     Config instances.
 
+    :param sim: name of the simulation to use, must match the simulation
+        under the given ``base_path``
     :param base_path: the base path of the simulation to use
     :param snap_num: number of the snapshot to use
     :param mass_field: the field name to use as mass indicator for
@@ -26,7 +28,7 @@ class Config:
     :param radius_field: the field name to use as radius indicator for
         groups/halos
     """
-
+    sim: str
     base_path: str | Path
     snap_num: int
     mass_field: str
@@ -58,6 +60,7 @@ def get_default_config(
     data_home = root_dir / "data" if DATA_HOME is None else DATA_HOME
     fig_home = root_dir / "figures" if FIGURES_HOME is None else FIGURES_HOME
     final_config = Config(
+        sim,
         f"/virgotng/universe/IllustrisTNG/{sim}/output",
         snap_num=snap,
         mass_field=mass_field,

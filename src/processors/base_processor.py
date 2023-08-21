@@ -117,8 +117,8 @@ class BaseProcessor:
         self,
         processes: int = 16,
         quiet: bool = False,
-        aux_kwargs: dict[str, Any] = {},
-        post_kwargs: dict[str, Any] = {}
+        aux_kwargs: dict[str, Any] | None = None,
+        post_kwargs: dict[str, Any] | None = None
     ) -> None:
         """
         Load the data for the processor and place it into attributes.
@@ -159,6 +159,10 @@ class BaseProcessor:
             ``_post_process_data`` method.
         :return: None
         """
+        if aux_kwargs is None:
+            aux_kwargs = {}
+        if post_kwargs is None:
+            post_kwargs = {}
         # load required and optional data
         self._get_halo_data()  # hard requirement
         self._get_auxilary_data(processes, quiet, **aux_kwargs)  # optional

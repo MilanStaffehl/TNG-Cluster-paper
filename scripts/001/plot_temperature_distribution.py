@@ -102,9 +102,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p",
         "--processes",
-        help="Use multiprocessing, optionally define a number of processes",
+        help=("Use multiprocessing, with the specified number of processes."),
         type=int,
-        nargs="?",
         default=0,
         dest="processes",
     )
