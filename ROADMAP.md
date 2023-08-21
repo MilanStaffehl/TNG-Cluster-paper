@@ -19,7 +19,7 @@ GitHub issues for tasks:
 - [ ] [#23 Explore variations: plot gallery](https://github.com/MilanStaffehl/thesisProject/issues/23)
 - [ ] [#27 Plot temperature distribution normalized to virial temperature](https://github.com/MilanStaffehl/thesisProject/issues/27)
  
-### 002: Radial temperature profiles
+## 002: Radial temperature profiles
 
 **Task:** Plot a 2D histogram of temperature-radial distance weighted by gas fraction.
 
