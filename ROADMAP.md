@@ -8,7 +8,7 @@ A brief overview over the steps taken. The numbers match the subdirectory names 
 
 **Goal:** Determine what temperature can be used to separate cold from hot gas or cold from warm and warm from hot gas.
 
-**Result:** pending
+**Result:** Using gas mass fraction for all subsequent tasks is better suited to not lose those halos that have low total gas mass but still might be interesing. The temperature divisions between cool, warm and hot gas are chosen in two ways: once as absolute values, once as fractions of the virial temperature.
 
 GitHub issues for tasks:
 
@@ -16,8 +16,23 @@ GitHub issues for tasks:
 - [x] [#10 Adjust: adjust the plots of temperature distribution](https://github.com/MilanStaffehl/thesisProject/issues/10)
 - [x] [#11 Plot: distribution of temperatures weighted by mass](https://github.com/MilanStaffehl/thesisProject/issues/11)
 - [x] [#13 Plot: treat star-forming gas differently in plot](https://github.com/MilanStaffehl/thesisProject/issues/13)
+- [ ] [#23 Explore variations: plot gallery](https://github.com/MilanStaffehl/thesisProject/issues/23)
+- [ ] [#27 Plot temperature distribution normalized to virial temperature](https://github.com/MilanStaffehl/thesisProject/issues/27)
+ 
+### 002: Radial temperature profiles
 
-## 002: Gas mass trends with halo mass
+**Task:** Plot a 2D histogram of temperature-radial distance weighted by gas fraction.
+
+**Goal:** Determine from this the radial temperature profile and identify regions which hold cold gas.
+
+**Result:** pending
+
+GitHub issues for tasks:
+
+- [ ] [#26 Plot temperature distribution normalized to virial temperature](https://github.com/MilanStaffehl/thesisProject/issues/26)
+- [ ] #26
+
+## 003: Gas fraction trends with halo mass
 
 **Task:** Plot the trend of cold, warm and hot gas mass (fraction) with halo mass.
 
