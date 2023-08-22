@@ -19,7 +19,7 @@ from processors import base_processor
 if TYPE_CHECKING:
     import logging
 
-    from numpy.typing import ArrayLike
+    from numpy.typing import ArrayLike, NDArray
 
 
 class TemperatureDistributionProcessor(base_processor.BaseProcessor):
@@ -60,9 +60,9 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         self.masses = None
         self.radii = None
         self.bin_masker = None  # set by get_mask
-        self.histograms = None  # stacked histograms per mass bin
-        self.histograms_std = None  # standard deviation of bins
-        self.histograms_minmax = None  # min and max values per bin
+        self.histograms_mean = None  # stacked histogram mean per mass bin
+        self.histograms_median = None  # stacked hist median per mass bin
+        self.histograms_percentiles = None  # perentiles per bin
         self.virial_temperatures = None
 
     def plot_data(
@@ -88,7 +88,9 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             temperatures possible in the mass bin, defaults to True
         :return: None
         """
-        if self.histograms is None or self.histograms_std is None:
+        if any([x is None for x in (self.histograms_mean,
+                                    self.histograms_median,
+                                    self.histograms_percentiles)]):
             self.logger.error("Data is not loaded yet!")
             return
 
@@ -129,12 +131,12 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             centers,
             bins=bins,
             range=self.temperature_range,
-            weights=self.histograms[bin_num],
+            weights=self.histograms_mean[bin_num],
             **plot_config
         )
         # plot error bars
         error_config = {
-            "fmt": "",
+            "marker": "x",
             "linestyle": "none",
             "ecolor": "dimgrey",
             "color": "dimgrey",
@@ -143,8 +145,8 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         }
         axes.errorbar(
             centers,
-            self.histograms[bin_num],
-            yerr=self.histograms_std[bin_num],
+            self.histograms_median[bin_num],
+            yerr=self._get_errorbars(bin_num),
             **error_config
         )
 
@@ -177,7 +179,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         must match the number of histogram bins ``self.len_data``.
 
         The loaded data is placed into the ``histograms`` and
-        ``histograms_std`` attributes respectively.
+        ``histograms_percentiles`` attributes respectively.
 
         :param file: file name of the numpy data file
         :return: None
@@ -195,28 +197,38 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         # attempt to load the data
         with np.load(filepath) as hist_data:
             hist_mean = hist_data["hist_mean"]
-            hist_std = hist_data["hist_std"]
+            hist_median = hist_data["hist_median"]
+            hist_perc = hist_data["hist_percentiles"]
 
         # verify data:
-        if not hist_mean.shape == (self.n_mass_bins, self.len_data):
+        if not hist_median.shape == (self.n_mass_bins, self.len_data):
             self.logger.error(
                 f"Loaded histogram data does not match expected data in "
                 f"shape:\nExpected shape: {(self.n_mass_bins, self.len_data)}, "
                 f"received shape: {hist_mean.shape}"
             )
             return
-        elif not hist_mean.shape == hist_std.shape:
+        elif not hist_mean.shape == hist_median.shape:
             self.logger.error(
-                f"Shape of histogram means is different from shape of "
-                f"histogram standard deviations:\nMeans shape: "
-                f"{hist_mean.shape}, std shape: {hist_std.shape}\n"
-                f"The means have the expected shape; the standard deviations "
-                f"must have been saved wrong or are corrupted."
+                f"The histogram mean array doe not match the median array in "
+                f"shape: mean has shape {hist_mean.shape} but the median has "
+                f"shape {hist_median.shape}. Median has correct shape, so the "
+                f"mean data must have been saved wrong or is corrupted."
+            )
+        elif not hist_median.shape[0] == hist_perc.shape[
+                0] or not hist_median.shape[1] == hist_perc.shape[2]:
+            self.logger.error(
+                f"Shape of histogram median is different from shape of "
+                f"histogram percentiles:\nMedian shape: {hist_mean.shape}, "
+                f"percentiles shape: {hist_perc.shape}\n"
+                f"The medians have the expected shape; the percentilesmust "
+                f"have been saved wrong or are corrupted."
             )
             return
         else:
-            self.histograms = hist_mean
-            self.histograms_std = hist_std
+            self.histograms_mean = hist_mean
+            self.histograms_median = hist_median
+            self.histograms_percentiles = hist_perc
             self.logger.info("Successfully loaded data!")
 
     def load_virial_temperatures(self, np_file: str | Path) -> None:
@@ -279,6 +291,26 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
                 self._get_virial_temperatures_sequentially(
                     quiet=quiet, to_file=to_file, suffix=suffix
                 )
+
+    def _get_errorbars(self, mass_bin: int) -> NDArray:
+        """
+        Return the histogram error bars for the percentiles.
+
+        The method calculates, from the 18th and 84th percentile, the
+        length of the error bars for the given mass bin and returns them
+        as an array of shape (2, N), which can be immediately passed to
+        the ``yerr`` argument of the errorbar plot function of pyplot.
+
+        :param mass_bin: Bin index of the mass bin to plot
+        :return: Shape (2, N) array of error bar sizes, with the first
+            row being the lower and the second row being the upper error
+            bar lengths.
+        """
+        median = self.histograms_median[mass_bin]
+        percentiles = self.histograms_percentiles[mass_bin]
+        lower_ebars = median - percentiles[0]
+        upper_ebars = percentiles[1] - median
+        return np.array([lower_ebars, upper_ebars])
 
     def _get_halo_data(self) -> None:
         """
@@ -518,8 +550,9 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         The method will average all histograms in every mass bin and
         assign the resulting average histogram data to the ``histograms``
-        attribute. It also calculates the standard deviation of the bins
-        and assigns it to the ``histograms_std`` attribute.
+        attribute. It also calculates the 18th and 84th percentiles of
+        the bins and assigns them to the ``histograms_percentiles``
+        attribute.
 
         Optionally, the data can also be written to a numpy readable
         .npz archive file.
@@ -531,36 +564,47 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         """
         if self.data is None:
             self.logger.error(
-                "No histogram data loaded yet. Load data using either the "
-                "'get_hists' or 'get_hists_lin' methods to load the data."
+                "No histogram data loaded yet. Use the 'get_data' method to "
+                "load the data."
             )
             return
 
-        self.histograms = np.zeros((self.n_mass_bins, self.len_data))
-        self.histograms_std = np.zeros((self.n_mass_bins, self.len_data))
-        self.histograms_minmax = np.zeros((self.n_mass_bins, self.len_data, 2))
+        self.logger.info("Start post-processing of data (stacking hists).")
+        self.histograms_mean = np.zeros((self.n_mass_bins, self.len_data))
+        self.histograms_median = np.zeros_like(self.histograms_mean)
+        self.histograms_percentiles = np.zeros(
+            (self.n_mass_bins, 2, self.len_data)
+        )
         for bin_num in range(self.n_mass_bins):
             # mask histogram data
             mask = np.where(self.bin_masker == bin_num + 1, 1, 0)
             halo_hists = ma.masked_array(self.data).compress(mask, axis=0)
-            self.histograms[bin_num] = np.average(halo_hists, axis=0)
-            self.histograms_std[bin_num] = np.std(halo_hists, axis=0)
-            self.histograms_minmax[bin_num, :, 0] = np.min(halo_hists, axis=0)
-            self.histograms_minmax[bin_num, :, 1] = np.max(halo_hists, axis=0)
+            # masked arrays require special care for median and percentiles
+            self.histograms_mean[bin_num] = np.mean(halo_hists, axis=0)
+            self.histograms_median[bin_num] = ma.median(halo_hists, axis=0)
+            # ma does not provide a percentile function, so the masked array
+            # needs to be compressed (which flattens it) and squished back
+            # into shape.
+            self.histograms_percentiles[bin_num] = np.percentile(
+                halo_hists.compressed().reshape(halo_hists.shape), (16, 84),
+                axis=0
+            )
 
         if to_file:
             file_name = f"temperature_hists{suffix}.npz"
             file_path = self.config.data_home / "001" / file_name
             np.savez(
                 file_path,
-                hist_mean=self.histograms,
-                hist_std=self.histograms_std,
-                hist_minmax=self.histograms_minmax,
+                hist_mean=self.histograms_mean,
+                hist_median=self.histograms_median,
+                hist_percentiles=self.histograms_percentiles,
             )
+
+        self.logger.info("Finished post-processing data.")
 
     def _process_temperatures(
         self, temperatures: ArrayLike, gas_data: ArrayLike
-    ) -> ArrayLike:
+    ) -> NDArray:
         """
         Calculate gas temperature and bin them into histogram data.
 
