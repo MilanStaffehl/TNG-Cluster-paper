@@ -1,6 +1,6 @@
-# Master thesis: cold gas in galaxy clusters
+# Master thesis: cool gas in galaxy clusters
 
-This repository contains the source code for my master thesis about cold gas in
+This repository contains the source code for my master thesis about cool gas in
 galaxy clusters at the ITA (University Heidelberg).
 
 ## Prerequisites
@@ -96,7 +96,7 @@ milestones and the [ROADMAP](./ROADMAP.md) all contain three-digit numbers.
 These numbers denote the "milestones" of this project. A milestone in the 
 context of this project is a small task, usually consisting of a single type of 
 plot to produce. Every milestone aims to answer a small scientific question: 
-how is the temperture in halo gas distributed? How does the cold gas mass change
+how is the temperture in halo gas distributed? How does the cool gas mass change
 with halo mass? 
 
 The milestones are documented in the [ROADMAP](./ROADMAP.md). Here you can find
