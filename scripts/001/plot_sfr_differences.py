@@ -2,10 +2,19 @@ import argparse
 import logging
 import logging.config
 import sys
+import warnings
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+
+# deprecation notice
+notice = (
+    "This script is no longer supported. The data required by this script "
+    "can not be produced by the code base anymore. This script will soon "
+    "be removed from the code base. Usage is discouraged. To force execution "
+    "of this script anyway, use the -f flag."
+)
 
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
@@ -15,6 +24,8 @@ import logging_config
 
 def main(args: argparse.Namespace) -> None:
     """Plot the difference when treating SF gas differently"""
+    warnings.warn(message=notice, category=FutureWarning, stacklevel=2)
+
     logging_cfg = logging_config.get_logging_config("INFO")
     logging.config.dictConfig(logging_cfg)
     logger = logging.getLogger("root")
@@ -127,7 +138,7 @@ if __name__ == "__main__":
         prog=f"python {Path(__file__).name}",
         description=(
             "Plot temperature distribution of halos in TNG, using "
-            "data from file"
+            f"data from file.\nWARNING: {notice}"
         ),
     )
     parser.add_argument(
@@ -149,10 +160,21 @@ if __name__ == "__main__":
         dest="total_mass",
         action="store_true",
     )
+    parser.add_argument(
+        "-f",
+        "--force",
+        help=(
+            "Force the execution of the script. If not used, a FutureWarning will be raised."
+        ),
+        action="store_true",
+        dest="force",
+    )
 
     # parse arguments
     try:
         args = parser.parse_args()
+        if not args.force:
+            raise FutureWarning(notice)
         main(args)
     except KeyboardInterrupt:
         print("Execution forcefully stopped by user.")
