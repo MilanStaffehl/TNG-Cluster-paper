@@ -95,7 +95,7 @@ ultimately required for plotting, to file.
 ## How do I write my own processor?
 
 Start by subclassing the `BaseProcessor` class. To fill this skeleton class with
-functionality, you *must* subclass these methods:
+functionality, you *must* overwrite these methods:
 
 - `plot_data`: Must implement plotting the data and saving the figure to file.
 - `load_data`: Must implement a method to load data saved to file by
@@ -103,13 +103,14 @@ functionality, you *must* subclass these methods:
 - `_process_temperatures`: Take an array of gas cell temperatures for every
   halo and populate the `data` attribute with some data calculated from it.
 
-You *can* then optionally subclass these methods:
+You *can* then optionally overwrite these methods:
 
 - `_get_auxilary_data`: Load any additional data not related to gas temperature.
-- `_fallback`: Return a fallback dataset for any halo that contains no gas. By
-  default, this returns an array of zeros of the expected length. Subclasses
-  should implement a fallback appropriate for the task (for example an array of
-  NaNs might be suitable in some cases).
+- `_fallback`: Return a fallback dataset for any halo that contains no gas or 
+  for when it is skipped by the `_skip_halo` method. By default, this returns 
+  an array of NaN's of the expected length. Subclasses should implement a 
+  fallback appropriate for the task (for example an array of zeros might be 
+  suitable in some cases).
 - `_post_process_data`: Is called after primary data is loaded and processed.
   This method can be used to further process it (for example to average it over
   all halos) or to verify it. It can also be used for any teardown operations
@@ -133,7 +134,7 @@ are doing):
   These are required by `get_data` and should not be overwritten or extended.
 
 You can get further information about the purpose of everyone of these methods
-from their docstrings or using the `help` function in an interactive shell:
+from their docstrings by using the `help` function in an interactive shell:
 
 ```Python
 >>> help(BaseProcessor._post_process_data)
@@ -146,9 +147,10 @@ is recommended to not allocate memory for these fields, at least not when using
 multiprocessing! The `multiprocessing` module will create a copy of the instance
 for every process - and you will run out of memory fast if your instance has
 pre-allocated memory for every field. Set fields to a default of `None`, i.e.
-treat data fields as type `Optional[NDArray]`.
+treat data fields as type `Optional[NDArray]`, and let `multiprocessing` gather
+and return the results.
 
-> NOTE: Due to the same reason, allocating memory for the data and then placing 
+> NOTE: For the same reason, allocating memory for the data and then placing 
 > it into the allocated memory space will not work during multiprocessing: 
 > every process will receive its own copy of the instance, with every copy of 
 > the data field containing a reference to a different location in memory. 

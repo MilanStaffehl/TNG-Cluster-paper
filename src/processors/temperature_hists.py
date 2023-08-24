@@ -578,16 +578,20 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         for bin_num in range(self.n_mass_bins):
             # mask histogram data
             mask = np.where(self.bin_masker == bin_num + 1, 1, 0)
-            halo_hists = ma.masked_array(self.data).compress(mask, axis=0)
-            # masked arrays require special care for median and percentiles
-            self.histograms_mean[bin_num] = np.mean(halo_hists, axis=0)
-            self.histograms_median[bin_num] = ma.median(halo_hists, axis=0)
-            # ma does not provide a percentile function, so the masked array
-            # needs to be compressed (which flattens it) and squished back
-            # into shape.
-            self.histograms_percentiles[bin_num] = np.percentile(
-                halo_hists.compressed().reshape(halo_hists.shape), (16, 84),
-                axis=0
+            masked_hists = ma.masked_array(self.data).compress(mask, axis=0)
+            # masked arrays need to be compressed into standard arrays
+            halo_hists = masked_hists.compressed().reshape(masked_hists.shape)
+            self.histograms_mean[bin_num] = np.nanmean(halo_hists, axis=0)
+            self.histograms_median[bin_num] = np.nanmedian(halo_hists, axis=0)
+            self.histograms_percentiles[bin_num] = np.nanpercentile(
+                halo_hists,
+                (16, 84),
+                axis=0,
+            )
+            # diagnostics TODO: set to debug
+            self.logger.info(
+                f"Empty halos in mass bin {bin_num}: "
+                f"{np.sum(np.any(np.isnan(halo_hists), axis=1))}"
             )
 
         if to_file:

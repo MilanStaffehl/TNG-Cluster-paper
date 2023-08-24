@@ -72,8 +72,8 @@ class BaseProcessor:
       verify the validity of the loaded data.
       This method is a stub and *can* be implemented by subclasses.
     - :meth:`_fallback`: This method is called when a halo is found that
-      has no gas particles. It is meant to return a data array for such
-      a case.
+      has no gas particles or when a halo is skipped by :meth:`_skip_halo`.
+      It is meant to return a data array for such a case.
       This method is a stub. It *can* be implemented by a subclass.
     - :meth:`_process_temperatures`: This method takes the array of halo
       gas temperatures and halo gas data and returns the data that is
@@ -275,7 +275,7 @@ class BaseProcessor:
         """
         # optionally skip a halo under specific conditions
         if self._skip_halo(halo_id):
-            return np.zeros(self.len_data)
+            return self._fallback(halo_id)
 
         # load halo gas cell data
         fields = [
@@ -295,7 +295,7 @@ class BaseProcessor:
         # some halos do not contain gas
         if gas_data["count"] == 0:
             self.logger.debug(
-                f"Halo {halo_id} contains no gas. Returning an empty array."
+                f"Halo {halo_id} contains no gas. Returning a fallback array."
             )
             return self._fallback(halo_id)
 
@@ -342,13 +342,15 @@ class BaseProcessor:
         gas-deficient halos, unless the default defined in the base class
         is sufficient.
 
-        The default implementation returns an array of zeros of length
+        The default implementation returns an array of NaN's of length
         ``self.len_data``.
 
         :param halo_id: The ID of the halo.
-        :return: A fallback data array for halos without any gas particles.
+        :return: A fallback data array for halos without any gas particles. If
+            not overwritten, this is an array of NaN's.
         """
-        return np.zeros(self.len_data)
+        fallback = np.empty(self.len_data)
+        return fallback.fill(np.nan)
 
     def _post_process_data(
         self, processes: int, quiet: bool, **kwargs
