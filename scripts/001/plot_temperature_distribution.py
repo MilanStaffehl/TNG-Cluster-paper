@@ -34,9 +34,15 @@ def main(args: argparse.Namespace) -> None:
     else:
         weight_type = "frac"
 
+    # which processor to use:
+    if args.normalize:
+        processor = temperature_hists.NormalizedProcessor
+    else:
+        processor = temperature_hists.TemperatureDistributionProcessor
+
     # plotter for hist data
     MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
-    hist_plotter = temperature_hists.TemperatureDistributionProcessor(
+    hist_plotter = processor(
         sim=SIMULATION,
         logger=logger,
         n_temperature_bins=args.bins,
@@ -118,7 +124,7 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "-n",
+        "-x",
         "--no-plots",
         help=(
             "Suppresses creation of plots, use to prevent overwriting "
@@ -149,6 +155,13 @@ if __name__ == "__main__":
         "--total-mass",
         help="Use gas mass as hist weights instead of gas mass fraction",
         dest="total_mass",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-n",
+        "--noralize-temperatures",
+        help="Normalize temperatures to virial temperature",
+        dest="normalize",
         action="store_true",
     )
     parser.add_argument(
