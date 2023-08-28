@@ -3,6 +3,7 @@ minversion = "6.0"
 addopts = "-ra"
 testpaths = [
     "src/tests",
+    "src/processors/tests",
 ]
 pythonpath = "src"
 
