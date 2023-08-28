@@ -124,7 +124,7 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
         filename = f"temperature_hist_{mass_bin}_gallery.pdf"
         sim = self.config.sim.replace("-", "_")
         fig.savefig(
-            self.config.figures_home / "001" / sim / filename,
+            self.config.figures_home / "001" / sim / "galleries" / filename,
             bbox_inches="tight"
         )
 
@@ -263,7 +263,7 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
         if to_file:
             sim = self.config.sim.replace("-", "_")
             file_name = f"temperature_gallery_{sim}.npz"
-            file_path = self.config.data_home / "001" / file_name
+            file_path = self.config.data_home / "001" / sim / file_name
             np.savez(
                 file_path,
                 masses=self.masses,
@@ -277,7 +277,10 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
             self.logger.debug("Skipping saving data to file.")
 
     def _process_temperatures(
-        self, temperatures: NDArray, gas_data: dict[str, NDArray]
+        self,
+        halo_id: int,
+        temperatures: NDArray,
+        gas_data: dict[str, NDArray]
     ) -> NDArray:
         """
         Calculate gas temperature and bin them into histogram data.
