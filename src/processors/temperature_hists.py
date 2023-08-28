@@ -1,5 +1,5 @@
 """
-Processor for plotting temperature distributions.
+Processors for plotting temperature distributions.
 """
 from __future__ import annotations
 
@@ -29,8 +29,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
     Instances of this class can separately load halo data, binned by
     mass, as well as calculate and store data on cell temperatures for
     these halos. It also provides methods to plot the distribution of
-    temperatures within these halos, both for individual halos as well
-    as for stacked halos from a single mass bin.
+    temperatures within these halos.
     """
 
     # range of temperatures to plot in log10 K
@@ -164,7 +163,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         filename = f"temperature_hist_{bin_num}{suffix}.pdf"
         sim = self.config.sim.replace("-", "_")
         fig.savefig(
-            self.config.figures_home / "001" / sim / filename,
+            self.config.figures_home / "001" / sim / "hists" / filename,
             bbox_inches="tight"
         )
 
@@ -460,8 +459,9 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         # write to file
         if to_file:
+            sim = self.config.sim.replace("-", "_")
             file_name = f"virial_temperatures{suffix}.npy"
-            file_path = self.config.data_home / "001" / file_name
+            file_path = self.config.data_home / "001" / sim / file_name
             np.save(file_path, self.virial_temperatures)
             self.logger.info("Wrote virial temperatures to file.")
 
@@ -591,15 +591,16 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
                 (16, 84),
                 axis=0,
             )
-            # diagnostics TODO: set to debug
-            self.logger.info(
+            # diagnostics
+            self.logger.debug(
                 f"Empty halos in mass bin {bin_num}: "
                 f"{np.sum(np.any(np.isnan(halo_hists), axis=1))}"
             )
 
         if to_file:
+            sim = self.config.sim.replace("-", "_")
             file_name = f"temperature_hists{suffix}.npz"
-            file_path = self.config.data_home / "001" / file_name
+            file_path = self.config.data_home / "001" / sim / file_name
             np.savez(
                 file_path,
                 hist_mean=self.histograms_mean,
@@ -610,11 +611,12 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         self.logger.info("Finished post-processing data.")
 
     def _process_temperatures(
-        self, temperatures: ArrayLike, gas_data: ArrayLike
+        self, halo_id: int, temperatures: ArrayLike, gas_data: ArrayLike
     ) -> NDArray:
         """
         Calculate gas temperature and bin them into histogram data.
 
+        :param halo_id: The ID of the halo.
         :param gas_data: dictionary holding arrays with gas data. Must
             have keys for internal energy, electron abundance and for
             gas mass
@@ -672,3 +674,179 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             )
         ret_str += f"Total halos: {np.sum(counts[1:])}\n"
         return ret_str
+
+
+class NormalizedProcessor(TemperatureDistributionProcessor):
+    """
+    Provides an interface to plot normalized temp. distr. of halos.
+
+    Instances of this class can separately load halo data, binned by
+    mass, as well as calculate and store data on cell temperatures for
+    these halos. It also provides methods to plot the distribution of
+    temperatures within these halos, both for individual halos as well
+    as for stacked halos from a single mass bin.
+    """
+
+    temperature_range: ClassVar[tuple[float]] = (-4, +4)  # in dex
+
+    def plot_data(
+        self,
+        bin_num: int,
+        suffix: str = "",
+        log: bool = True,
+        plot_vir_temp: bool = True
+    ) -> None:
+        """
+        Plot the distribution of temperatures for all halos of the mass bin.
+
+        Plots a histogram using the data of all halos in the specified
+        mass bin. The mass bin must be given as an array index, i.e.
+        starting from zero. The temperatures are normalized to the halos
+        virial temperature before stacking.
+
+        :param bin_num: mass bin index, starting from zero
+        :param suffix: suffix appended to output file name, defaults to
+            an empty string (no suffix)
+        :param log: whether to plot the histograms in logarithmic scale
+            on the y-axis, defaults to True
+        :param plot_vir_temp: whether to overplot the range of virial
+            temperatures possible in the mass bin, defaults to True
+        :return: None
+        """
+        if any([x is None for x in (self.histograms_mean,
+                                    self.histograms_median,
+                                    self.histograms_percentiles)]):
+            self.logger.error("Data is not loaded yet!")
+            return
+
+        self.logger.info(f"Plotting temperature hist for mass bin {bin_num}.")
+        fig, axes = plt.subplots(figsize=(5, 4))
+        fig.set_tight_layout(True)
+        axes.set_title(
+            r"$M_{200c}$: "
+            rf"${np.log10(self.mass_bins[bin_num])} < \log \ M_\odot "
+            rf"< {np.log10(self.mass_bins[bin_num + 1])}$"
+        )
+        labelsize = 12
+        axes.set_xlabel(
+            r"Gas temperature $T / T_{vir}$ [dex]", fontsize=labelsize
+        )
+        if self.weight == "frac":
+            axes.set_ylabel("Gas mass fraction", fontsize=labelsize)
+        else:
+            axes.set_ylabel(
+                r"Gas mass per cell [$M_\odot$]", fontsize=labelsize
+            )
+
+        # calculate bin positions
+        _, bins = np.histogram(
+            np.array([0]), bins=self.len_data, range=self.temperature_range
+        )
+        centers = (bins[:-1] + bins[1:]) / 2
+
+        # plot data
+        facecolor = "lightblue" if self.weight == "frac" else "pink"
+        plot_config = {
+            "histtype": "stepfilled",
+            "facecolor": facecolor,
+            "edgecolor": "black",
+            "log": log,
+        }
+        # hack: produce exactly one entry for every bin, but weight it
+        # by the histogram bar length, to achieve a "fake" bar plot
+        axes.hist(
+            centers,
+            bins=bins,
+            range=self.temperature_range,
+            weights=self.histograms_mean[bin_num],
+            **plot_config
+        )
+        # plot error bars
+        error_config = {
+            "marker": "x",
+            "linestyle": "none",
+            "ecolor": "dimgrey",
+            "color": "dimgrey",
+            "alpha": 0.8,
+            "capsize": 2.0,
+        }
+        axes.errorbar(
+            centers,
+            self.histograms_median[bin_num],
+            yerr=self._get_errorbars(bin_num),
+            **error_config
+        )
+
+        # save figure
+        filename = f"temperature_hist_normalized_{bin_num}{suffix}.pdf"
+        sim = self.config.sim.replace("-", "_")
+        fig.savefig(
+            self.config.figures_home / "001" / sim / "normalized" / filename,
+            bbox_inches="tight"
+        )
+
+    def _post_process_data(
+        self,
+        _processes: int,
+        _quiet: bool,
+        *,
+        to_file: bool = False,
+        suffix: str = ""
+    ) -> None:
+        """
+        Post process data as in parent class, but save files under custom name.
+
+        :param _processes: Stub
+        :param _quiet: Stub
+        :param to_file: whether to write the resulting array of histograms
+            to file, defaults to False
+        :param suffix: suffix to append to the file name
+        :return: None
+        """
+        # do normal post-processing, but without writing to file
+        super()._post_process_data(
+            _processes, _quiet, to_file=False, suffix=suffix
+        )
+
+        # write to custom file if desired
+        if to_file:
+            sim = self.config.sim.replace("-", "_")
+            file_name = f"temperature_hists_normalized{suffix}.npz"
+            file_path = self.config.data_home / "001" / sim / file_name
+            np.savez(
+                file_path,
+                hist_mean=self.histograms_mean,
+                hist_median=self.histograms_median,
+                hist_percentiles=self.histograms_percentiles,
+            )
+
+    def _process_temperatures(
+        self, halo_id: int, temperatures: ArrayLike, gas_data: ArrayLike
+    ) -> NDArray:
+        """
+        Calculate gas temperature and bin them into histogram data.
+
+        Overwrites parent class implementation to normalize the gas
+        temperature by the virial temperature of the halo.
+
+        :param gas_data: dictionary holding arrays with gas data. Must
+            have keys for internal energy, electron abundance and for
+            gas mass
+        :return: histogram data, i.e. the binned temperature counts,
+            weighted by gas mass fraction
+        """
+        # determine weights for hist
+        if self.weight == "frac":
+            total_gas_mass = np.sum(gas_data["Masses"])
+            weights = gas_data["Masses"] / total_gas_mass
+        else:
+            weights = gas_data["Masses"]
+
+        # generate and assign hist data
+        hist, _ = np.histogram(
+            np.log10(temperatures / self.virial_temperatures[halo_id]),
+            bins=self.len_data,
+            range=self.temperature_range,
+            weights=weights,
+        )
+        return hist
