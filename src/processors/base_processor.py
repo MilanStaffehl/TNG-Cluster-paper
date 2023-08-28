@@ -250,11 +250,8 @@ class BaseProcessor:
         for i, halo_id in enumerate(self.indices):
             if not quiet:
                 perc = i / n_halos * 100
-                print(
-                    f"Processing halo {halo_id}/{n_halos} ({perc:.1f}%)",
-                    end="\r"
-                )
-            self.data[halo_id] = self._get_data_step(halo_id)
+                print(f"Processing halo {i}/{n_halos} ({perc:.1f}%)", end="\r")
+            self.data[i] = self._get_data_step(halo_id)
         self.logger.info("Finished processing halo data.")
 
     def _get_data_step(self, halo_id: int) -> NDArray:

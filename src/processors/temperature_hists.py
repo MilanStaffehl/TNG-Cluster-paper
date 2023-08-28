@@ -105,10 +105,10 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         labelsize = 12
         axes.set_xlabel("Gas temperature [log K]", fontsize=labelsize)
         if self.weight == "frac":
-            axes.set_ylabel("Average gas mass fraction", fontsize=labelsize)
+            axes.set_ylabel("Gas mass fraction", fontsize=labelsize)
         else:
             axes.set_ylabel(
-                r"Average gas mass per cell [$M_\odot$]", fontsize=labelsize
+                r"Gas mass per cell [$M_\odot$]", fontsize=labelsize
             )
 
         # calculate bin positions
@@ -173,13 +173,15 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         Load stacked (averaged) histogram data from file.
 
         The file needs to be a numpy .npz archive, as saved by the method
-        ``stack_bins``. The resulting NpzFile instance must have keys
-        'hist_mean' and 'hist_std'. For both arrays, the first axis
-        must match in length the number of mass bins and the second axis
-        must match the number of histogram bins ``self.len_data``.
+        ``_post_process_data``. The resulting NpzFile instance must have
+        keys 'hist_mean', 'hist_median' and 'hist_percentiles'. For all
+        three arrays, the first axis must match in length the number of
+        mass bins and the second axis must match the number of histogram
+        bins ``self.len_data``.
 
-        The loaded data is placed into the ``histograms`` and
-        ``histograms_percentiles`` attributes respectively.
+        The loaded data is placed into the ``histograms_mean``,
+        ``histograms_median`` and ``histograms_percentiles`` attributes
+        respectively.
 
         :param file: file name of the numpy data file
         :return: None
@@ -215,6 +217,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
                 f"shape {hist_median.shape}. Median has correct shape, so the "
                 f"mean data must have been saved wrong or is corrupted."
             )
+            return
         elif not hist_median.shape[0] == hist_perc.shape[
                 0] or not hist_median.shape[1] == hist_perc.shape[2]:
             self.logger.error(
