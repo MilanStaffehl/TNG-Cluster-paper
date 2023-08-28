@@ -303,7 +303,7 @@ class BaseProcessor:
             gas_data["StarFormationRate"],
         )
         # post-process temperatures and return result
-        return self._process_temperatures(temperatures, gas_data)
+        return self._process_temperatures(halo_id, temperatures, gas_data)
 
     def _get_halo_data(self) -> None:
         """
@@ -346,8 +346,9 @@ class BaseProcessor:
         :return: A fallback data array for halos without any gas particles. If
             not overwritten, this is an array of NaN's.
         """
-        fallback = np.empty(self.len_data)
-        return fallback.fill(np.nan)
+        fallback = np.empty(self.len_data, dtype=np.float32)
+        fallback.fill(np.nan)
+        return fallback
 
     def _post_process_data(
         self, processes: int, quiet: bool, **kwargs
@@ -360,7 +361,10 @@ class BaseProcessor:
         pass
 
     def _process_temperatures(
-        self, temperatures: NDArray, gas_data: dict[str, NDArray]
+        self,
+        halo_id: int,
+        temperatures: NDArray,
+        gas_data: dict[str, NDArray]
     ) -> NDArray:
         """
         Return a data array processed from temperatures and gas data.
@@ -370,6 +374,7 @@ class BaseProcessor:
 
         This method is a stub and must be overwritten by subclasses.
 
+        :param halo_id: The ID of the halo.
         :param temperatures: Array of gas cell temperatures of the halo.
         :param gas_data: The dictionary containing gas data for the halo.
         :return: A data array of length ``self.len_data``.
