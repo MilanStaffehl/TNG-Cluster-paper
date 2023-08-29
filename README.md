@@ -26,7 +26,9 @@ Alternatively, you can specify the location of the required directories manually
 
 ### Using the install script
 
-Simply run `install.sh` from the root directory of the project.
+Simply run `install.py` from the root directory of the project. You do not need
+to run it from a dedicated Python environment as it does not alter any env vars
+nor does it require any third-party dependencies.
 
 After running the install script, install the dependencies (ideally inside of a
 new venv). Start by installing the Illustris helper scripts using
