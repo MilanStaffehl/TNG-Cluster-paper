@@ -1,0 +1,43 @@
+HISTS
+=====
+
+Plots 
+-----
+
+filename = f"temperature_hist_{bin_num}{suffix}.pdf"
+sim = self.config.sim.replace("-", "_")
+self.config.figures_home / "001" / sim / "hists" / filename
+
+
+Data
+----
+
+sim = self.config.sim.replace("-", "_")
+file_name = f"temperature_hists{suffix}.npz"
+file_path = self.config.data_home / "001" / sim / file_name
+
+
+Virial temperatures 
+-------------------
+
+sim = self.config.sim.replace("-", "_")
+file_name = f"virial_temperatures{suffix}.npy"
+file_path = self.config.data_home / "001" / sim / file_name
+
+
+NORMALIZED 
+==========
+
+Plots 
+-----
+
+filename = f"temperature_hist_normalized_{bin_num}{suffix}.pdf"
+sim = self.config.sim.replace("-", "_")
+self.config.figures_home / "001" / sim / "normalized" / filename
+
+Data 
+----
+
+sim = self.config.sim.replace("-", "_")
+file_name = f"temperature_hists_normalized{suffix}.npz"
+file_path = self.config.data_home / "001" / sim / file_name

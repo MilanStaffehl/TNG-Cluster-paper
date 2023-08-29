@@ -1,9 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-# overrides for default data and figures directories
-DATA_HOME = None
-FIGURES_HOME = None
+import yaml
 
 
 @dataclass
@@ -37,6 +35,24 @@ class Config:
     figures_home: str | Path
 
 
+class InvalidConfigError(Exception):
+    """Raise when a loaded config contains invalid paths"""
+
+    def __init__(self, path: Path, *args: object) -> None:
+        super().__init__(*args)
+        if not isinstance(path, Path):
+            path = Path(path)
+        self.path = path
+
+    def __str__(self) -> str:
+        if not self.path.exists():
+            return f"The config path {self.path} does not exist"
+        elif not self.path.is_dir():
+            return f"The config path {self.path} does not point to a directory"
+        else:
+            return f"The config path {self.path} is not a valid config path"
+
+
 def get_default_config(
     sim: str,
     snap: int = 99,
@@ -55,10 +71,28 @@ def get_default_config(
         halo radius, defaults to R_crit200
     :return: configuration for this specific
     """
+    # find directories for data and figures
     cur_dir = Path(__file__).parent.resolve()
     root_dir = cur_dir.parent
-    data_home = root_dir / "data" if DATA_HOME is None else DATA_HOME
-    fig_home = root_dir / "figures" if FIGURES_HOME is None else FIGURES_HOME
+    with open(root_dir / "config.yaml", "r") as config_file:
+        stream = config_file.read()
+    config = yaml.full_load(stream)
+    if config["paths"]["figures_home"].lower() == "default":
+        figures_home = root_dir / "figures"
+    else:
+        figures_home = Path(config["paths"]["figures_home"]).resolve()
+    if config["paths"]["data_home"].lower() == "default":
+        data_home = root_dir / "data"
+    else:
+        data_home = Path(config["paths"]["data_home"]).resolve()
+
+    # verify paths
+    if not data_home.exists() or not data_home.is_dir():
+        raise InvalidConfigError(data_home)
+    if not figures_home.exists() or not figures_home.is_dir():
+        raise InvalidConfigError(figures_home)
+
+    # return config
     final_config = Config(
         sim,
         f"/virgotng/universe/IllustrisTNG/{sim}/output",
@@ -66,6 +100,6 @@ def get_default_config(
         mass_field=mass_field,
         radius_field=radius_field,
         data_home=data_home,
-        figures_home=fig_home,
+        figures_home=figures_home,
     )
     return final_config

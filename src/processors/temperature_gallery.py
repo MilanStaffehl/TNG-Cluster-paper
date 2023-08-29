@@ -59,7 +59,7 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
         self.indices = None
         self.virial_temperatures = None
 
-    def plot_data(self, mass_bin: int) -> None:
+    def plot_data(self, mass_bin: int, output: Path | str) -> None:
         """
         Plot a gallery of temperature distributions for the given mass bin.
 
@@ -67,6 +67,7 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
         for all selected halos in the given mass bin and saves it to file.
 
         :param mass_bin: mass bin index, starting from zero
+        :param output: The file path and file name for the produced plot
         """
         self.logger.info(f"Plotting gallery for mass bin {mass_bin}.")
         fig, axes = plt.subplots(figsize=(8, 10), ncols=2, nrows=int(self.plots_per_bin / 2))
@@ -121,12 +122,7 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
             drawn_plots += 1  # increment counter
 
         # save figure
-        filename = f"temperature_hist_{mass_bin}_gallery.pdf"
-        sim = self.config.sim.replace("-", "_")
-        fig.savefig(
-            self.config.figures_home / "001" / sim / "galleries" / filename,
-            bbox_inches="tight"
-        )
+        fig.savefig(output, bbox_inches="tight")
 
     def load_data(self, filepath: str | Path) -> None:
         """
@@ -243,7 +239,11 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
         self.logger.info("Finished loading and selecting halo masses & radii.")
 
     def _post_process_data(
-        self, processes: int, quiet: bool, to_file: bool = False
+        self,
+        processes: int,
+        quiet: bool,
+        to_file: bool = False,
+        output: Path | str | None = None
     ) -> None:
         """
         Reshape the obtained data and save it to file, if desired.
@@ -251,6 +251,8 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
         :param processes: Stub
         :param quiet: Stub
         :param to_file: Whether to save the data to file, defaults to False
+        :param output: File path and name for the data file. Needs to be
+            specified if ``to_file`` is True. Defaults to None.
         """
         self.indices = self.indices.reshape(self.n_mass_bins, -1)
         self.masses = self.masses.reshape(self.n_mass_bins, -1)
@@ -261,11 +263,8 @@ class TemperatureDistributionGalleryProcessor(base_processor.BaseProcessor):
         self.data = self.data.reshape(self.n_mass_bins, -1, self.len_data)
 
         if to_file:
-            sim = self.config.sim.replace("-", "_")
-            file_name = f"temperature_gallery_{sim}.npz"
-            file_path = self.config.data_home / "001" / sim / file_name
             np.savez(
-                file_path,
+                output,
                 masses=self.masses,
                 indices=self.indices,
                 radii=self.radii,

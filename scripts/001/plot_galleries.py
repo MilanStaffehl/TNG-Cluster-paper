@@ -34,15 +34,34 @@ def main(args: argparse.Namespace) -> None:
         SIMULATION, logger, args.bins, MASS_BINS
     )
 
+    # path setup
+    sim_dir_name = SIMULATION.replace("-", "_")
+    # dir for plots
+    if args.plotpath is not None:
+        figures_path = Path(args.plotpath)
+    else:
+        figures_path = (
+            hist_plotter.config.figures_home / "001" / sim_dir_name
+            / "galleries"
+        )
+    # dir for data
+    if args.datapath is not None:
+        data_path = Path(args.datapath)
+    else:
+        data_path = (hist_plotter.config.data_home / "001" / sim_dir_name)
+
+    # begin the process
+    file_path = data_path / f"temperature_gallery_{sim_dir_name}.npz"
     if args.load:
-        sim = SIMULATION.replace("-", "_")
-        file_name = f"temperature_gallery_{sim}.npz"
-        file_path = hist_plotter.config.data_home / "001" / file_name
         hist_plotter.load_data(file_path)
     else:
         begin = time.time()
         hist_plotter.get_data(
-            0, args.quiet, post_kwargs={"to_file": args.to_file}
+            0,
+            args.quiet,
+            post_kwargs={
+                "to_file": args.to_file, "output": file_path
+            },
         )
         end = time.time()
 
@@ -56,7 +75,8 @@ def main(args: argparse.Namespace) -> None:
 
     # plot histograms
     for i in range(len(MASS_BINS) - 1):
-        hist_plotter.plot_data(i)
+        file_name = f"temperature_hist_{i}_gallery.pdf"
+        hist_plotter.plot_data(i, figures_path / file_name)
 
 
 if __name__ == "__main__":
@@ -87,7 +107,7 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "-n",
+        "-x",
         "--no-plots",
         help=(
             "Suppresses creation of plots, use to prevent overwriting "
@@ -120,6 +140,26 @@ if __name__ == "__main__":
         dest="bins",
         type=int,
         default=50,
+    )
+    parser.add_argument(
+        "--plot-output-dir",
+        help=(
+            "The directory path under which to save the plots, if created. "
+            "It is recommended to leave this at the default value unless "
+            "the expected directories do not exist."
+        ),
+        dest="plotpath",
+        default=None,
+    )
+    parser.add_argument(
+        "--data-output-dir",
+        help=(
+            "The directory path under which to save the plots, if created. "
+            "It is recommended to leave this at the default value unless "
+            "the expected directories do not exist."
+        ),
+        dest="datapath",
+        default=None,
     )
 
     # parse arguments

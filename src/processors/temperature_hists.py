@@ -67,7 +67,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
     def plot_data(
         self,
         bin_num: int,
-        suffix: str = "",
+        output: Path | str,
         log: bool = True,
         plot_vir_temp: bool = True,
     ) -> None:
@@ -79,8 +79,8 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         starting from zero.
 
         :param bin_num: mass bin index, starting from zero
-        :param suffix: suffix appended to output file name, defaults to
-            an empty string (no suffix)
+        :param output: File path and name for the finished plot to be
+            saved under.
         :param log: whether to plot the histograms in logarithmic scale
             on the y-axis, defaults to True
         :param plot_vir_temp: whether to overplot the range of virial
@@ -160,12 +160,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             self._overplot_virial_temperatures(axes, bin_num)
 
         # save figure
-        filename = f"temperature_hist_{bin_num}{suffix}.pdf"
-        sim = self.config.sim.replace("-", "_")
-        fig.savefig(
-            self.config.figures_home / "001" / sim / "hists" / filename,
-            bbox_inches="tight"
-        )
+        fig.savefig(output, bbox_inches="tight")
 
     def load_data(self, filepath: str | Path) -> None:
         """
@@ -265,7 +260,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         *,
         virial_temperatures: bool = True,
         to_file: bool = False,
-        suffix: str = ""
+        output: Path | str | None = None,
     ) -> None:
         """
         Load auxilary data: bin mask, virial temperatures.
@@ -278,8 +273,8 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             be calculated. Keyword only argument.
         :param to_file: whether to write the resulting virial temperatures
             to file. Keyword only argument.
-        :param suffix: Suffix to append to the file name of the virial
-            temperature data file. Keyword only argument.
+        :param output: File path and name for the virial temperature data
+            file. Must be set if ``to_file`` is True. Keyword only argument.
         """
         # create a mask array for the mass bins
         self.bin_masker = np.digitize(self.masses, self.mass_bins)
@@ -287,11 +282,11 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         if virial_temperatures:
             if processes > 0:
                 self._get_virial_temperatures_multiprocessed(
-                    processes=processes, to_file=to_file, suffix=suffix
+                    processes=processes, to_file=to_file, output=output
                 )
             else:
                 self._get_virial_temperatures_sequentially(
-                    quiet=quiet, to_file=to_file, suffix=suffix
+                    quiet=quiet, to_file=to_file, output=output
                 )
 
     def _get_errorbars(self, mass_bin: int) -> NDArray:
@@ -342,7 +337,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         self,
         processes: int = 16,
         to_file: bool = True,
-        suffix: str = ""
+        output: Path | str | None = None,
     ) -> None:
         """
         Calculate the virial temperature of all halos using multiprocessing.
@@ -374,7 +369,8 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             defaults to 16
         :param to_file: whether to write the virial temperatures to
             numpy-readable file
-        :param suffix: suffix to append to the file name
+        :param output: File path and name for the output data file. Must
+            be set when ``to_file`` is True, otherwise leave it as None.
         :return: None
         """
         if self.masses is None or self.radii is None:
@@ -403,17 +399,14 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         # write to file
         if to_file:
-            sim = self.config.sim.replace("-", "_")
-            file_name = f"virial_temperatures{suffix}.npy"
-            file_path = self.config.data_home / "001" / sim / file_name
-            np.save(file_path, self.virial_temperatures)
+            np.save(output, self.virial_temperatures)
             self.logger.info("Wrote virial temperatures to file.")
 
     def _get_virial_temperatures_sequentially(
         self,
         quiet: bool = False,
         to_file: bool = True,
-        suffix: str = ""
+        output: Path | str | None = None,
     ) -> None:
         """
         Calculate the virial temperature of all halos without multiprocessing.
@@ -436,7 +429,8 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             stdout
         :param to_file: whether to write the virial temperatures to
             numpy-readable file
-        :param suffix: suffix to append to the file name
+        :param output: File path and name for the output data file. Must
+            be set when ``to_file`` is True, otherwise leave it as None.
         :return: None
         """
         if self.indices is None or self.masses is None:
@@ -460,10 +454,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         # write to file
         if to_file:
-            sim = self.config.sim.replace("-", "_")
-            file_name = f"virial_temperatures{suffix}.npy"
-            file_path = self.config.data_home / "001" / sim / file_name
-            np.save(file_path, self.virial_temperatures)
+            np.save(output, self.virial_temperatures)
             self.logger.info("Wrote virial temperatures to file.")
 
     def _get_virial_temperatures_step(
@@ -547,7 +538,7 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         _quiet: bool,
         *,
         to_file: bool = False,
-        suffix: str = ""
+        output: Path | str | None = None
     ) -> None:
         """
         Stack all histograms per mass bin for average histogram.
@@ -563,7 +554,8 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         :param to_file: whether to write the resulting array of histograms
             to file, defaults to False
-        :param suffix: suffix to append to the file name
+        :param output: File path and name for the output data file. Must
+            be set when ``to_file`` is True, otherwise leave it as None.
         :return: None
         """
         if self.data is None:
@@ -599,11 +591,8 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
             )
 
         if to_file:
-            sim = self.config.sim.replace("-", "_")
-            file_name = f"temperature_hists{suffix}.npz"
-            file_path = self.config.data_home / "001" / sim / file_name
             np.savez(
-                file_path,
+                output,
                 hist_mean=self.histograms_mean,
                 hist_median=self.histograms_median,
                 hist_percentiles=self.histograms_percentiles,
@@ -693,7 +682,7 @@ class NormalizedProcessor(TemperatureDistributionProcessor):
     def plot_data(
         self,
         bin_num: int,
-        suffix: str = "",
+        output: Path | str | None = None,
         log: bool = True,
         plot_vir_temp: bool = True
     ) -> None:
@@ -706,8 +695,7 @@ class NormalizedProcessor(TemperatureDistributionProcessor):
         virial temperature before stacking.
 
         :param bin_num: mass bin index, starting from zero
-        :param suffix: suffix appended to output file name, defaults to
-            an empty string (no suffix)
+        :param output: File path and name for the plot to be saved under.
         :param log: whether to plot the histograms in logarithmic scale
             on the y-axis, defaults to True
         :param plot_vir_temp: whether to overplot the range of virial
@@ -779,12 +767,7 @@ class NormalizedProcessor(TemperatureDistributionProcessor):
         )
 
         # save figure
-        filename = f"temperature_hist_normalized_{bin_num}{suffix}.pdf"
-        sim = self.config.sim.replace("-", "_")
-        fig.savefig(
-            self.config.figures_home / "001" / sim / "normalized" / filename,
-            bbox_inches="tight"
-        )
+        fig.savefig(output, bbox_inches="tight")
 
     def _post_process_data(
         self,
@@ -792,7 +775,7 @@ class NormalizedProcessor(TemperatureDistributionProcessor):
         _quiet: bool,
         *,
         to_file: bool = False,
-        suffix: str = ""
+        output: Path | str | None = None,
     ) -> None:
         """
         Post process data as in parent class, but save files under custom name.
@@ -801,21 +784,18 @@ class NormalizedProcessor(TemperatureDistributionProcessor):
         :param _quiet: Stub
         :param to_file: whether to write the resulting array of histograms
             to file, defaults to False
-        :param suffix: suffix to append to the file name
+        :param output: File name and path for the data output file.
         :return: None
         """
         # do normal post-processing, but without writing to file
         super()._post_process_data(
-            _processes, _quiet, to_file=False, suffix=suffix
+            _processes, _quiet, to_file=False, suffix=None
         )
 
         # write to custom file if desired
         if to_file:
-            sim = self.config.sim.replace("-", "_")
-            file_name = f"temperature_hists_normalized{suffix}.npz"
-            file_path = self.config.data_home / "001" / sim / file_name
             np.savez(
-                file_path,
+                output,
                 hist_mean=self.histograms_mean,
                 hist_median=self.histograms_median,
                 hist_percentiles=self.histograms_percentiles,
