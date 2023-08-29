@@ -403,8 +403,9 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
 
         # write to file
         if to_file:
+            sim = self.config.sim.replace("-", "_")
             file_name = f"virial_temperatures{suffix}.npy"
-            file_path = self.config.data_home / "001" / file_name
+            file_path = self.config.data_home / "001" / sim / file_name
             np.save(file_path, self.virial_temperatures)
             self.logger.info("Wrote virial temperatures to file.")
 
