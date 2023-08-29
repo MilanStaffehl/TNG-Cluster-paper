@@ -95,7 +95,7 @@ def get_default_config(
     # return config
     final_config = Config(
         sim,
-        f"/virgotng/universe/IllustrisTNG/{sim}/output",
+        Path(config["paths"]["simulation_home"]) / sim / "output",
         snap_num=snap,
         mass_field=mass_field,
         radius_field=radius_field,

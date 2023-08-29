@@ -3,6 +3,9 @@
 This repository contains the source code for my master thesis about cool gas in
 galaxy clusters at the ITA (University Heidelberg).
 
+> This project is still in development. Expect drastic changes to occur
+> between commits.
+
 ## Prerequisites
 
 The code in this repository requires Python 3.10 or higher to run.
@@ -63,13 +66,14 @@ instead. This installs and sets up pre-commit and dependecies.
 
 If you wish to use this code without relying on the expected directory structure,
 you can specify your own directories for data and figures. To do so, set the
-`DATA_HOME` and `FIGURES_HOME` directory paths inside the 
-[`config`](./src/config.py) module to the desired location. Make sure that the
-directory includes the subdirectories for the milestones (that is, directories
-named `001`, `002`, `003` etc.)!
+`data_home` and `figures_home` directory paths inside the 
+[`config.yaml`](./config.yaml) file to the desired location, before running the
+install script.
 
-If you choose to follow this instruction, remember to clone the Illustris
-helper package repository and install it to your environment!
+Please note that this will still create a set of subdirectories that are 
+required to work with the default file paths and names in this project. If you
+wish to control the location of data and plot files in full, every script also
+offers the option to specify the directory where to save them.
 
 
 ## Executing code
@@ -79,16 +83,20 @@ recommended and in some cases impossible: some scripts use up to 250 GB of
 memory. 
 
 If you want to use this code outside of the Vera cluster of the MPIA, you will
-need to update the directory of the simulation data inside the 
-[`get_default_config`](./src/config.py#L61) function to wherever the simulation 
-data is stored. If you are using this code on the Vera cluster, it should work 
-"out of the box".
+need to update the `simulation_home` directory of the simulation data inside 
+the [`config.yaml`](./config.yaml) module to wherever the simulation data is 
+stored. Note that this directory must refer to the parent directory of the
+individual simulation data directories, i.e. it should not contain the data
+directly. If you are using this code on the Vera cluster, the default settings 
+should work "out of the box".
 
 The intended way for this code to be executed is by using the Python scripts
 inside the `scripts` directory. They come alongside batch scripts for submission
 to slurm, in order to make use of the full computational power of the cluster.
-Use either the Python scripts (be careful with RAM and CPU cores usage on login
-nodes!) or submit batch jobs using the batch scripts.
+Use either the Python scripts (be careful with RAM and CPU cores usage!) or 
+submit batch jobs using the batch scripts.
+
+If you want to know more about one of the python scripts, use the `-h` flag.
 
 
 ## Milestones
