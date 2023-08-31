@@ -24,8 +24,10 @@ local machine. However, there are three major obstacles to using it this way:
 3. The code is written for execution on clusters, not PCs. 
 
 The first two problems can be remedied by "installing" the code. This repository
-comes with an installation shell script that will set up the expected directories. 
-Alternatively, you can specify the location of the required directories manually.
+comes with an installation Python script that will set up the expected directories. 
+By default, it will place these directories inside the project directory (don't
+worry: they are ignored by git by default). Alternatively, you can specify the 
+location of the required directories manually.
 
 ### Using the install script
 
@@ -96,7 +98,7 @@ to slurm, in order to make use of the full computational power of the cluster.
 Use either the Python scripts (be careful with RAM and CPU cores usage!) or 
 submit batch jobs using the batch scripts.
 
-If you want to know more about one of the python scripts, use the `-h` flag.
+If you want to know more about one of the Python scripts, use the `-h` flag.
 
 
 ## Milestones
@@ -163,7 +165,7 @@ quickly, you can find some guidance here:
 - **Batch scripts for slurm:** Batch scripts for the different tasks are 
   situated in the `scripts` directory. Consult the [ROADMAP](./ROADMAP.md) to
   find out what job you are looking for and then select the correspond subdir
-  of `scripts`. 
+  of `scripts`. Here you will then find the scripts in the `batch` directory.
 - **Scripts to reproduce plots:** Use the Python scripts under `scripts`.
   Consult the [ROADMAP](./ROADMAP.md) to find out which of the subdirectories
   you need to look into. All the Python scripts in `scripts` have a CLI, so
@@ -177,7 +179,7 @@ quickly, you can find some guidance here:
 - **The finished plots:** If you installed the code using the `install.sh`
   script, you will find the figures under the `figures` directory in the
   subdirectory of the milestone they belong to. If you cannot find them there,
-  check the [`config`](./src/config.py) module for the `FIGURES_HOME` path.
+  check the [`config.yaml`](./config.yaml) file for the `figures_home` path.
   You will find your figures under this path.
 
 

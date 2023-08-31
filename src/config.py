@@ -93,9 +93,10 @@ def get_default_config(
         raise InvalidConfigError(figures_home)
 
     # return config
+    base_path = Path(config["paths"]["simulation_home"]) / sim / "output"
     final_config = Config(
         sim,
-        Path(config["paths"]["simulation_home"]) / sim / "output",
+        str(base_path),  # illustris_python does not support Path-likes
         snap_num=snap,
         mass_field=mass_field,
         radius_field=radius_field,
