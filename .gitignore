@@ -36,7 +36,7 @@ data/
 # nohup and batch output files
 *nohup.out
 scripts/*/output/
-scripts/*/batch/output
+scripts/*/batch/output/
 
 # temporary scripts
 scripts/tmp*.py

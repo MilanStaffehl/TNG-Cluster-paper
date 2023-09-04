@@ -789,7 +789,7 @@ class NormalizedProcessor(TemperatureDistributionProcessor):
         """
         # do normal post-processing, but without writing to file
         super()._post_process_data(
-            _processes, _quiet, to_file=False, suffix=None
+            _processes, _quiet, to_file=False, output=None
         )
 
         # write to custom file if desired
