@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     import logging
     from pathlib import Path
 
-    from numpy.typing import NDArray
+    from numpy.typing import ArrayLike, NDArray
 
 
 class BaseProcessor:
@@ -102,15 +102,39 @@ class BaseProcessor:
     """
 
     def __init__(
-        self, sim: str, logger: logging.Logger, data_length: int
+        self,
+        sim: str,
+        logger: logging.Logger,
+        data_length: int | ArrayLike,
+        additional_fields: list[str] | None = None
     ) -> None:
+        """
+        :param sim: Name of the simulation as used in the data path
+            (e.g. TNG300-1).
+        :param logger: Logger for use with logging.
+        :param data_length: The length of the data array per halo. Can be
+            a numpy array of any shape, in which case data will have the
+            same shape.
+        :param additional_fields: Additional fields for the gas cells to
+            load. Useful for cases where processing temperatures needs
+            more gas cell information than otherwise is loaded.
+        """
         self.sim = sim
         self.config = config.get_default_config(sim=sim)
         self.logger = logger
         self.len_data = data_length
+        self.fields = [
+            "InternalEnergy",
+            "ElectronAbundance",
+            "Masses",
+            "StarFormationRate"
+        ]
+        if additional_fields is not None:
+            self.fields = self.fields + additional_fields
         # data fields
         self.indices = None
         self.masses = None
+        self.radii = None
         self.data = None  # results of get_data are assigned here
 
     def get_data(
@@ -246,7 +270,7 @@ class BaseProcessor:
         """
         self.logger.info("Start processing halo data sequentially.")
         n_halos = len(self.indices)
-        self.data = np.zeros((n_halos, self.len_data))
+        self.data = np.zeros((n_halos, ) + (self.len_data, ))
         for i, halo_id in enumerate(self.indices):
             if not quiet:
                 perc = i / n_halos * 100
@@ -274,19 +298,12 @@ class BaseProcessor:
         if self._skip_halo(halo_id):
             return self._fallback(halo_id)
 
-        # load halo gas cell data
-        fields = [
-            "InternalEnergy",
-            "ElectronAbundance",
-            "Masses",
-            "StarFormationRate"
-        ]
         gas_data = il.snapshot.loadHalo(
             self.config.base_path,
             self.config.snap_num,
             halo_id,
             partType=0,  # gas
-            fields=fields,
+            fields=self.fields,
         )
 
         # some halos do not contain gas
@@ -307,7 +324,7 @@ class BaseProcessor:
 
     def _get_halo_data(self) -> None:
         """
-        Load halo masses and create a list of indices from it.
+        Load halo masses and radii and create a list of indices from it.
 
         This method is required for the ``get_data`` method to work. Any
         subclass may EXTEND it. If a subclass OVERWRITES it, it must at
@@ -317,16 +334,19 @@ class BaseProcessor:
         fields from the halos are required (e.g. the radius) to avoid
         opening and reading from the same files twice.
         """
-        self.logger.info("Loading halo masses and indices.")
+        self.logger.info("Loading halo masses & radii.")
         halo_data = il.groupcat.loadHalos(
             self.config.base_path,
             self.config.snap_num,
-            fields=[self.config.mass_field],
+            fields=[self.config.mass_field, self.config.radius_field],
         )
-        num_halos = len(halo_data)
+        num_halos = len(halo_data[self.config.mass_field])
         self.indices = np.indices([num_halos], sparse=True)[0]
-        self.masses = (halo_data * 1e10 / constants.HUBBLE)
-        self.logger.info("Finished loading halo mass data.")
+        self.masses = (
+            halo_data[self.config.mass_field] * 1e10 / constants.HUBBLE
+        )
+        self.radii = halo_data[self.config.radius_field] / constants.HUBBLE
+        self.logger.info("Finished loading halo masses & radii.")
 
     def _fallback(self, halo_id: int) -> NDArray:
         """

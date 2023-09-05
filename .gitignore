@@ -6,6 +6,9 @@ __pycache__/
 # C extensions
 *.so
 
+# mypy stub files
+out/
+
 # Distribution / packaging
 .Python
 build/
