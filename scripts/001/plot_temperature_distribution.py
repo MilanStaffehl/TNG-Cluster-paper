@@ -52,13 +52,7 @@ def main(args: argparse.Namespace) -> None:
 
     # path setup
     sim_dir_name = SIMULATION.replace("-", "_")
-    # dir for plots
-    if args.plotpath is not None:
-        figures_path = Path(args.plotpath)
-    else:
-        figures_path = (
-            hist_plotter.config.figures_home / "001" / sim_dir_name / "galleries"
-        )  # yapf: disable
+
     # dir for data
     if args.datapath is not None:
         data_path = Path(args.datapath)
@@ -71,12 +65,13 @@ def main(args: argparse.Namespace) -> None:
         "to_file": args.to_file,
         "output": data_path / f"virial_temperatures_{sim_dir_name}.npy",
     }
-    post_kwargs = {
-        "to_file":
-            args.to_file,
-        "output":
-            data_path / f"temperature_hists_{sim_dir_name}_{weight_type}.npz"
-    }
+    if args.normalize:
+        f = (
+            data_path / f"temperature_hists_normalized_{sim_dir_name}_{weight_type}.npz"
+        )  # yapf: disable
+    else:
+        f = data_path / f"temperature_hists_{sim_dir_name}_{weight_type}.npz"
+    post_kwargs = {"to_file": args.to_file, "output": f}
 
     # time the full calculation process
     begin = time.time()
@@ -94,11 +89,24 @@ def main(args: argparse.Namespace) -> None:
     logger.info(f"Spent {time_fmt} hours on execution.")
 
     if args.no_plots:
-        sys.exit(0)
+        return
+
+    # dirs for plots
+    if args.plotpath is not None:
+        figures_path = Path(args.plotpath)
+    elif args.normalize:
+        figures_path = (
+            hist_plotter.config.figures_home / "001" / sim_dir_name / "normalized"
+        )  # yapf: disable
+    else:
+        figures_path = (
+            hist_plotter.config.figures_home / "001" / sim_dir_name / "hists"
+        )
 
     # plot histograms
     for i in range(len(MASS_BINS) - 1):
-        file_name = f"temperature_hists_{i}_{sim_dir_name}_{weight_type}.pdf"
+        s = "_normalized_" if args.normalize else "_"
+        file_name = f"temperature_hist{s}{i}_{sim_dir_name}_{weight_type}.pdf"
         hist_plotter.plot_data(
             i,
             output=figures_path / file_name,
