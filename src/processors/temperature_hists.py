@@ -7,13 +7,11 @@ import multiprocessing as mp
 from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
-import illustris_python as il
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
 
 import compute
-import constants
 from processors import base_processor
 
 if TYPE_CHECKING:
@@ -308,30 +306,6 @@ class TemperatureDistributionProcessor(base_processor.BaseProcessor):
         lower_ebars = median - percentiles[0]
         upper_ebars = percentiles[1] - median
         return np.array([lower_ebars, upper_ebars])
-
-    def _get_halo_data(self) -> None:
-        """
-        Load and bin the halos from the simulation, save binned masses.
-
-        Method loads the halo data from the simulation and bins all halos
-        by mass. IDs of the halos are binned as well and saved in attrs
-        as well.
-
-        :return: None
-        """
-        self.logger.info("Loading halo masses & radii.")
-        halo_data = il.groupcat.loadHalos(
-            self.config.base_path,
-            self.config.snap_num,
-            fields=[self.config.mass_field, self.config.radius_field],
-        )
-        num_halos = len(halo_data[self.config.mass_field])
-        self.indices = np.indices([num_halos], sparse=True)[0]
-        self.masses = (
-            halo_data[self.config.mass_field] * 1e10 / constants.HUBBLE
-        )
-        self.radii = halo_data[self.config.radius_field] / constants.HUBBLE
-        self.logger.info("Finished loading halo masses & radii.")
 
     def _get_virial_temperatures_multiprocessed(
         self,
