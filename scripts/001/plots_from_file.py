@@ -43,19 +43,46 @@ def main(args: argparse.Namespace) -> None:
         weight=weight_type,
     )
 
-    # load hist data from file
-    FILE_SUFFIX = f"_{SIMULATION.replace('-', '_')}_{weight_type}"
-    filename = f"temperature_hists{FILE_SUFFIX}.npz"
-    filepath = Path().home() / "thesisProject" / "data" / "001"
-    hist_plotter.load_data(filepath / filename)
-    if args.virial_temperatures:
-        filename = f"virial_temperatures_{SIMULATION.replace('-', '_')}.npy"
-        hist_plotter.load_virial_temperatures(filepath / filename)
+    # simulation name
+    sim_name = SIMULATION.replace("-", "_")
 
-    # plot the historgram with the file data
+    # dir for data
+    if args.datapath is not None:
+        data_path = Path(args.datapath)
+    else:
+        data_path = (hist_plotter.config.data_home / "001" / sim_name)
+
+    # load virial temperatures from file
+    hist_plotter.load_virial_temperatures(
+        data_path / f"virial_temperatures_{sim_name}.npy"
+    )
+
+    # load data
+    s = "_normalized_" if args.normalize else "_"
+    hist_plotter.load_data(
+        data_path / f"temperature_hists{s}{sim_name}_{weight_type}.npz"
+    )
+
+    # dirs for plots
+    if args.plotpath is not None:
+        figures_path = Path(args.plotpath)
+    elif args.normalize:
+        figures_path = (
+            hist_plotter.config.figures_home / "001" / sim_name / "normalized"
+        )
+    else:
+        figures_path = (
+            hist_plotter.config.figures_home / "001" / sim_name / "hists"
+        )
+
+    # plot histograms
     for i in range(len(MASS_BINS) - 1):
+        s = "_normalized_" if args.normalize else "_"
+        file_name = f"temperature_hist{s}{i}_{sim_name}_{weight_type}.pdf"
         hist_plotter.plot_data(
-            i, suffix=FILE_SUFFIX, plot_vir_temp=args.virial_temperatures
+            i,
+            output=figures_path / file_name,
+            plot_vir_temp=args.overplot,
         )
 
 
@@ -103,6 +130,32 @@ if __name__ == "__main__":
         dest="bins",
         type=int,
         default=50,
+    )
+    parser.add_argument(
+        "-n",
+        "--noralize-temperatures",
+        help="Use datasets with temperatures normalized to virial temperature",
+        dest="normalize",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--plot-output-dir",
+        help=(
+            "The directory path under which to save the plots, if created. "
+            "It is recommended to leave this at the default value unless "
+            "the expected directories do not exist."
+        ),
+        dest="plotpath",
+        default=None,
+    )
+    parser.add_argument(
+        "--data-input-dir",
+        help=(
+            "The directory path from which to load the data, if not the "
+            "default."
+        ),
+        dest="datapath",
+        default=None,
     )
 
     # parse arguments
