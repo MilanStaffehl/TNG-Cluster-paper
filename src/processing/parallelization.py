@@ -4,9 +4,9 @@ Fuctions for parallelization of data processing.
 from __future__ import annotations
 
 import logging
-import multiprocessing as mp
 from typing import TYPE_CHECKING, Callable, Sequence
 
+import multiprocess as mp
 import numpy as np
 
 if TYPE_CHECKING:
@@ -99,8 +99,6 @@ def process_halo_data_starmap(
     :return: Array of the return values of ``callback`` for every column
         of applying ``input_args`` to ``callback``.
     """
-    logging.info("Calculating virial temperatures.")
-
     # verify data
     length = len(input_args[0])
     for arg in input_args:
@@ -109,14 +107,14 @@ def process_halo_data_starmap(
                 f"Received input args not of type NDArray: {type(arg)}"
             )
             return
-        if len(arg) != length:
-            logging.error("Input arrays are not of the same length.")
-            return
         if len(arg.shape) > 1:
             logging.error(
                 f"Input argument has too many dimensions: array has shape "
                 f"{arg.shape}."
             )
+            return
+        if len(arg) != length:
+            logging.error("Input arrays are not of the same length.")
             return
 
     # splice input args together
@@ -133,5 +131,4 @@ def process_halo_data_starmap(
         pool.join()
 
     # return array of results
-    logging.info("Finished calculating virial temperatures.")
     return np.array(results)
