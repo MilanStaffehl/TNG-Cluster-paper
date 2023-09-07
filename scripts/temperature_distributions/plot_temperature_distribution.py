@@ -1,117 +1,47 @@
 import argparse
-import logging
-import logging.config
 import sys
-import time
 from pathlib import Path
 
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
-sys.path.append(str(cur_dir.parent.parent / "src"))
-import logging_config
-from processors import temperature_hists
+sys.path.append(str(cur_dir.parent.parent / "pipelines"))
+
+from temperature_distribution import histograms_by_fraction
 
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
-    logging_cfg = logging_config.get_logging_config("INFO")
-    logging.config.dictConfig(logging_cfg)
-    logger = logging.getLogger("root")
-
     # sim data
     if args.sim == "TEST_SIM":
-        SIMULATION = "TNG50-4"
+        sim = "TNG50-4"
     elif args.sim == "DEV_SIM":
-        SIMULATION = "TNG50-3"
+        sim = "TNG50-3"
     elif args.sim == "MAIN_SIM":
-        SIMULATION = "TNG300-1"
+        sim = "TNG300-1"
     else:
         raise ValueError(f"Unknown simulation type {args.sim}.")
 
     # histogram weights
-    if args.total_mass:
-        weight_type = "mass"
-    else:
-        weight_type = "frac"
+    # if args.total_mass:
+    #     weight_type = "mass"
+    # else:
+    #     weight_type = "frac"
 
-    # which processor to use:
-    if args.normalize:
-        processor = temperature_hists.NormalizedProcessor
-    else:
-        processor = temperature_hists.TemperatureDistributionProcessor
-
-    # plotter for hist data
-    MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
-    hist_plotter = processor(
-        sim=SIMULATION,
-        logger=logger,
-        n_temperature_bins=args.bins,
-        mass_bins=MASS_BINS,
-        weight=weight_type,
-    )
-
-    # path setup
-    sim_dir_name = SIMULATION.replace("-", "_")
-
-    # dir for data
-    if args.datapath is not None:
-        data_path = Path(args.datapath)
-    else:
-        data_path = (hist_plotter.config.data_home / "001" / sim_dir_name)
-
-    # assemble pre- and post processing kwargs
-    aux_kwargs = {
-        "virial_temperatures": args.overplot,
+    pipeline_config = {
+        "simulation": sim,
+        "processes": args.processes,
+        "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
+        "n_temperature_bins": args.bins,
+        "temperature_range": (3., 8.),
+        "with_virial_temperatures": args.overplot,
+        "quiet": args.quiet,
         "to_file": args.to_file,
-        "output": data_path / f"virial_temperatures_{sim_dir_name}.npy",
+        "no_plots": args.no_plots,
+        "figures_dir": args.plotpath,
+        "data_dir": args.datapath,
     }
-    if args.normalize:
-        f = (
-            data_path / f"temperature_hists_normalized_{sim_dir_name}_{weight_type}.npz"
-        )  # yapf: disable
-    else:
-        f = data_path / f"temperature_hists_{sim_dir_name}_{weight_type}.npz"
-    post_kwargs = {"to_file": args.to_file, "output": f}
-
-    # time the full calculation process
-    begin = time.time()
-    hist_plotter.get_data(
-        args.processes,
-        args.quiet,
-        aux_kwargs=aux_kwargs,
-        post_kwargs=post_kwargs
-    )
-    end = time.time()
-
-    # get time spent on computation
-    time_diff = end - begin
-    time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
-    logger.info(f"Spent {time_fmt} hours on execution.")
-
-    if args.no_plots:
-        return
-
-    # dirs for plots
-    if args.plotpath is not None:
-        figures_path = Path(args.plotpath)
-    elif args.normalize:
-        figures_path = (
-            hist_plotter.config.figures_home / "001" / sim_dir_name / "normalized"
-        )  # yapf: disable
-    else:
-        figures_path = (
-            hist_plotter.config.figures_home / "001" / sim_dir_name / "hists"
-        )
-
-    # plot histograms
-    for i in range(len(MASS_BINS) - 1):
-        s = "_normalized_" if args.normalize else "_"
-        file_name = f"temperature_hist{s}{i}_{sim_dir_name}_{weight_type}.pdf"
-        hist_plotter.plot_data(
-            i,
-            output=figures_path / file_name,
-            plot_vir_temp=args.overplot,
-        )
+    hist_plotter = histograms_by_fraction.Pipeline(**pipeline_config)
+    hist_plotter.run()
 
 
 if __name__ == "__main__":
@@ -185,7 +115,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "-n",
-        "--noralize-temperatures",
+        "--normalize-temperatures",
         help="Normalize temperatures to virial temperature",
         dest="normalize",
         action="store_true",
