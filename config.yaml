@@ -1,4 +1,4 @@
 paths:
   simulation_home: /virgotng/universe/IllustrisTNG/
-  data_home: default
-  figures_home: default
+  data_home: ~/thesisProject/data/
+  figures_home: ~/thesisProject/figures/

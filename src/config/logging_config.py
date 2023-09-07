@@ -3,7 +3,7 @@ import logging
 
 def get_logging_config(logging_level: str | int) -> None:
     """
-    Return a simple, Jupyter notebook compatible logging config.
+    Return a simple, Jupyter notebook compatible, logging config.
 
     :param logging_level: logging level to use
     :return: logging config for use with ``dictConfig`` of logging module

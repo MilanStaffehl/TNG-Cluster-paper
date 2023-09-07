@@ -1,10 +1,18 @@
+import warnings
+
 import illustris_python as il
+import loader
 import numpy as np
 import pytest
 
 import config
 import constants
-import loader
+
+warnings.warn(
+    "This module is deprecated and will likely not work.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 @pytest.fixture

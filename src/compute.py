@@ -68,6 +68,8 @@ def get_virial_temperature(
     :param radius: radius of the halo in kpc
     :return: virial temperature of the halo in Kelvin
     """
+    if radius == 0:
+        return 0.0
     return 0.3 * G * mass * M_sol * m_p / (radius * kpc * k_B)
 
 

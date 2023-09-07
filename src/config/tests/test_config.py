@@ -3,7 +3,7 @@ Test the config module.
 """
 from pathlib import Path
 
-import config
+from config import config
 
 
 def test_default_config():
