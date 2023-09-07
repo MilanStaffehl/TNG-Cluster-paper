@@ -4,7 +4,7 @@ Function for data acquisition of gas cells.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 import illustris_python as il
 
@@ -19,7 +19,8 @@ def get_halo_temperatures(
     base_path: str,
     snap_num: int,
     additional_fields: list[str] | None = None,
-    skip_condition: Callable[[int], bool] = lambda x: False,
+    skip_condition: Callable[..., bool] = lambda x: False,
+    skip_args: Sequence[Any] = None,
 ) -> dict[str, NDArray]:
     """
     Calculate temperatures for a single halo, return gas data.
@@ -43,9 +44,13 @@ def get_halo_temperatures(
     :param snap_num: Snapshot number at which to load the data.
     :param fields: A list of gas data fields to load in addition to the
         required fields. Leave empty if no further gas data is required.
-    :param skip_condition: A callable that can take a halo ID and returns
-        as bool whether the halo of that ID may be skipped. Defaults to
-        an expression that skips no halo.
+    :param skip_condition: A callable that can take a halo ID plus any
+        number of additional positional arguments and returns as bool
+        whether the halo of that ID may be skipped. Defaults to an
+        expression that skips no halo.
+    :param skip_args: List or arguments to pass to ``skip_condition``
+        after the halo ID. Must be None if ``skip_condition`` takes
+        only the halo ID as positional argument.
     :return: A dictionary with the gas data, including gas cell
         temperatures. If additional fields were specified, they are added
         to this dictionary. Dictionary will always contain key-value-pairs
@@ -54,9 +59,11 @@ def get_halo_temperatures(
     """
     if additional_fields is None:
         additional_fields = []
+    if skip_args is None:
+        skip_args = []
 
     # optionally skip a halo under specific conditions
-    if skip_condition(halo_id):
+    if skip_condition(halo_id, *skip_args):
         return {"count": 0}
 
     fields = [

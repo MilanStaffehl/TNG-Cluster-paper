@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 
 import constants
 
-N = TypeVar("N", bound=[NDArray | float])
+N = TypeVar("N", bound=NDArray | float)
 
 
 class UnsupportedUnitError(Exception):
@@ -46,6 +46,7 @@ class UnitConverter:
                 "Group_R_Mean200",
                 "Group_R_TopHat200"
             ],
+        "unitless": ["count", ]
     }
 
     @classmethod
@@ -73,6 +74,8 @@ class UnitConverter:
             return cls.convert_masslike(quantity)
         elif field in cls.fields["distanceLike"]:
             return cls.convert_distancelike(quantity)
+        elif field in cls.fields["unitless"]:
+            return quantity
         else:
             raise UnsupportedUnitError(field)
 

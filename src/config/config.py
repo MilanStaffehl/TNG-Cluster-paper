@@ -79,14 +79,14 @@ def get_default_config(
     """
     # find directories for data and figures
     cur_dir = Path(__file__).parent.resolve()
-    root_dir = cur_dir.parent
+    root_dir = cur_dir.parents[1]
     with open(root_dir / "config.yaml", "r") as config_file:
         stream = config_file.read()
     config = yaml.full_load(stream)
     # set paths
-    figures_home = Path(config["paths"]["figures_home"])
-    data_home = Path(config["paths"]["data_home"])
-    simulation_home = Path(config["paths"]["simulation_home"])
+    figures_home = Path(config["paths"]["figures_home"]).expanduser()
+    data_home = Path(config["paths"]["data_home"]).expanduser()
+    simulation_home = Path(config["paths"]["simulation_home"]).expanduser()
 
     # verify paths
     for path in [figures_home, data_home, simulation_home]:

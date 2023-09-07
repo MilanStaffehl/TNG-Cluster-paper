@@ -34,7 +34,7 @@ def stack_histograms_per_mass_bin(
     histograms: NDArray,
     n_mass_bins: int,
     mass_bin_mask: NDArray,
-) -> NDArray | None:
+) -> tuple[NDArray, NDArray, NDArray] | None:
     """
     Stack all histograms per mass bin into an average histogram.
 

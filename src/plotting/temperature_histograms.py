@@ -59,13 +59,18 @@ def plot_temperature_distribution(
     :param log: Whether to plot the y-axis in log scale. Defaults to True.
     :return: The figure and axis objects with the data drawn onto them.
     """
-    logging.info(f"Plotting temperature hist for mass bin {mass_bin_edges}.")
+    low_bound = np.log10(mass_bin_edges[0])
+    upp_bound = np.log10(mass_bin_edges[1])
+    logging.info(
+        f"Plotting temperature hist for mass bin 10^{low_bound:.0f} - "
+        f"10^{upp_bound:.0f}."
+    )
     # create and configure figure and axes
     fig, axes = plt.subplots(figsize=(5, 4))
     fig.set_tight_layout(True)
     axes.set_title(
         r"$M_{200c}$: "
-        rf"${mass_bin_edges[0]} < \log \ M_\odot < {mass_bin_edges[1]}$"
+        rf"${low_bound:.0f} < \log \ M_\odot < {upp_bound:.0f}$"
     )
     labelsize = 12
     axes.set_xlabel(xlabel, fontsize=labelsize)
@@ -135,7 +140,7 @@ def overplot_virial_temperatures(
     virial_temperatures: NDArray,
     mass_bin_index: int,
     mass_bin_mask: NDArray,
-) -> Axes:
+) -> tuple[Figure, Axes]:
     """
     Overplot the range of virial temperatures onto the given axes.
 
