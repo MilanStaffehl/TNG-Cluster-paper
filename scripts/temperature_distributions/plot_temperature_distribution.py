@@ -6,7 +6,9 @@ from pathlib import Path
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "pipelines"))
 
-from temperature_distribution import histograms_by_fraction
+from temperature_distribution import histograms_temperatures
+
+from config import config
 
 
 def main(args: argparse.Namespace) -> None:
@@ -21,26 +23,73 @@ def main(args: argparse.Namespace) -> None:
     else:
         raise ValueError(f"Unknown simulation type {args.sim}.")
 
+    # config
+    cfg = config.get_default_config(sim)
+
     # histogram weights
-    # if args.total_mass:
-    #     weight_type = "mass"
-    # else:
-    #     weight_type = "frac"
+    if args.use_mass:
+        weight_type = "mass"
+    else:
+        weight_type = "frac"
+
+    # paths
+    base_dir = cfg.figures_home / f"temperature_distribution/{cfg.sim_path}"
+    if args.normalize:
+        figure_path = base_dir / "normalized"
+        figure_stem = f"temperature_hist_norm_{weight_type}_{cfg.sim_path}"
+        data_stem = f"temperature_hists_norm_{weight_type}_{cfg.sim_path}"
+    else:
+        figure_path = base_dir / "histograms"
+        figure_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
+        data_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
+
+    if args.figurespath:
+        new_path = Path(args.figurespath)
+        if new_path.exists() and new_path.is_dir():
+            figure_path = new_path
+        else:
+            print(
+                f"WARNING: Given figures path is invalid: {str(new_path)}."
+                f"Using fallback path {str(figure_path)} instead."
+            )
+
+    data_path = cfg.data_home / "temperature_distribution"
+    if args.datapath:
+        new_path = Path(args.datapath)
+        if new_path.exists() and new_path.is_dir():
+            data_path = new_path
+        else:
+            print(
+                f"WARNING: Given data path is invalid: {str(new_path)}."
+                f"Using fallback path {str(data_path)} instead."
+            )
+
+    file_data = {
+        "figures_dir": figure_path,
+        "data_dir": data_path,
+        "figures_file_stem": figure_stem,
+        "data_file_stem": data_stem,
+        "virial_temp_file_stem": f"virial_temperatures_{cfg.sim_path}"
+    }
 
     pipeline_config = {
-        "simulation": sim,
+        "config": cfg,
+        "paths": file_data,
         "processes": args.processes,
         "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
         "n_temperature_bins": args.bins,
         "temperature_range": (3., 8.),
+        "weights": weight_type,
+        "normalize": args.normalize,
         "with_virial_temperatures": args.overplot,
         "quiet": args.quiet,
         "to_file": args.to_file,
         "no_plots": args.no_plots,
-        "figures_dir": args.plotpath,
-        "data_dir": args.datapath,
     }
-    hist_plotter = histograms_by_fraction.Pipeline(**pipeline_config)
+    if args.from_file:
+        hist_plotter = histograms_temperatures.FromFilePipeline(**pipeline_config)  # yapf: disable
+    else:
+        hist_plotter = histograms_temperatures.Pipeline(**pipeline_config)
     hist_plotter.run()
 
 
@@ -80,6 +129,17 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
+        "-l",
+        "--load-data",
+        help=(
+            "When given, data is loaded from data files rather than newly "
+            "acquired. This only works if data files of the expected name are "
+            "present. When used, the flags -p, -f, -q, -b have no effect."
+        ),
+        dest="from_file",
+        action="store_true",
+    )
+    parser.add_argument(
         "-x",
         "--no-plots",
         help=(
@@ -107,10 +167,10 @@ if __name__ == "__main__":
         action="store_false",
     )
     parser.add_argument(
-        "-t",
-        "--total-mass",
+        "-m",
+        "--use-mass",
         help="Use gas mass as hist weights instead of gas mass fraction",
-        dest="total_mass",
+        dest="use_mass",
         action="store_true",
     )
     parser.add_argument(
@@ -129,24 +189,28 @@ if __name__ == "__main__":
         default=50,
     )
     parser.add_argument(
-        "--plot-output-dir",
+        "--figures-dir",
         help=(
-            "The directory path under which to save the plots, if created. "
+            "The directory path under which to save the figures, if created. "
             "It is recommended to leave this at the default value unless "
             "the expected directories do not exist."
         ),
-        dest="plotpath",
+        dest="figurespath",
         default=None,
+        metavar="DIR PATH"
     )
     parser.add_argument(
-        "--data-output-dir",
+        "--data-dir",
         help=(
             "The directory path under which to save the plots, if created. "
+            "When using --load-data, this directory is queried for data. "
             "It is recommended to leave this at the default value unless "
-            "the expected directories do not exist."
+            "the expected directories do not exist and/or data has been saved "
+            "somewhere else."
         ),
         dest="datapath",
         default=None,
+        metavar="DIR PATH"
     )
 
     # parse arguments
