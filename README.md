@@ -72,25 +72,26 @@ you can specify your own directories for data and figures. To do so, set the
 [`config.yaml`](./config.yaml) file to the desired location, before running the
 install script.
 
-Please note that this will still create a set of subdirectories that are 
-required to work with the default file paths and names in this project. If you
-wish to control the location of data and plot files in full, every script also
-offers the option to specify the directory where to save them.
+Please note that this will still create a set of subdirectories inside these
+directories that are required to work with the default file paths and names in 
+this project. If you wish to control the location of data and plot files in 
+full, every script also offers the option to specify the directory where to 
+save them.
 
 
 ## Executing code
 
 The code is written to be executed on clusters. Execution on PCs is not
-recommended and in some cases impossible: some scripts use up to 250 GB of 
+recommended and in some cases impossible: some scripts may use up to 250 GB of 
 memory. 
 
 If you want to use this code outside of the Vera cluster of the MPIA, you will
 need to update the `simulation_home` directory of the simulation data inside 
 the [`config.yaml`](./config.yaml) module to wherever the simulation data is 
 stored. Note that this directory must refer to the parent directory of the
-individual simulation data directories, i.e. it should not contain the data
-directly. If you are using this code on the Vera cluster, the default settings 
-should work "out of the box".
+individual simulation data directories, but to a directory that contains the
+simulation base directories. If you are using this code on the Vera cluster, 
+the default settings should work "out of the box".
 
 The intended way for this code to be executed is by using the Python scripts
 inside the `scripts` directory. They come alongside batch scripts for submission
@@ -99,23 +100,6 @@ Use either the Python scripts (be careful with RAM and CPU cores usage!) or
 submit batch jobs using the batch scripts.
 
 If you want to know more about one of the Python scripts, use the `-h` flag.
-
-
-## Milestones
-
-You will notice that directories set up by the install script, the GitHub
-milestones and the [ROADMAP](./ROADMAP.md) all contain three-digit numbers.
-These numbers denote the "milestones" of this project. A milestone in the 
-context of this project is a small task, usually consisting of a single type of 
-plot to produce. Every milestone aims to answer a small scientific question: 
-how is the temperture in halo gas distributed? How does the cool gas mass change
-with halo mass? 
-
-The milestones are documented in the [ROADMAP](./ROADMAP.md). Here you can find
-a comprehensive list of all milestones, the question they seek to answer and a
-short result. If you run scripts from the `scripts` directory, the output plots
-will be automatically sorted into the corresponding `figures/XYZ` directory of
-the milestone they belong to. 
 
 
 ## Organization
@@ -128,19 +112,40 @@ The repository is organized into the following directories:
 - `scripts:` The scripts directory contains executable Python scripts that
   can be used to create plots. It also contains batch job scripts for use with
   slurm. The directory is organized into subdirectories. These subdirectories 
-  are numbered and every number corresponds to one of the "milestones" of the 
-  thesis project. To find out what these numbers mean and what each milestone 
-  is about, consult either the [ROADMAP](./ROADMAP.md) or the GitHub milestones. 
-- `src`: The source directory contains re-usable code, organized into modules
-  and packages. These code snippets are the core of the project. All data
-  loading, processing and plotting is done somewhere inside this code.
-- `src.processors`: The processors package contains modules which in turn
-  contain classes that are responsible for doing the bulk of the work: They
-  load, process and plot data, all in one. The scripts inside the `scripts`
-  directory do little more than instantiate one of these processor classes and
-  call their methods in the correct order to produce the desired output.
-  Wherever possible, re-usable code is factored out of these classes into the 
-  `src` directory or the base processor class.
+  are roughly divided by the plot type the scripts inside them are meant to
+  produce. The names of the directories correspond to those of the project
+  [milestones](#milestones). You can find out more about what each of these 
+  milestones and subdirectories contain by reading the [ROADMAP](./ROADMAP.md)
+  or the GitHub milestones. 
+- `src`: The source directory contains the logic of this project, organized 
+  into modules and packages. It is the heart of the project, containing all
+  code that performs actual work, calculations and tasks. It is further
+  subdivided:
+
+  - `src.config`: This package contains modules that are used to set up the
+    environment for pipelines and to create containers for globally required
+    variables. It also contains modules to set up logging.
+  - `src.data_acquisition`: This package contains modules whose purpose it is
+    to load simulation data directly from the simulation hdf5 files. The 
+    functions in these modules can act as a simple wrapper to `illustris_python`
+    functions, but some may also pre-process data. 
+  - `src.loading`: As opposed to `data_acquisition`, the `loading` package
+    contains modules that support loading processed data from file that was
+    previously saved by a pipeline job (i.e. data from which a plot was created).
+    It implicitly also defines the format in which pipelines must save the data.
+  - `src.plotting`: This package contains modules that provide utilities for
+    plotting data. 
+  - `src.processing`: This is the largest package and contains various modules
+    for data processing. Data loaded with `data_acquisition` can be further
+    processed with code from this package. It also contains utilities for
+    parallelization and statistics.
+
+- `pipelines`: The pipelines directory contains modules with pipeline classes.
+  These classes are used to bundle together code from `src` in a sensible order
+  to achieve the task of loading, processing, saving to file and plotting data
+  from the simulations. They are also solely responsible for file IO. Similar
+  to the `scripts` directory, this directory is divided into topics that match
+  the milestones of this project.
 
 Alongside these directories tracked by the VC, the install script will also
 create directories that will be populated by the Python and/or batch scripts:
@@ -171,16 +176,30 @@ quickly, you can find some guidance here:
   you need to look into. All the Python scripts in `scripts` have a CLI, so
   to find out how to use them, simply run `python <script name>.py -h`.
 - **Code for topic X:** If you are looking for code (or output) of a specific
-  topic, consult the [ROADMAP](./ROADMAP.md) and see if you can find it. Then
-  go to the subdirectory of `scripts` of the corresponding milestone and look
-  at the content of the Python scripts there. They will likely point you to a
-  class inside the `processors` package. From here, you can find all the code
-  related to the task of that processor and milestone.
-- **The finished plots:** If you installed the code using the `install.sh`
+  topic, search the `src` directory for the package whose name sounds most like
+  what you need. Inside of it, you can go through the modules that are related
+  to the topic.
+- **The finished plots:** If you installed the code using the `install.py`
   script, you will find the figures under the `figures` directory in the
   subdirectory of the milestone they belong to. If you cannot find them there,
   check the [`config.yaml`](./config.yaml) file for the `figures_home` path.
   You will find your figures under this path.
+
+
+## Milestones
+
+You will notice that the directories for figures, data and scripts are divided
+into certain topics such as `temperature_histograms`. These topics are the topics
+of a project milestone. A milestone in the context of this project is a smaller 
+task, usually consisting of a single type of plot to produce. Every milestone 
+aims to answer a small scientific question: how is the temperture in halo gas 
+distributed? How does the cool gas mass change with halo mass? 
+
+The milestones are documented in the [ROADMAP](./ROADMAP.md). Here you can find
+a comprehensive list of all milestones, the question they seek to answer and a
+short result. If you run scripts from the `scripts` directory, the output plots
+will be automatically sorted into the corresponding `figures/XYZ` directory of
+the milestone they belong to. 
 
 
 ## Metadata
