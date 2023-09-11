@@ -146,11 +146,11 @@ def load_gallery_plot_data(
 
     # attempt to load the data
     with np.load(filepath) as data:
-        masses = data["masses"]
-        radii = data["radii"]
-        indices = data["indices"]
+        masses = data["selected_masses"]
+        radii = data["selected_radii"]
+        indices = data["selected_halo_ids"]
         virial_temperatures = data["virial_temperatures"]
-        hists = data["hists"]
+        hists = data["histograms"]
 
     if not expected_shape:
         logging.info("Returning loaded data without verification.")
@@ -160,7 +160,8 @@ def load_gallery_plot_data(
     if not all([x.shape == expected_shape for x in attrs]):
         logging.error(
             "Some of the loaded data does not have the expected "
-            "number of entries. Data could not be loaded."
+            "number of entries. Data could not be loaded.\n"
+            f"Shapes: {[x.shape for x in attrs]}."
         )
         return
     elif not hists.shape[:-1] == expected_shape:

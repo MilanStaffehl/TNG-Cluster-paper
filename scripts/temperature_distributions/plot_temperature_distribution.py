@@ -117,6 +117,7 @@ if __name__ == "__main__":
         type=int,
         default=0,
         dest="processes",
+        metavar="NUMBER",
     )
     parser.add_argument(
         "-f",
@@ -134,7 +135,7 @@ if __name__ == "__main__":
         help=(
             "When given, data is loaded from data files rather than newly "
             "acquired. This only works if data files of the expected name are "
-            "present. When used, the flags -p, -f, -q, -b have no effect."
+            "present. When used, the flags -p, -f, -q have no effect."
         ),
         dest="from_file",
         action="store_true",
@@ -187,22 +188,25 @@ if __name__ == "__main__":
         dest="bins",
         type=int,
         default=50,
+        metavar="NUMBER",
     )
     parser.add_argument(
         "--figures-dir",
         help=(
             "The directory path under which to save the figures, if created. "
+            "Directories that do not exist will be recursively created. "
             "It is recommended to leave this at the default value unless "
             "the expected directories do not exist."
         ),
         dest="figurespath",
         default=None,
-        metavar="DIR PATH"
+        metavar="DIR PATH",
     )
     parser.add_argument(
         "--data-dir",
         help=(
             "The directory path under which to save the plots, if created. "
+            "Directories that do not exist will be recursively created. "
             "When using --load-data, this directory is queried for data. "
             "It is recommended to leave this at the default value unless "
             "the expected directories do not exist and/or data has been saved "
@@ -210,7 +214,7 @@ if __name__ == "__main__":
         ),
         dest="datapath",
         default=None,
-        metavar="DIR PATH"
+        metavar="DIR PATH",
     )
 
     # parse arguments

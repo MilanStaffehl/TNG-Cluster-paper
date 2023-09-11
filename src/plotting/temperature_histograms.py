@@ -204,7 +204,8 @@ def plot_temperature_distribution_gallery(
     histograms: NDArray,
     virial_temperatures: NDArray,
     temperature_range: tuple[float, float],
-    mass_bin_edges: tuple[float, float] | None = None
+    mass_bin_edges: tuple[float, float],
+    xlabel: str = "Gas temperature [log K]",
 ) -> tuple[Figure, Axes]:
     """
     Plot a gallery of temperature distributions for the given mass bin.
@@ -227,15 +228,19 @@ def plot_temperature_distribution_gallery(
         in log10, i.e. a range of 10^3 to 10^8 Kelvin corresponds to a
         tuple (3.0, 8.0).
     :param mass_bin_edges: Edges of the current mass bin in log10 M_sol.
-        Only used for logging, can be omitted. Defaults to None, which
-        logs a message without any information on current mass bin.
+        Only used for logging.
+    :param xlabel: The axis label for the x-axis. Use when the temperature
+        in the histograms has been normalized.
     :return: Tuple of the figure and axes object with the plots applied
         to them. Figure is not saved!
     """
-    if mass_bin_edges is None:
-        mass_bin_edges = "unspecified"
+    low_bound = np.log10(mass_bin_edges[0])
+    upp_bound = np.log10(mass_bin_edges[1])
+    logging.info(
+        f"Plotting temperature hist for mass bin 10^{low_bound:.0f} - "
+        f"10^{upp_bound:.0f}."
+    )
     # figure set-up
-    logging.info(f"Plotting gallery for mass bin {mass_bin_edges}.")
     fig, axes = plt.subplots(figsize=(8, 10), ncols=2, nrows=int(n_plots / 2))
     fig.set_tight_layout(True)
 
@@ -248,8 +253,8 @@ def plot_temperature_distribution_gallery(
         if drawn_plots == n_plots:
             break  # all subplots have been populated.
         # axes config
-        axes[drawn_plots].set_xlabel("Gas temperature [log K]")
-        axes[drawn_plots].set_ylabel("Gas mass fraction [dex]")
+        axes[drawn_plots].set_xlabel(xlabel)
+        axes[drawn_plots].set_ylabel("Gas mass fraction")
         axes[drawn_plots].set_ylim(1e-6, 1)
         axes[drawn_plots].set_title(f"Halo ID: {halo_id}")
         # calculate bin positions

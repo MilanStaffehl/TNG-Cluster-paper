@@ -1,5 +1,5 @@
 """
-Pipeline for creating temperature distribution plots, weighted by gas fraction.
+Pipelines for creating temperature distribution plots.
 """
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Sequence, TypedDict
+from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 
@@ -20,18 +20,13 @@ import loading.temperature_histograms as ldt
 import plotting as pt
 import processing as prc
 from config import logging_config
+from typedef import FileDict
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-
-# custom dict type
-class FileDict(TypedDict):
-    figures_dir: str | Path
-    data_dir: str | Path
-    figures_file_stem: str
-    data_file_stem: str
-    virial_temp_file_stem: str
+    # Reason for noqa: https://github.com/PyCQA/pyflakes/issues/648
+    from config import config  # noqa: F401
 
 
 @dataclass
@@ -290,6 +285,7 @@ class Pipeline:
             filename = f"{self.paths['figures_file_stem']}_{i}.pdf"
             filepath = Path(self.paths["figures_dir"])
             if not filepath.exists():
+                logging.info("Creating missing figures directory.")
                 filepath.mkdir(parents=True)
             f.savefig(filepath / filename, bbox_inches="tight")
 
@@ -308,6 +304,15 @@ class FromFilePipeline(Pipeline):
     """
 
     def run(self) -> int:
+        """
+        Run the pipeline to load data and produce plots.
+
+        :raises FileNotFoundError: When any of the required data files
+            are missing.
+        :return: Exit code, zero signifies success, all other values
+            mean an error occurred. Exceptions will be raised normally,
+            interrupting the execution.
+        """
         # Step 0: verify all required data exists
         hist_data_path = (
             self.paths["data_dir"] / f"{self.paths['data_file_stem']}.npz"
