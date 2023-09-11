@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
-import numpy.ma as ma
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
@@ -82,21 +81,13 @@ class Pipeline:
         )
         # for every mass bin, select twice as many halos as needed (to
         # have a backup when empty halos are selected by accident)
-        logging.info("Selecting subset of halos for gallery.")
         n_mass_bins = len(self.mass_bin_edges) - 1
-        selected_halo_ids = np.zeros(
-            n_mass_bins * 2 * self.plots_per_bin, dtype=int
+        selected_halo_ids = prc.selection.select_halos_from_mass_bins(
+            2 * self.plots_per_bin,
+            halo_data["IDs"],
+            n_mass_bins,
+            mass_bin_mask,
         )
-        for bin_num in range(n_mass_bins):
-            mask = np.where(mass_bin_mask == bin_num + 1, 1, 0)
-            masked_indices = ma.masked_array(halo_data["IDs"]).compress(mask)
-            masked_indices = masked_indices.compressed()
-            n = 2 * self.plots_per_bin  # number of halos to select per bin
-            # choose entries randomly
-            rng = np.random.default_rng()
-            selected_halo_ids[bin_num * n:(bin_num + 1) * n] = rng.choice(
-                masked_indices, size=n, replace=False
-            )
         # assign masses and radii to attributes
         selected_masses = halo_data[self.config.mass_field][selected_halo_ids]
         selected_radii = halo_data[self.config.radius_field][selected_halo_ids]
