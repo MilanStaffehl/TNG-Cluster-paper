@@ -17,7 +17,7 @@ class Config:
     depending on which config is desired, the client can pass different
     Config instances.
 
-    :param sim: name of the simulation to use, must match the simulation
+    :param sim_name: name of the simulation to use, must match the simulation
         under the given ``base_path``
     :param base_path: the base path of the simulation to use
     :param snap_num: number of the snapshot to use
@@ -26,16 +26,22 @@ class Config:
     :param radius_field: the field name to use as radius indicator for
         groups/halos
     """
-    sim: str
-    base_path: str | Path
+    sim_name: str
+    base_path: str
     snap_num: int
     mass_field: str
     radius_field: str
     data_home: str | Path
     figures_home: str | Path
 
+    def __post_init__(self):
+        """
+        Set up aux fields from exisiting fields.
+        """
+        self.sim_path: str = self.sim_name.replace("-", "_")
 
-class InvalidConfigError(Exception):
+
+class InvalidConfigPathError(Exception):
     """Raise when a loaded config contains invalid paths"""
 
     def __init__(self, path: Path, *args: object) -> None:
@@ -73,27 +79,22 @@ def get_default_config(
     """
     # find directories for data and figures
     cur_dir = Path(__file__).parent.resolve()
-    root_dir = cur_dir.parent
+    root_dir = cur_dir.parents[1]
     with open(root_dir / "config.yaml", "r") as config_file:
         stream = config_file.read()
     config = yaml.full_load(stream)
-    if config["paths"]["figures_home"].lower() == "default":
-        figures_home = root_dir / "figures"
-    else:
-        figures_home = Path(config["paths"]["figures_home"]).resolve()
-    if config["paths"]["data_home"].lower() == "default":
-        data_home = root_dir / "data"
-    else:
-        data_home = Path(config["paths"]["data_home"]).resolve()
+    # set paths
+    figures_home = Path(config["paths"]["figures_home"]).expanduser()
+    data_home = Path(config["paths"]["data_home"]).expanduser()
+    simulation_home = Path(config["paths"]["simulation_home"]).expanduser()
 
     # verify paths
-    if not data_home.exists() or not data_home.is_dir():
-        raise InvalidConfigError(data_home)
-    if not figures_home.exists() or not figures_home.is_dir():
-        raise InvalidConfigError(figures_home)
+    for path in [figures_home, data_home, simulation_home]:
+        if not path.exists() or not path.is_dir():
+            raise InvalidConfigPathError(path)
 
     # return config
-    base_path = Path(config["paths"]["simulation_home"]) / sim / "output"
+    base_path = simulation_home / sim / "output"
     final_config = Config(
         sim,
         str(base_path),  # illustris_python does not support Path-likes

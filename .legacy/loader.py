@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 import illustris_python as il
@@ -12,6 +13,12 @@ if TYPE_CHECKING:
     from numpy.typing import ArrayLike
 
     import config
+
+warnings.warn(
+    "This module is deprecated and will likely not work.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def get_halos_binned_by_mass(

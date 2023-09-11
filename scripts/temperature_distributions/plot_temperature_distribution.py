@@ -1,117 +1,96 @@
 import argparse
-import logging
-import logging.config
 import sys
-import time
 from pathlib import Path
 
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
-sys.path.append(str(cur_dir.parent.parent / "src"))
-import logging_config
-from processors import temperature_hists
+sys.path.append(str(cur_dir.parent.parent / "pipelines"))
+
+from temperature_distribution import histograms_temperatures
+
+from config import config
 
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
-    logging_cfg = logging_config.get_logging_config("INFO")
-    logging.config.dictConfig(logging_cfg)
-    logger = logging.getLogger("root")
-
     # sim data
     if args.sim == "TEST_SIM":
-        SIMULATION = "TNG50-4"
+        sim = "TNG50-4"
     elif args.sim == "DEV_SIM":
-        SIMULATION = "TNG50-3"
+        sim = "TNG50-3"
     elif args.sim == "MAIN_SIM":
-        SIMULATION = "TNG300-1"
+        sim = "TNG300-1"
     else:
         raise ValueError(f"Unknown simulation type {args.sim}.")
 
+    # config
+    cfg = config.get_default_config(sim)
+
     # histogram weights
-    if args.total_mass:
+    if args.use_mass:
         weight_type = "mass"
     else:
         weight_type = "frac"
 
-    # which processor to use:
+    # paths
+    base_dir = cfg.figures_home / f"temperature_distribution/{cfg.sim_path}"
     if args.normalize:
-        processor = temperature_hists.NormalizedProcessor
+        figure_path = base_dir / "normalized"
+        figure_stem = f"temperature_hist_norm_{weight_type}_{cfg.sim_path}"
+        data_stem = f"temperature_hists_norm_{weight_type}_{cfg.sim_path}"
     else:
-        processor = temperature_hists.TemperatureDistributionProcessor
+        figure_path = base_dir / "histograms"
+        figure_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
+        data_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
 
-    # plotter for hist data
-    MASS_BINS = [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15]
-    hist_plotter = processor(
-        sim=SIMULATION,
-        logger=logger,
-        n_temperature_bins=args.bins,
-        mass_bins=MASS_BINS,
-        weight=weight_type,
-    )
+    if args.figurespath:
+        new_path = Path(args.figurespath)
+        if new_path.exists() and new_path.is_dir():
+            figure_path = new_path
+        else:
+            print(
+                f"WARNING: Given figures path is invalid: {str(new_path)}."
+                f"Using fallback path {str(figure_path)} instead."
+            )
 
-    # path setup
-    sim_dir_name = SIMULATION.replace("-", "_")
+    data_path = cfg.data_home / "temperature_distribution"
+    if args.datapath:
+        new_path = Path(args.datapath)
+        if new_path.exists() and new_path.is_dir():
+            data_path = new_path
+        else:
+            print(
+                f"WARNING: Given data path is invalid: {str(new_path)}."
+                f"Using fallback path {str(data_path)} instead."
+            )
 
-    # dir for data
-    if args.datapath is not None:
-        data_path = Path(args.datapath)
-    else:
-        data_path = (hist_plotter.config.data_home / "001" / sim_dir_name)
-
-    # assemble pre- and post processing kwargs
-    aux_kwargs = {
-        "virial_temperatures": args.overplot,
-        "to_file": args.to_file,
-        "output": data_path / f"virial_temperatures_{sim_dir_name}.npy",
+    file_data = {
+        "figures_dir": figure_path,
+        "data_dir": data_path,
+        "figures_file_stem": figure_stem,
+        "data_file_stem": data_stem,
+        "virial_temp_file_stem": f"virial_temperatures_{cfg.sim_path}"
     }
-    if args.normalize:
-        f = (
-            data_path / f"temperature_hists_normalized_{sim_dir_name}_{weight_type}.npz"
-        )  # yapf: disable
+
+    pipeline_config = {
+        "config": cfg,
+        "paths": file_data,
+        "processes": args.processes,
+        "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
+        "n_temperature_bins": args.bins,
+        "temperature_range": (3., 8.),
+        "weights": weight_type,
+        "normalize": args.normalize,
+        "with_virial_temperatures": args.overplot,
+        "quiet": args.quiet,
+        "to_file": args.to_file,
+        "no_plots": args.no_plots,
+    }
+    if args.from_file:
+        hist_plotter = histograms_temperatures.FromFilePipeline(**pipeline_config)  # yapf: disable
     else:
-        f = data_path / f"temperature_hists_{sim_dir_name}_{weight_type}.npz"
-    post_kwargs = {"to_file": args.to_file, "output": f}
-
-    # time the full calculation process
-    begin = time.time()
-    hist_plotter.get_data(
-        args.processes,
-        args.quiet,
-        aux_kwargs=aux_kwargs,
-        post_kwargs=post_kwargs
-    )
-    end = time.time()
-
-    # get time spent on computation
-    time_diff = end - begin
-    time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
-    logger.info(f"Spent {time_fmt} hours on execution.")
-
-    if args.no_plots:
-        return
-
-    # dirs for plots
-    if args.plotpath is not None:
-        figures_path = Path(args.plotpath)
-    elif args.normalize:
-        figures_path = (
-            hist_plotter.config.figures_home / "001" / sim_dir_name / "normalized"
-        )  # yapf: disable
-    else:
-        figures_path = (
-            hist_plotter.config.figures_home / "001" / sim_dir_name / "hists"
-        )
-
-    # plot histograms
-    for i in range(len(MASS_BINS) - 1):
-        s = "_normalized_" if args.normalize else "_"
-        file_name = f"temperature_hist{s}{i}_{sim_dir_name}_{weight_type}.pdf"
-        hist_plotter.plot_data(
-            i,
-            output=figures_path / file_name,
-            plot_vir_temp=args.overplot,
-        )
+        hist_plotter = histograms_temperatures.Pipeline(**pipeline_config)
+    hist_plotter.run()
 
 
 if __name__ == "__main__":
@@ -138,6 +117,7 @@ if __name__ == "__main__":
         type=int,
         default=0,
         dest="processes",
+        metavar="NUMBER",
     )
     parser.add_argument(
         "-f",
@@ -147,6 +127,17 @@ if __name__ == "__main__":
             "calclated to file"
         ),
         dest="to_file",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-l",
+        "--load-data",
+        help=(
+            "When given, data is loaded from data files rather than newly "
+            "acquired. This only works if data files of the expected name are "
+            "present. When used, the flags -p, -f, -q have no effect."
+        ),
+        dest="from_file",
         action="store_true",
     )
     parser.add_argument(
@@ -177,15 +168,15 @@ if __name__ == "__main__":
         action="store_false",
     )
     parser.add_argument(
-        "-t",
-        "--total-mass",
+        "-m",
+        "--use-mass",
         help="Use gas mass as hist weights instead of gas mass fraction",
-        dest="total_mass",
+        dest="use_mass",
         action="store_true",
     )
     parser.add_argument(
         "-n",
-        "--noralize-temperatures",
+        "--normalize-temperatures",
         help="Normalize temperatures to virial temperature",
         dest="normalize",
         action="store_true",
@@ -197,26 +188,33 @@ if __name__ == "__main__":
         dest="bins",
         type=int,
         default=50,
+        metavar="NUMBER",
     )
     parser.add_argument(
-        "--plot-output-dir",
+        "--figures-dir",
         help=(
-            "The directory path under which to save the plots, if created. "
+            "The directory path under which to save the figures, if created. "
+            "Directories that do not exist will be recursively created. "
             "It is recommended to leave this at the default value unless "
             "the expected directories do not exist."
         ),
-        dest="plotpath",
+        dest="figurespath",
         default=None,
+        metavar="DIR PATH",
     )
     parser.add_argument(
-        "--data-output-dir",
+        "--data-dir",
         help=(
             "The directory path under which to save the plots, if created. "
+            "Directories that do not exist will be recursively created. "
+            "When using --load-data, this directory is queried for data. "
             "It is recommended to leave this at the default value unless "
-            "the expected directories do not exist."
+            "the expected directories do not exist and/or data has been saved "
+            "somewhere else."
         ),
         dest="datapath",
         default=None,
+        metavar="DIR PATH",
     )
 
     # parse arguments
