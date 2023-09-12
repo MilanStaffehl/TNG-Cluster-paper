@@ -4,13 +4,13 @@ Tools for statistics with temperature and gas cell data.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Sequence
+from typing import Sequence, TypeVar
 
 import numpy as np
 import numpy.ma as ma
+from numpy.typing import NDArray
 
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
+Hist2D = TypeVar("Hist2D", bound=NDArray)
 
 
 def sort_masses_into_bins(
@@ -96,3 +96,60 @@ def stack_histograms_per_mass_bin(
 
     logging.info("Finished post-processing data.")
     return histograms_mean, histograms_median, histograms_percentiles
+
+
+def stack_2d_histograms_per_mass_bin(
+    histograms: Sequence[Hist2D],
+    n_mass_bins: int,
+    mass_bin_mask: NDArray,
+) -> tuple[Sequence[Hist2D], NDArray] | None:
+    """
+    Stackk all 2D histograms per mass bin into an average histogram.
+
+    The function will average all histograms in every mass bin and
+    return the resulting average histogram data. Function also calculates
+    the running average across all x-axis bins and returns alongside the
+    averaged histograms.
+
+    :param histograms: An array of 2D arrays of shape (N, X, Y) where
+        N is the total number of halos, X is the number of x-axis bins
+        in the 2D histograms and Y is the number of y-bins.
+    :param n_mass_bins: The number of mass bins.
+    :param mass_bin_mask: A mask asigning every histogram in ``histograms``
+        to a mass bin. This can be obtained from
+        :func:``sort_masses_into_bins``. Every entry must be a number,
+        assigning the corresponding histogram of the same array index to
+        a mass bin.
+    :return: A tuple of two entries: the first entry is an array of
+        shape (M, X, Y) where M is the number of mass bins, containing
+        the averaged histograms for every mass bin. The second entry is
+        an array of shape (M, X), containing for every mass bin the
+        average y-value of every x-bin (running average). Returns None
+        if  problem is encountered anywhere.
+    """
+    logging.info("Stacking 2D histograms for every mass bin.")
+    n_halos, n_x_bins, n_y_bins = histograms.shape
+    if len(mass_bin_mask) != n_halos:
+        logging.error(
+            f"The number of halos ({n_halos}) does not match the length of "
+            f"the masking array ({len(mass_bin_mask)})"
+        )
+        return
+    histograms_mean = np.zeros((n_mass_bins, n_x_bins, n_y_bins))
+    running_avg = np.zeros((n_halos, n_x_bins))
+    for bin_num in range(n_mass_bins):
+        # mask histogram data
+        mask = np.where(mass_bin_mask == bin_num + 1, 1, 0)
+        masked_hists = ma.masked_array(histograms).compress(mask, axis=0)
+        # masked arrays need to be compressed into standard arrays
+        halo_hists = masked_hists.compressed().reshape(masked_hists.shape)
+        histograms_mean[bin_num] = np.nanmean(halo_hists, axis=0)
+        running_avg[bin_num] = np.mean(histograms_mean[bin_num], axis=1)
+        # diagnostics
+        logging.debug(
+            f"Empty halos in mass bin {bin_num}: "
+            f"{np.sum(np.any(np.isnan(halo_hists), axis=1))}"
+        )
+
+    logging.info("Finished post-processing data.")
+    return histograms_mean, running_avg
