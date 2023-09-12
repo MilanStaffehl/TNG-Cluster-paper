@@ -70,7 +70,7 @@ def plot_temperature_distribution(
     fig.set_tight_layout(True)
     axes.set_title(
         r"$M_{200c}$: "
-        rf"${low_bound:.0f} < \log \ M_\odot < {upp_bound:.0f}$"
+        rf"${low_bound:.1f} < \log \ M_\odot < {upp_bound:.1f}$"
     )
     labelsize = 12
     axes.set_xlabel(xlabel, fontsize=labelsize)

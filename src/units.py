@@ -44,7 +44,8 @@ class UnitConverter:
                 "Group_R_Crit200",
                 "Group_R_Crit500",
                 "Group_R_Mean200",
-                "Group_R_TopHat200"
+                "Group_R_TopHat200",
+                "GroupPos",
             ],
         "unitless": ["count", ]
     }

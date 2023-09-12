@@ -3,7 +3,7 @@
 #SBATCH -o ./output/out.%j
 #SBATCH -e ./output/err.%j
 #SBATCH -D ./
-#SBATCH -J ms001m
+#SBATCH -J MS001M
 #SBATCH --nodes=1             # request a full node
 #SBATCH --ntasks-per-node=1   # only start 1 task via srun because Python multiprocessing starts more tasks internally
 #SBATCH --cpus-per-task=72    # assign all the cores to that first task to make room for Python's multiprocessing tasks

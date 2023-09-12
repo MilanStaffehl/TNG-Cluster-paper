@@ -20,7 +20,7 @@ import loading.temperature_histograms as ldt
 import plotting as pt
 import processing as prc
 from config import logging_config
-from typedef import FileDict
+from typedef import FileDictVT
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -43,7 +43,7 @@ class Pipeline:
     """
 
     config: config.Config
-    paths: FileDict
+    paths: FileDictVT
     processes: int
     mass_bin_edges: Sequence[float]
     n_temperature_bins: int
@@ -64,6 +64,16 @@ class Pipeline:
         """
         Run the pipeline to produce histogram plots.
 
+        Steps:
+
+        0. Create directories
+        1. Acquire halo data
+        2. Get bin mask
+        3. Acquire virial temperatures
+        4. Get histograms of every halo
+        5. Stack histograms per mass bin
+        6. Plot
+
         :return: Exit code, zero signifies success, non-zero exit code
             signifies an error occured. Exceptions will be raised
             normally, resulting in execution interruption.
@@ -76,24 +86,28 @@ class Pipeline:
                     f"Creating missing data directory {str(data_path)}."
                 )
                 data_path.mkdir(parents=True)
+
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
         halo_data = daq.halos.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
+
         # Step 2: get bin mask
         mass_bin_mask = prc.statistics.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
+
         # Step 3: acquire virial temperatures
         virial_temperatures = self._get_virial_temperatures(halo_data)
+
         # Step 4: get primary data - histograms for every halo
         begin = time.time()
         logging.info("Calculating temperature histograms for all halos.")
         if self.normalize:
             norm = virial_temperatures
         else:
-            norm = np.ones_like(virial_temperatures)
+            norm = np.ones(len(halo_data["IDs"]))
         callback = self._get_callback(halo_data[self.config.mass_field], norm)
         if self.processes > 0:
             hists = prc.parallelization.process_halo_data_parallelized(
@@ -108,6 +122,7 @@ class Pipeline:
                 (self.n_temperature_bins, ),
                 quiet=self.quiet,
             )
+
         # Step 5: post-processing - stack histograms per mass bin
         mean, median, perc = prc.statistics.stack_histograms_per_mass_bin(
             hists, len(self.mass_bin_edges) - 1, mass_bin_mask
@@ -126,6 +141,7 @@ class Pipeline:
         time_diff = end - begin
         time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
         logging.info(f"Spent {time_fmt} hours on execution.")
+
         # Step 6: plot the data
         if self.no_plots:
             return 0
@@ -195,7 +211,9 @@ class Pipeline:
         :return: An array of virial temperatures for every halo in Kelvin
             if virial temperatures need to be plotted, None otherwise.
         """
-        if not self.with_virial_temperatures:
+        # normalization requires vt, even if with_virial_temperatures is
+        # set to False
+        if not self.with_virial_temperatures and not self.normalize:
             return None
         logging.info("Calculating virial temperatures.")
         if self.processes > 0:
