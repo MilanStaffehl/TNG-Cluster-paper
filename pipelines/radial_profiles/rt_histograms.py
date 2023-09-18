@@ -120,9 +120,12 @@ class Pipeline:
             )
 
         # Step 4: Stack histograms per mass bin, get average
-        histograms, averages = prc.statistics.stack_2d_histograms_per_mass_bin(
-            hists, len(self.mass_bin_edges) - 1, mass_bin_mask
+        n_mass_bins = len(self.mass_bin_edges) - 1
+        histograms = prc.statistics.stack_2d_histograms_per_mass_bin(
+            hists, n_mass_bins, mass_bin_mask
         )
+        # TODO: calculate running averages
+        averages = np.zeros((n_mass_bins, self.n_radial_bins))
         if self.to_file:
             logging.info("Writing histogram data to file.")
             filename = f"{self.paths['data_file_stem']}.npz"

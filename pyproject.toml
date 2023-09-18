@@ -3,11 +3,11 @@ minversion = "6.0"
 addopts = "-ra"
 testpaths = [
     "src/tests",
-    "src/processors/tests",
+    "src/**/tests",
 ]
 pythonpath = "src"
 
 [tool.isort]
 profile = "black"
-src_paths = ["src", "notebooks"]
+src_paths = ["src", "notebooks", "pipelines", "scripts"]
 skip_glob = ["docs/*", "external/*"]

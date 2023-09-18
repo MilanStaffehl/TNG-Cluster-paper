@@ -55,7 +55,7 @@ def plot_radial_temperature_profile(
         f"- 10^{upp_bound:.0f}."
     )
     # create and configure figure and axes
-    fig, axes = plt.subplots(figsize=(5, 5))
+    fig, axes = plt.subplots(figsize=(6, 5))
     fig.set_tight_layout(True)
     axes.set_title(
         r"$M_{200c}$: "
@@ -70,25 +70,10 @@ def plot_radial_temperature_profile(
         "cmap": colormap,
         "interpolation": "nearest",
         "origin": "lower",
-        "aspect": "equal",
+        "aspect": "auto",
+        "extent": ranges,
     }
-    axes.imshow(histogram2d, **hist_config)
-    # adjust axis tick labels to achieve physical axis ticks
-
-    # overplot the running average
-    # _, bins = np.histogram(
-    #     np.array([0]), bins=len(averages), range=ranges[:2]
-    # )
-    # centers = (bins[:-1] + bins[1:]) / 2
-    # plot_config = {
-    #     "histtype": "step",
-    #     "edgecolor": "white",
-    # }
-    # axes.hist(
-    #     centers,
-    #     bins=bins,
-    #     range=ranges[:2],
-    #     weights=averages,
-    #     **plot_config
-    # )
+    profile = axes.imshow(histogram2d, **hist_config)
+    # add colorbar
+    fig.colorbar(profile, ax=axes, location="right", label="Gas fraction")
     return fig, axes

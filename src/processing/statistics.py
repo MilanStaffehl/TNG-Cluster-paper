@@ -102,7 +102,7 @@ def stack_2d_histograms_per_mass_bin(
     histograms: Sequence[Hist2D],
     n_mass_bins: int,
     mass_bin_mask: NDArray,
-) -> tuple[Sequence[Hist2D], NDArray] | None:
+) -> NDArray | None:
     """
     Stackk all 2D histograms per mass bin into an average histogram.
 
@@ -120,12 +120,10 @@ def stack_2d_histograms_per_mass_bin(
         :func:``sort_masses_into_bins``. Every entry must be a number,
         assigning the corresponding histogram of the same array index to
         a mass bin.
-    :return: A tuple of two entries: the first entry is an array of
-        shape (M, X, Y) where M is the number of mass bins, containing
-        the averaged histograms for every mass bin. The second entry is
-        an array of shape (M, X), containing for every mass bin the
-        average y-value of every x-bin (running average). Returns None
-        if  problem is encountered anywhere.
+    :return: An array of shape (M, X, Y) where M is the number of mass
+        bins, containing the averaged histograms for every mass bin. If
+        the given number of bins does not match the histogram shape,
+        returns None instead.
     """
     logging.info("Stacking 2D histograms for every mass bin.")
     n_halos, n_x_bins, n_y_bins = histograms.shape
@@ -136,7 +134,6 @@ def stack_2d_histograms_per_mass_bin(
         )
         return
     histograms_mean = np.zeros((n_mass_bins, n_x_bins, n_y_bins))
-    running_avg = np.zeros((n_halos, n_x_bins))
     for bin_num in range(n_mass_bins):
         # mask histogram data
         mask = np.where(mass_bin_mask == bin_num + 1, 1, 0)
@@ -144,7 +141,6 @@ def stack_2d_histograms_per_mass_bin(
         # masked arrays need to be compressed into standard arrays
         halo_hists = masked_hists.compressed().reshape(masked_hists.shape)
         histograms_mean[bin_num] = np.nanmean(halo_hists, axis=0)
-        running_avg[bin_num] = np.mean(histograms_mean[bin_num], axis=1)
         # diagnostics
         logging.debug(
             f"Empty halos in mass bin {bin_num}: "
@@ -152,4 +148,4 @@ def stack_2d_histograms_per_mass_bin(
         )
 
     logging.info("Finished post-processing data.")
-    return histograms_mean, running_avg
+    return histograms_mean

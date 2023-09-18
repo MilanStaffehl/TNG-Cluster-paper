@@ -87,7 +87,10 @@ def get_temperature_2d_histogram(
         arrays holding the corresponding values.
     :param x_axis_field: Name of the field to use on the x-axis.
     :param ranges: An array of shape (2, 2) giving the min and max value
-        for the two axes as ``[[xmin, xmax], [tmin, tmax]]``.
+        for the two axes as ``[[xmin, xmax], [tmin, tmax]]``. Note that
+        temperatures are treated in log10, so ymin and ymax must be in
+        units of log10 K (i.e. a temperature range from 10^3 to 10^8
+        must be given as [3, 8]).
     :param n_bins_temperature: The number of bins for the temperature
         axis of the histogram. Defaults to 50.
     :param n_bins_x_axis: The number of bins for the second field on the
@@ -100,10 +103,16 @@ def get_temperature_2d_histogram(
         values. Defaults to 1 (no normalization). Values are normalized
         AFTER unit conversion, so the normalization must have the correct
         physical units and value.
-    :return: An array of shape (X, T) representing the gas mass fraction
+    :return: An array of shape (T, X) representing the gas mass fraction
         weighted 2D histogram data. T is the number of temperature bins
         and X the number of bins on the x-axis, given by
-        ``n_bins_temperature`` and ``n_bins_x_axis`` respectively.
+        ``n_bins_temperature`` and ``n_bins_x_axis`` respectively. Note
+        that along the first axis, the order is such that the first row
+        holds the values for the lowest y-bin, and the last row that of
+        the highest y-bin (i.e. printing the resulting array results in
+        a matrix form where the y-axis is inverted, pointing down). Note
+        also that this is the transposed array from what ``np.histogram2d``
+        returns normally (axes are switched).
     """
     if x_axis_field not in gas_data.keys():
         logging.error(
@@ -133,4 +142,4 @@ def get_temperature_2d_histogram(
         range=ranges,
         weights=weights,
     )
-    return hist
+    return hist.transpose()
