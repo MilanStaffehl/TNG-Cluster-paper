@@ -128,7 +128,7 @@ def load_gallery_plot_data(
 
     The loaded data is returned as a tuple of numpy arrays.
 
-    :param file: File name and path of the numpy data file.
+    :param filepath: File name and path of the numpy data file.
     :param expected_shape: The expected shape of the loaded arrays. If
         left empty, the loaded data is returned without verification,
         otherwise it is checked for its shape. Defaults to None.

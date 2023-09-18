@@ -125,8 +125,12 @@ class Pipeline:
         histograms = prc.statistics.stack_2d_histograms_per_mass_bin(
             hists, n_mass_bins, mass_bin_mask
         )
-        # TODO: calculate running averages
         averages = np.zeros((n_mass_bins, self.n_radial_bins))
+        for i, hist in enumerate(histograms):
+            averages[i] = prc.statistics.get_2d_histogram_running_average(
+                hist, self.temperature_range
+            )
+        # save data to file
         if self.to_file:
             logging.info("Writing histogram data to file.")
             filename = f"{self.paths['data_file_stem']}.npz"

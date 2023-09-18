@@ -76,4 +76,17 @@ def plot_radial_temperature_profile(
     profile = axes.imshow(histogram2d, **hist_config)
     # add colorbar
     fig.colorbar(profile, ax=axes, location="right", label="Gas fraction")
+
+    # plot the running average
+    xbin_width = (ranges[1] - ranges[0]) / histogram2d.shape[1]
+    xs = np.arange(ranges[0], ranges[1], xbin_width)
+    avg_config = {
+        "where": "post",
+        "color": "white",
+        "linewidth": 1,
+        "label": "Running average"
+    }
+    axes.step(xs, averages, **avg_config)
+    axes.legend()
+
     return fig, axes

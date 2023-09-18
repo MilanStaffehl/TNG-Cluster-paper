@@ -149,3 +149,36 @@ def stack_2d_histograms_per_mass_bin(
 
     logging.info("Finished post-processing data.")
     return histograms_mean
+
+
+def get_2d_histogram_running_average(
+    histogram: NDArray, yrange: tuple[float, float]
+) -> NDArray:
+    """
+    Return the running average of the given 2D histogram.
+
+    The function calculates, for every column of the 2D histogram given,
+    the weighted average of its y-values with the weights being the
+    histogram values of this column. The function returns the array of
+    these averages for every column.
+
+    :param histogram: Array of shape (Y, X), where Y is the number of
+        bins on the y-axis and X is the number of bins on the x-axis.
+        Must contain values of the histogram.
+    :param yrange: The minimum and maximum values of the y-axis bins,
+        i.e. the lower edge of the smallest y bin and the upper edge
+        of the largest y bin.
+    :return: Array of shape (X, ) containing the weighted average of
+        every column in the histogram.
+    """
+    n_ybins = histogram.shape[0]
+    ybin_width = abs(yrange[1] - yrange[0]) / n_ybins
+    ybin_centers = np.min(yrange) + np.arange(.5, n_ybins + .5, 1) * ybin_width
+    # Calculate the weighted average for every column: start by multiplying
+    # every entry with its corresponding y-value:
+    hist_weighted = (histogram.transpose() * ybin_centers).transpose()
+    # Sum the weighted values for every column
+    column_sum = np.sum(hist_weighted, axis=0)
+    # Finally, get the actual average by normalizing it to the sum of the
+    # weights of the colum
+    return column_sum / np.sum(histogram, axis=0)
