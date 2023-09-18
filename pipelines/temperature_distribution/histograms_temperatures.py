@@ -365,6 +365,10 @@ class FromFilePipeline(Pipeline):
         )
         # Step 6: plot the data
         if self.no_plots:
+            logging.warning(
+                "Was asked to load data without plotting it. This is pretty "
+                "pointless and probably not what you wanted."
+            )
             return 0
         self._plot(mean, median, perc, virial_temperatures, mass_bin_mask)
         return 0

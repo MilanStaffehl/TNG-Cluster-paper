@@ -258,6 +258,10 @@ class FromFilePipeline(Pipeline):
         )
         # Step 2: plot the data
         if self.no_plots:
+            logging.warning(
+                "Was asked to load data without plotting it. This is pretty "
+                "pointless and probably not what you wanted."
+            )
             return 0
         self._plot(ids, histograms, vt)
         return 0

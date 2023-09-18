@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import constants
 import data_acquisition as daq
+import loading.radial_profiles as ldr
 import plotting.radial_profiles as ptr
 import processing as prc
 from config import logging_config
@@ -228,3 +229,50 @@ class Pipeline:
                 logging.info("Creating missing figures directory.")
                 filepath.mkdir(parents=True)
             f.savefig(filepath / filename, bbox_inches="tight")
+
+
+class FromFilePipeline(Pipeline):
+    """
+    Pipeline to create radial temperature profiles from file.
+
+    Pipeline creates the same plots as created by the normal pipeline,
+    but loads the data from file instead of recalculating it.
+
+    If any of the required data is missing, a FileNotFound exception is
+    raised and the execution terminated.
+    """
+
+    def run(self) -> int:
+        """
+        Run the pipeline to load data and produce radial profile plots.
+
+        :raises FileNotFoundError: When any of the required data files
+            are missing.
+        :return: Exit code, zero signifies success, all other values
+            mean an error occurred. Exceptions will be raised normally,
+            interrupting the execution.
+        """
+        # Step 0: verify the required data exists
+        data_path = (
+            self.paths["data_dir"] / f"{self.paths['data_file_stem']}.npz"
+        )
+        if not data_path.exists():
+            raise FileNotFoundError(
+                f"Data file {str(data_path)} does not exist."
+            )
+        # Step 1: load the data
+        histograms, averages = ldr.load_radial_profile_data(
+            data_path,
+            len(self.mass_bin_edges) - 1,
+            self.n_radial_bins,
+            self.n_temperature_bins,
+        )
+        # Step 3: plot the data
+        if self.no_plots:
+            logging.warning(
+                "Was asked to load data without plotting it. This is pretty "
+                "pointless and probably not what you wanted."
+            )
+            return 0
+        self._plot(histograms, averages)
+        return 0
