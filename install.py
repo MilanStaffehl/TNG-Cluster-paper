@@ -10,13 +10,15 @@ def install():
     root = Path(__file__).parent.resolve()
     # top level dirs
     data_home = root / "data"
-    external = root / "external" / "illustris_python"
+    external = root / "external"
     figures_home = root / "figures"
 
     # create directories
     print("Setting up top-level directories.")
     for directory in [data_home, external, figures_home]:
         directory.mkdir()
+    print("Setting up subdirectories.")
+    (external / "illustris_python").mkdir()
 
 
 if __name__ == "__main__":
