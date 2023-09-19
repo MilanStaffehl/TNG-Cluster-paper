@@ -17,9 +17,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 import compute
 import data_acquisition as daq
 import loading.temperature_histograms as ldt
-import plotting as pt
+import plotting.temperature_histograms as ptt
 import processing as prc
 from config import logging_config
+from plotting import util
 from typedef import FileDictVT
 
 if TYPE_CHECKING:
@@ -282,10 +283,8 @@ class Pipeline:
         facecolor = "lightblue" if self.weights == "frac" else "pink"
         # plot all mass bins
         for i in range(len(self.mass_bin_edges) - 1):
-            error_bars = pt.temperature_histograms.get_errorbar_lengths(
-                median[i], percentiles[i]
-            )
-            f, a = pt.temperature_histograms.plot_temperature_distribution(
+            error_bars = ptt.get_errorbar_lengths(median[i], percentiles[i])
+            f, a = ptt.plot_temperature_distribution(
                 mean[i],
                 median[i],
                 error_bars,
@@ -296,7 +295,7 @@ class Pipeline:
                 ylabel,
             )
             if self.with_virial_temperatures:
-                pt.temperature_histograms.overplot_virial_temperatures(
+                ptt.overplot_virial_temperatures(
                     f, a, virial_temperatures, i, mass_bin_mask
                 )
             # save figure
@@ -372,3 +371,161 @@ class FromFilePipeline(Pipeline):
             return 0
         self._plot(mean, median, perc, virial_temperatures, mass_bin_mask)
         return 0
+
+
+class CombinedPlotsPipeline(Pipeline):
+    """
+    Pipeline to create combined plot of temperature distribution.
+
+    Pipeline will create one single plot containing all temperature
+    distributions in it, without the error bars.
+    """
+
+    # method only needs to overwrite the plotting method
+    def _plot(
+        self,
+        mean: NDArray,
+        median: NDArray,
+        percentiles: NDArray,
+        virial_temperatures: NDArray | None,
+        mass_bin_mask: NDArray | None
+    ) -> None:
+        """
+        Plot a single figure with all mass bin histograms in it.
+
+        :param mean: The array of histogram means of shape (M, T) where
+            M is the number of mass bins and T the number of temperature
+            bins.
+        :param median: The array of histogram medians of shape (M, T)
+            where M is the number of mass bins and T the number of
+            temperature bins.
+        :param percentiles: The array of 16th and 84th percentile of every
+            temperature bin. Must be of shape (M, 2, T) where M is the
+            number of mass bins and T the number of temperature bins.
+        :param virial_temperatures: Array of virial temperatures for all
+            halos. Can be set to None if ``self.with_virial_temperatures``
+            is False.
+        :param mass_bin_mask: The array containing the mass bin number
+            of every halo, i.e. the number of the mass bin into which the
+            halo with the corresponding array index falls.
+        """
+        # colormap choice
+        colormap = "cividis"
+        # labels y axis
+        if self.weights == "mass":
+            ylabel = r"Gas mass per cell [$M_\odot$]"
+        else:
+            ylabel = "Gas mass fraction"
+        # labels x axis
+        if self.normalize:
+            xlabel = r"Gas temperature $T / T_{vir}$ [dex]"
+        else:
+            xlabel = "Gas temperature [log K]"
+
+        fig, axes = ptt.plot_temperature_distributions_in_one(
+            mean,
+            self.temperature_range,
+            self.mass_bin_edges,
+            xlabel,
+            ylabel,
+            colormap=colormap,
+        )
+
+        # overplot virial temperatures, if desired
+        if self.with_virial_temperatures:
+            logging.info("Overplotting virial temperatures.")
+            for mass_bin in range(len(self.mass_bin_edges) - 1):
+                c = util.sample_cmap(colormap, 1 / len(mean), mass_bin)
+                ptt.overplot_virial_temperatures(
+                    fig, axes, virial_temperatures, mass_bin, mass_bin_mask, c
+                )
+
+        # save figure
+        filename = f"{self.paths['figures_file_stem']}_combined.pdf"
+        filepath = Path(self.paths["figures_dir"])
+        if not filepath.exists():
+            logging.info("Creating missing figures directory.")
+            filepath.mkdir(parents=True)
+        fig.savefig(filepath / filename, bbox_inches="tight")
+
+
+class CombinedPlotsFromFilePipeline(FromFilePipeline):
+    """
+    Plot the combined temperature distributions from file.
+    """
+
+    def run(self) -> int:
+        return super().run()
+
+    # method only needs to overwrite the plotting method
+    def _plot(
+        self,
+        mean: NDArray,
+        median: NDArray,
+        percentiles: NDArray,
+        virial_temperatures: NDArray | None,
+        mass_bin_mask: NDArray | None
+    ) -> None:
+        """
+        Plot a single figure with all mass bin histograms in it.
+
+        :param mean: The array of histogram means of shape (M, T) where
+            M is the number of mass bins and T the number of temperature
+            bins.
+        :param median: The array of histogram medians of shape (M, T)
+            where M is the number of mass bins and T the number of
+            temperature bins.
+        :param percentiles: The array of 16th and 84th percentile of every
+            temperature bin. Must be of shape (M, 2, T) where M is the
+            number of mass bins and T the number of temperature bins.
+        :param virial_temperatures: Array of virial temperatures for all
+            halos. Can be set to None if ``self.with_virial_temperatures``
+            is False.
+        :param mass_bin_mask: The array containing the mass bin number
+            of every halo, i.e. the number of the mass bin into which the
+            halo with the corresponding array index falls.
+        """
+        # colormap choice
+        colormap = "jet"
+        # labels y axis
+        if self.weights == "mass":
+            ylabel = r"Gas mass per cell [$M_\odot$]"
+        else:
+            ylabel = "Gas mass fraction"
+        # labels x axis
+        if self.normalize:
+            xlabel = r"Gas temperature $T / T_{vir}$ [dex]"
+        else:
+            xlabel = "Gas temperature [log K]"
+
+        fig, axes = ptt.plot_temperature_distributions_in_one(
+            mean,
+            self.temperature_range,
+            self.mass_bin_edges,
+            xlabel,
+            ylabel,
+            colormap=colormap,
+        )
+
+        # overplot virial temperatures, if desired
+        if self.with_virial_temperatures:
+            logging.info("Overplotting virial temperatures.")
+            for mass_bin in range(len(self.mass_bin_edges) - 1):
+                c = util.sample_cmap(colormap, len(mean), mass_bin)
+                ptt.overplot_virial_temperatures(
+                    fig,
+                    axes,
+                    virial_temperatures,
+                    mass_bin,
+                    mass_bin_mask,
+                    c,
+                    True
+                )
+
+        # save figure
+        filename = f"{self.paths['figures_file_stem']}_combined.pdf"
+        filepath = Path(self.paths["figures_dir"])
+        if not filepath.exists():
+            logging.info("Creating missing figures directory.")
+            filepath.mkdir(parents=True)
+        fig.savefig(filepath / filename, bbox_inches="tight")

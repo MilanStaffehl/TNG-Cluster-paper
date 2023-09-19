@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
 
+from plotting import util
+
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
@@ -140,6 +142,8 @@ def overplot_virial_temperatures(
     virial_temperatures: NDArray,
     mass_bin_index: int,
     mass_bin_mask: NDArray,
+    color: str = "blue",
+    omit_ranges: bool = False,
 ) -> tuple[Figure, Axes]:
     """
     Overplot the range of virial temperatures onto the given axes.
@@ -164,6 +168,10 @@ def overplot_virial_temperatures(
         :func:`statistics.sort_masses_into_bins`, that is an array of
         bin numbers into which the halo of the corresponding array index
         falls. Note that mass bin numbers start at 1, not 0.
+    :param color: The color to use for the overplot. Must be a matplotlib
+        color name. Defaults to 'blue'.
+    :param omit_ranges: Whether to plot the ranges or leave them out.
+        Defaults to False (i.e. plotting ranges).
     :return: Tuple of figure and axes, updated for overplot.
     """
     # find virial temperatures, only for current bin
@@ -178,23 +186,26 @@ def overplot_virial_temperatures(
     mean_temp = np.average(virial_temperatures)
 
     # overplot these into the plot
-    logging.debug("Overplotting virial temperature region.")
+    logging.debug("Overplotting virial temperatures.")
     plot_config = {
-        "color": "blue",
+        "color": color,
         "linewidth": 1.0,
         "alpha": 0.6,
     }
-    axes.axvline(np.log10(min_temp), linestyle="solid", **plot_config)
-    axes.axvline(np.log10(max_temp), linestyle="solid", **plot_config)
     axes.axvline(np.log10(mean_temp), linestyle="dashed", **plot_config)
-    # shade region
-    xs = np.arange(np.log10(min_temp), np.log10(max_temp), 0.01)
-    fill_config = {
-        "transform": axes.get_xaxis_transform(),
-        "alpha": 0.1,
-        "color": "blue",
-    }
-    axes.fill_between(xs, 0, 1, **fill_config)
+
+    # optionally include the min-max region
+    if not omit_ranges:
+        axes.axvline(np.log10(min_temp), linestyle="solid", **plot_config)
+        axes.axvline(np.log10(max_temp), linestyle="solid", **plot_config)
+        # shade region
+        xs = np.arange(np.log10(min_temp), np.log10(max_temp), 0.01)
+        fill_config = {
+            "transform": axes.get_xaxis_transform(),
+            "alpha": 0.1,
+            "color": color,
+        }
+        axes.fill_between(xs, 0, 1, **fill_config)
     return fig, axes
 
 
@@ -291,4 +302,81 @@ def plot_temperature_distribution_gallery(
         )
         drawn_plots += 1  # increment counter
 
+    return fig, axes
+
+
+def plot_temperature_distributions_in_one(
+    means: NDArray,
+    temperature_range: tuple[float, float],
+    mass_bin_edges: NDArray,
+    xlabel: str,
+    ylabel: str,
+    colormap: str = "cividis",
+    log: bool = True,
+) -> tuple[Figure, Axes]:
+    """
+    Return figure and axis of a combined plot of temperature distributions.
+
+    Function plots the given temperature distribution histograms and
+    returns the figure and axes objects. The plots are colored according
+    to the given colormap.
+
+    :param means: An array of shape (M, T) containing the histogram mean
+        values. M is the number of mass bins, T the number of temperature
+        bins.
+    :param temperature_range: The range of temperatures of the histograms
+        in units of log10(Kelvin).
+    :param mass_bin_edges: The edges of the mass bins in units of solar
+        masses.
+    :param xlabel: Label for the x axis.
+    :param ylabel: Label for the y axis.
+    :param colormap: A valid string name for a matplotlib colormap. The
+        colors of the different mass bins will be sampled from this map
+        by evenly spacing sampling points. Defaults to "cividis".
+    :param log: Whether to plot the y-axis in log scale. Defaults to True.
+    :return: A tuple of the matplotlib figure and axes objects, with the
+        plot drawn onto them.
+    """
+    logging.info("Plotting all temperature distributions combined.")
+    fig, axes = plt.subplots(figsize=(6, 5))
+    fig.set_tight_layout(True)
+
+    axes.set_title("Temperature distributions")
+    labelsize = 12
+    axes.set_xlabel(xlabel, fontsize=labelsize)
+    axes.set_ylabel(ylabel, fontsize=labelsize)
+
+    # calculate bin positions
+    _, bins = np.histogram(
+        np.array([0]), bins=len(means[0]), range=temperature_range
+    )
+    centers = (bins[:-1] + bins[1:]) / 2
+
+    for idx, hist in enumerate(means):
+        # get the color
+        color = util.sample_cmap(colormap, len(means), idx)
+
+        # plot data
+        plot_config = {
+            "histtype": "step",
+            "label":
+                (
+                    rf"${np.log10(mass_bin_edges[idx]):.0f} < \log \ M_\odot "
+                    rf"< {np.log10(mass_bin_edges[idx + 1]):.0f}$"
+                ),
+            "edgecolor": color,
+            "log": log,
+        }
+        # hack: produce exactly one entry for every bin, but weight it
+        # by the histogram bar length, to achieve a "fake" bar plot
+        axes.hist(
+            centers,
+            bins=bins,
+            range=temperature_range,
+            weights=hist,
+            **plot_config
+        )
+    axes.legend(
+        loc="lower center", bbox_to_anchor=(0.5, 1.1), ncol=len(means) // 2
+    )
     return fig, axes

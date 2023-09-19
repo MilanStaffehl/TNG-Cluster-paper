@@ -74,7 +74,8 @@ def load_histogram_data(
             f"mean data must have been saved wrong or is corrupted."
         )
         return
-    elif not hist_perc.shape == (2, ) + expected_shape:
+    elif (hist_perc.shape[0] != expected_shape[0]
+          or hist_perc.shape[2] != expected_shape[1]):
         logging.error(
             f"Shape of histogram median is different from shape of "
             f"histogram percentiles:\nMedian shape: {hist_mean.shape}, "

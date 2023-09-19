@@ -6,9 +6,8 @@ from pathlib import Path
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "pipelines"))
 
-from temperature_distribution import histograms_temperatures
-
 from config import config
+from temperature_distribution import histograms_temperatures as ht
 
 
 def main(args: argparse.Namespace) -> None:
@@ -86,10 +85,14 @@ def main(args: argparse.Namespace) -> None:
         "to_file": args.to_file,
         "no_plots": args.no_plots,
     }
-    if args.from_file:
-        hist_plotter = histograms_temperatures.FromFilePipeline(**pipeline_config)  # yapf: disable
+    if args.from_file and not args.combine:
+        hist_plotter = ht.FromFilePipeline(**pipeline_config)
+    elif args.from_file and args.combine:
+        hist_plotter = ht.CombinedPlotsFromFilePipeline(**pipeline_config)
+    elif not args.from_file and args.combine:
+        hist_plotter = ht.CombinedPlotsPipeline(**pipeline_config)
     else:
-        hist_plotter = histograms_temperatures.Pipeline(**pipeline_config)
+        hist_plotter = ht.Pipeline(**pipeline_config)
     hist_plotter.run()
 
 
@@ -179,6 +182,13 @@ if __name__ == "__main__":
         "--normalize-temperatures",
         help="Normalize temperatures to virial temperature",
         dest="normalize",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-c",
+        "--combine",
+        help="Combine all mass bins into one plot",
+        dest="combine",
         action="store_true",
     )
     parser.add_argument(

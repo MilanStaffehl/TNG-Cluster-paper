@@ -6,9 +6,8 @@ from pathlib import Path
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "pipelines"))
 
-from temperature_distribution import histogram_galleries
-
 from config import config
+from temperature_distribution import histogram_galleries
 
 
 def main(args: argparse.Namespace) -> None:
