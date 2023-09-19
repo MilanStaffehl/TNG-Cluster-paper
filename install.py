@@ -7,7 +7,7 @@ def install():
     Installs the project by creating the required directory structure.
     """
     # cur dir (equals to root dir)
-    root = Path(__file__).resolve()
+    root = Path(__file__).parent.resolve()
     # top level dirs
     data_home = root / "data"
     external = root / "external" / "illustris_python"
