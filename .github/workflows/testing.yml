@@ -18,7 +18,7 @@ jobs:
       uses: actions/checkout@v3
       with:
         repository: illustristng/illustris_python
-        path: external/
+        path: external/illustris_python
     - name: Install illustris_python
       run: |
         python -m pip install --upgrade pip

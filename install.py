@@ -10,7 +10,7 @@ def install():
     root = Path(__file__).resolve()
     # top level dirs
     data_home = root / "data"
-    external = root / "external"
+    external = root / "external" / "illustris_python"
     figures_home = root / "figures"
 
     # create directories
