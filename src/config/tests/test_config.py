@@ -1,14 +1,15 @@
 """
 Test the config module.
 """
-import pytest
 from pathlib import Path
+
+import pytest
 
 from config import config
 
 
 @pytest.mark.skipif(
-    not Path("/virgotng/").exists(), 
+    not Path("/virgotng/").exists(),
     reason="Cannot be executed outside of the Vera cluster."
 )
 def test_default_config_vera(mocker):
