@@ -26,6 +26,7 @@ jobs:
         pip install .
     - name: Install dependencies
       run: |
+        pwd
         cd ../..
         pwd
         pip install -r requirements-dev.txt
