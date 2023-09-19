@@ -21,8 +21,9 @@ jobs:
         path: external/
     - name: Install illustris_python
       run: |
-        cd external/illustris_python
         python -m pip install --upgrade pip
+        cd external/illustris_python/
+        pwd
         pip install .
     - name: Install dependencies
       run: |
