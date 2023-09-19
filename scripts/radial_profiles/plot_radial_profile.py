@@ -6,9 +6,8 @@ from pathlib import Path
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "pipelines"))
 
-from radial_profiles import rt_histograms
-
 from config import config
+from radial_profiles import rt_histograms
 
 
 def main(args: argparse.Namespace) -> None:
