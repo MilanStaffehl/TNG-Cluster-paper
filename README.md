@@ -1,5 +1,7 @@
 # Master thesis: cool gas in galaxy clusters
 
+![Tests status badge](https://github.com/MilanStaffehl/thesisProject/actions/workflows/testing.yml/badge.svg)
+
 This repository contains the source code for my master thesis about cool gas in
 galaxy clusters at the ITA (University Heidelberg).
 
