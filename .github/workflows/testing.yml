@@ -26,9 +26,6 @@ jobs:
         pip install .
     - name: Install dependencies
       run: |
-        pwd
-        cd ../..
-        pwd
         pip install -r requirements-dev.txt
     - name: Error search with flake8
       run: |
