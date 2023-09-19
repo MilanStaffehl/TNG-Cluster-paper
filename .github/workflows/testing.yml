@@ -23,7 +23,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         cd external/illustris_python/
-        pwd
+        ls
         pip install .
     - name: Install dependencies
       run: |
