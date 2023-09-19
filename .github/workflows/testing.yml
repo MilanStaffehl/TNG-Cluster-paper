@@ -23,11 +23,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         cd external/illustris_python/
-        ls
         pip install .
     - name: Install dependencies
       run: |
         cd ../..
+        pwd
         pip install -r requirements-dev.txt
     - name: Error search with flake8
       run: |
