@@ -39,7 +39,7 @@ After running the install script, install the dependencies (ideally inside of a
 new venv). Start by installing the Illustris helper scripts using
 
 ```bash
-cd external
+cd external/illustris_python
 git clone git@github.com:illustristng/illustris_python.git
 cd illustris_python
 pip install .

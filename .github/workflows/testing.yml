@@ -14,20 +14,21 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: "3.10"
+    - name: Install project
+      run: |
+        python install.py
     - name: Clone illustris_python
       uses: actions/checkout@v3
       with:
         repository: illustristng/illustris_python
-        path: external/
+        path: external/illustris_python
     - name: Install illustris_python
       run: |
         python -m pip install --upgrade pip
         cd external/illustris_python/
-        pwd
         pip install .
     - name: Install dependencies
       run: |
-        cd ../..
         pip install -r requirements-dev.txt
     - name: Error search with flake8
       run: |
