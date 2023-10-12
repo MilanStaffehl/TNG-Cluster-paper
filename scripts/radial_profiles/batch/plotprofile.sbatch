@@ -8,7 +8,7 @@
 #SBATCH --nodes=1             # request a full node
 #SBATCH --ntasks-per-node=1   # only start 1 task via srun because Python multiprocessing starts more tasks internally
 #SBATCH --cpus-per-task=72    # assign all the cores to that first task to make room for Python's multiprocessing tasks
-#SBATCH --time=10:00:00       # maximum time the job is allowed to take
+#SBATCH --time=20:00:00       # maximum time the job is allowed to take
 
 module purge
 module load gcc/13 impi/2021.9

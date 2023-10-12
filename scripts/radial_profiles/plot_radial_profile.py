@@ -5,6 +5,7 @@ from pathlib import Path
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "pipelines"))
+sys.path.append(str(cur_dir.parent.parent / "src"))
 
 from config import config
 from radial_profiles import rt_histograms

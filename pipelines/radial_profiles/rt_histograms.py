@@ -189,7 +189,9 @@ class Pipeline:
                 skip_condition=skip_condition,
             )
             if gas_data["count"] == 0:
-                fallback = np.empty(self.n_temperature_bins)
+                fallback = np.empty(
+                    (self.n_radial_bins, self.n_temperature_bins)
+                )
                 fallback.fill(np.nan)
                 return fallback
             # find the distance of all gas cells to halo center
