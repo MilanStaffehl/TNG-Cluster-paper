@@ -1,7 +1,8 @@
 import logging
+from typing import Any
 
 
-def get_logging_config(logging_level: str | int) -> None:
+def get_logging_config(logging_level: str | int) -> dict[str, Any]:
     """
     Return a simple, Jupyter notebook compatible, logging config.
 

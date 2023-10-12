@@ -12,7 +12,7 @@ from config import config
     not Path("/virgotng/").exists(),
     reason="Cannot be executed outside of the Vera cluster."
 )
-def test_default_config_vera(mocker):
+def test_default_config_vera():
     """
     Test the default config returned by get_default_config.
     """
@@ -106,3 +106,26 @@ def test_custom_paths(mocker):
     home_dir = Path().home()
     assert Path(test_cfg.data_home) == home_dir / ".local"
     assert Path(test_cfg.figures_home) == home_dir / ".local"
+
+
+def test_invalid_paths(mocker):
+    """
+    Test that the config raises a custom exception for invalid paths.
+    """
+    # set paths to something non-existent and/or invalid
+    mock_config = {
+        "paths":
+            {
+                "data_home": "this/path/does/not/exits",
+                "figures_home": "neither/does/this/path",
+                "simulation_home": str(Path().home() / ".local"),
+            }
+    }
+    mock_load = mocker.patch("yaml.full_load")
+    mock_load.return_value = mock_config
+    # create and test config
+    with pytest.raises(config.InvalidConfigPathError) as e:
+        config.get_default_config("TNG300-1")
+    # figures home is tested first, so it should raise the exception
+    expected_msg = "The config path neither/does/this/path does not exist"
+    assert str(e.value) == expected_msg
