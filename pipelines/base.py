@@ -27,7 +27,7 @@ class Pipeline:
     """
 
     config: config.Config
-    paths: typedef.FileDict
+    paths: typedef.FileDict | typedef.FileDictVT
     processes: int
 
     def run(self) -> int:

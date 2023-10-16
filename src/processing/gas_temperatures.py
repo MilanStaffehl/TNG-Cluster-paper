@@ -4,7 +4,7 @@ Functions for processing gas temperatures.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
 
@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 def get_temperature_distribution_histogram(
     gas_data: dict[str, NDArray],
     weight: str,
-    n_bins: int = 50,
+    n_bins: int | Sequence[float] = 50,
     log_temperature_range: tuple[float, float] = (3.0, 8.0),
     normalization: float = 1.0,
 ) -> NDArray:
@@ -34,7 +34,9 @@ def get_temperature_distribution_histogram(
     :param weight: What weighting to choose. Can either be 'mass' for
         weighting the temperatures by gas cell mass or 'frac' for weighting
         the temperatures by gas fraction of the cell.
-    :param n_bins: The number of bins for the histogram. Defaults to 50.
+    :param n_bins: The number of bins for the histogram. Optionally, this
+        can also be a sequence of floats for non-uniform bins. Defaults
+        to 50.
     :param log_temperature_range: The range of temperatures to consider,
         in log10 scale, i.e. a temperature range of 10^3 Kelvin to 10^8
         Kelvin would be specified as (3.0, 8.0). If temperature is
