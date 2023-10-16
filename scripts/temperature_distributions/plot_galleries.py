@@ -5,6 +5,7 @@ from pathlib import Path
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "pipelines"))
+sys.path.append(str(cur_dir.parent.parent / "src"))
 
 from config import config
 from temperature_distribution import histogram_galleries
@@ -68,6 +69,7 @@ def main(args: argparse.Namespace) -> None:
     pipeline_config = {
         "config": cfg,
         "paths": file_data,
+        "processes": 1,
         "plots_per_bin": args.plots_per_bin,
         "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
         "n_temperature_bins": args.bins,
@@ -80,7 +82,7 @@ def main(args: argparse.Namespace) -> None:
     if args.load_data:
         gallery_plotter = histogram_galleries.FromFilePipeline(**pipeline_config)  # yapf: disable
     else:
-        gallery_plotter = histogram_galleries.Pipeline(**pipeline_config)
+        gallery_plotter = histogram_galleries.GalleriesPipeline(**pipeline_config)  # yapf: disable
     gallery_plotter.run()
 
 

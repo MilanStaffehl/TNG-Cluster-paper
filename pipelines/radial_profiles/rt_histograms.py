@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 
+import base
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import constants
@@ -25,12 +27,11 @@ from config import logging_config
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-    import typedef
     from config import config  # noqa: F401
 
 
 @dataclass
-class Pipeline:
+class RadialProfilePipeline(base.Pipeline):
     """
     Plot a 2D histogram of temperature vs radial distance.
 
@@ -44,9 +45,6 @@ class Pipeline:
     per mass bin.
     """
 
-    config: config.Config
-    paths: typedef.FileDict
-    processes: int
     mass_bin_edges: Sequence[float]
     n_temperature_bins: int
     n_radial_bins: int
@@ -79,13 +77,7 @@ class Pipeline:
             normally, resulting in execution interruption.
         """
         # Step 0: create required directories
-        if self.to_file:
-            data_path = Path(self.paths["data_dir"])
-            if not data_path.exists():
-                logging.info(
-                    f"Creating missing data directory {str(data_path)}."
-                )
-                data_path.mkdir(parents=True)
+        self._create_directories()
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
@@ -237,7 +229,7 @@ class Pipeline:
             f.savefig(filepath / filename, bbox_inches="tight")
 
 
-class FromFilePipeline(Pipeline):
+class FromFilePipeline(RadialProfilePipeline):
     """
     Pipeline to create radial temperature profiles from file.
 

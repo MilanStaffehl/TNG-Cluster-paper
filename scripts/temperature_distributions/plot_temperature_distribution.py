@@ -5,6 +5,7 @@ from pathlib import Path
 # import the helper scripts
 cur_dir = Path(__file__).parent.resolve()
 sys.path.append(str(cur_dir.parent.parent / "pipelines"))
+sys.path.append(str(cur_dir.parent.parent / "src"))
 
 from config import config
 from temperature_distribution import histograms_temperatures as ht
@@ -92,7 +93,7 @@ def main(args: argparse.Namespace) -> None:
     elif not args.from_file and args.combine:
         hist_plotter = ht.CombinedPlotsPipeline(**pipeline_config)
     else:
-        hist_plotter = ht.Pipeline(**pipeline_config)
+        hist_plotter = ht.TemperatureHistogramsPipeline(**pipeline_config)
     hist_plotter.run()
 
 

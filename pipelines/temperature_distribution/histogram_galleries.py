@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
 
+import base
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import compute
@@ -19,7 +21,6 @@ import loading.temperature_histograms as ldt
 import plotting.temperature_histograms as ptt
 import processing as prc
 from config import logging_config
-from typedef import FileDict
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -29,7 +30,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class Pipeline:
+class GalleriesPipeline(base.Pipeline):
     """
     Pipeline to create gallery plots of temperature distribution.
 
@@ -38,8 +39,6 @@ class Pipeline:
     that is, a grid of individual histograms for these halos.
     """
 
-    config: config.Config
-    paths: FileDict
     plots_per_bin: int
     mass_bin_edges: Sequence[float]
     n_temperature_bins: int
@@ -63,13 +62,8 @@ class Pipeline:
             normally, resulting in execution interruption.
         """
         # Step 0: create directories, if needed
-        if self.to_file:
-            data_path = Path(self.paths["data_dir"])
-            if not data_path.exists():
-                logging.info(
-                    f"Creating missing data directory {str(data_path)}."
-                )
-                data_path.mkdir(parents=True)
+        self._create_directories()
+
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
         halo_data = daq.halos.get_halo_properties(
@@ -220,7 +214,7 @@ class Pipeline:
             f.savefig(filepath / filename, bbox_inches="tight")
 
 
-class FromFilePipeline(Pipeline):
+class FromFilePipeline(GalleriesPipeline):
     """
     Pipeline to creat galleries of gas temperature distribution from file.
 

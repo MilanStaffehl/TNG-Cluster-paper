@@ -12,6 +12,8 @@ from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 
+import base
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 import compute
@@ -21,7 +23,6 @@ import plotting.temperature_histograms as ptt
 import processing as prc
 from config import logging_config
 from plotting import util
-from typedef import FileDictVT
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -31,7 +32,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class Pipeline:
+class TemperatureHistogramsPipeline(base.Pipeline):
     """
     Pipeline to creat histograms of gas temperature distribution.
 
@@ -43,9 +44,6 @@ class Pipeline:
     group of a halo, not the fuzz particles around it.
     """
 
-    config: config.Config
-    paths: FileDictVT
-    processes: int
     mass_bin_edges: Sequence[float]
     n_temperature_bins: int
     temperature_range: tuple[float, float] = (3., 8.)
@@ -80,13 +78,7 @@ class Pipeline:
             normally, resulting in execution interruption.
         """
         # Step 0: create directories if needed
-        if self.to_file:
-            data_path = Path(self.paths["data_dir"])
-            if not data_path.exists():
-                logging.info(
-                    f"Creating missing data directory {str(data_path)}."
-                )
-                data_path.mkdir(parents=True)
+        self._create_directories()
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
@@ -307,7 +299,7 @@ class Pipeline:
             f.savefig(filepath / filename, bbox_inches="tight")
 
 
-class FromFilePipeline(Pipeline):
+class FromFilePipeline(TemperatureHistogramsPipeline):
     """
     Pipeline to creat histograms of gas temperature distribution from file.
 
@@ -373,7 +365,7 @@ class FromFilePipeline(Pipeline):
         return 0
 
 
-class CombinedPlotsPipeline(Pipeline):
+class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
     """
     Pipeline to create combined plot of temperature distribution.
 
