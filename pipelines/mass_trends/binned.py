@@ -95,6 +95,7 @@ class MassTrendPipeline(base.Pipeline):
         # Step 5: for every mass bin, find the gas mass fractions
         # Shape (2, 2, M): Two weight types (fraction and mass), two
         # values each (mean, median) and M values for M mass bins.
+        logging.info("Gathering gas fraction data.")
         cool_gas = np.zeros((2, 2, n_mass_bins))
         warm_gas = np.zeros((2, 2, n_mass_bins))
         hot_gas = np.zeros((2, 2, n_mass_bins))
@@ -121,21 +122,22 @@ class MassTrendPipeline(base.Pipeline):
             warm_gas[1][1][i] = warm_gas[0][1][i] * avg_gas_mass[i]
             hot_gas[1][1][i] = hot_gas[0][1][i] * avg_gas_mass[i]
 
-        print(cool_gas[0][0][0], warm_gas[0][0][0])
-
         # Step 6: Find the error
-        cool_gas_err = np.zeros((2, 2, n_mass_bins))
-        warm_gas_err = np.zeros((2, 2, n_mass_bins))
-        hot_gas_err = np.zeros((2, 2, n_mass_bins))
+        cool_gas_err = np.ones((2, 2, n_mass_bins))
+        warm_gas_err = np.ones((2, 2, n_mass_bins))
+        hot_gas_err = np.ones((2, 2, n_mass_bins))
 
         # Step 7: plot
+        logging.info("Plotting mass trend plot.")
         avg_halo_masses = []
+        std_halo_masses = []
         for halo_masses in prc.statistics.bin_quantitiy(
                 halo_data[self.config.mass_field],
                 mass_bin_mask,
                 n_mass_bins,
         ):
             avg_halo_masses.append(np.average(halo_masses))
+            std_halo_masses.append(np.std(halo_masses))
 
         f, _ = ptm.plot_gas_mass_trends(
             np.log10(avg_halo_masses),
@@ -146,6 +148,16 @@ class MassTrendPipeline(base.Pipeline):
             warm_gas_err,
             hot_gas_err
         )
+        # f, _ = ptm.plot_gas_mass_trends_individuals(
+        #     np.log10(avg_halo_masses),
+        #     np.array(std_halo_masses) / np.array(avg_halo_masses) / np.log(10),
+        #     cool_gas[:, 0, :],
+        #     warm_gas[:, 0, :],
+        #     hot_gas[:, 0, :],
+        #     cool_gas_err[:, 0, :],
+        #     warm_gas_err[:, 0, :],
+        #     hot_gas_err[:, 0, :]
+        # )
 
         # save figure
         filename = f"{self.paths['figures_file_stem']}.pdf"

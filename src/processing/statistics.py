@@ -30,9 +30,9 @@ def sort_masses_into_bins(
     return np.digitize(masses, mass_bins)
 
 
-def bin_quantitiy(quantity: NDArray,
-                  bin_mask: NDArray,
-                  n_bins: int = -1) -> Iterator[NDArray]:
+def bin_quantity(quantity: NDArray,
+                 bin_mask: NDArray,
+                 n_bins: int = -1) -> Iterator[NDArray]:
     """
     Sort ``quantity`` into mass bins according to ``bin_mask``.
 
@@ -223,3 +223,81 @@ def get_2d_histogram_running_average(
     # Finally, get the actual average by normalizing it to the sum of the
     # weights of the colum
     return column_sum / np.sum(histogram, axis=0)
+
+
+def get_binned_averages(
+    values: NDArray, bin_mask: NDArray, n_bins: int = -1
+) -> NDArray | None:
+    """
+    Return the averages and stds of the values in the specified bins.
+
+    Function bins the values according to the bin mask provided and then
+    finds, in every bin, the average values as well as their standard deviation.
+    It returns an array of shape (2, N) with these values.
+
+    :param values: Array of values of shape (N,).
+    :param bin_mask: Bin mask, assigning to every array index a bin index.
+        Can be obtained for example through ``np.digitize``.
+    :param n_bins: The number of bins to consider, starting from 1. All
+        bins with indices greater than this index are ignored. Defaults
+        to -1, which means the bin number will be determined automatically
+        as the highest index in ``bin_mask``.
+    :return: Array of shape (3, N). First entry is the average, the second
+        two are the standard deviation twice (for compatability with
+        asymmetric binning functions that return upper and lower value).
+    """
+    if not values.shape == bin_mask.shape:
+        logging.error(
+            f"Received arrays of different shapes: values have shape "
+            f"{values.shape}, bin mask has shape {bin_mask.shape}."
+        )
+        return
+    avg = []
+    std = []
+    for binned_values in bin_quantity(values, bin_mask, n_bins):
+        avg.append(np.nanmean(binned_values))
+        std.append(np.nanstd(binned_values))
+    return np.array([np.array(avg), np.array(std), np.array(std)])
+
+
+def get_binned_medians(
+    values: NDArray, bin_mask: NDArray, n_bins: int = -1
+) -> NDArray | None:
+    """
+    Return the median and 1 sigma of the values in the specified bins.
+
+    Function bins the values according to the bin mask provided and then
+    finds, in every bin, the median values as well as the one-sigma error
+    on the median in the form of an errorbar length  (i.e. the function
+    does not return the *position value* of the percentiles, but the
+    *distance from the median* of the interval edges).
+
+    :param values: Array of values of shape (N,).
+    :param bin_mask: Bin mask, assigning to every array index a bin index.
+        Can be obtained for example through ``np.digitize``.
+    :param n_bins: The number of bins to consider, starting from 1. All
+        bins with indices greater than this index are ignored. Defaults
+        to -1, which means the bin number will be determined automatically
+        as the highest index in ``bin_mask``.
+    :return: Array of shape (3, N). First entry is the median, the second
+        two are the lower and upper errors on the median, taken to be
+        the 16th and 84th percentiles. Note that these values are not the
+        percentiles themselves but the difference ``median - percentile``
+        so that they may be directly used as errorbar lengths in plotting.
+    """
+    if not values.shape == bin_mask.shape:
+        logging.error(
+            f"Received arrays of different shapes: values have shape "
+            f"{values.shape}, bin mask has shape {bin_mask.shape}."
+        )
+        return
+    med = []
+    lper = []  # lower percentiles
+    uper = []  # upper percentiles
+    for binned_values in bin_quantity(values, bin_mask, n_bins):
+        med.append(np.nanmedian(binned_values))
+        lper.append(np.nanpercentile(binned_values, 16))
+        uper.append(np.nanpercentile(binned_values, 86))
+    lerr = np.abs(np.array(med) - np.array(lper))  # error below median
+    uerr = np.abs(np.array(med) - np.array(uper))  # error above median
+    return np.array([np.array(med), lerr, uerr])

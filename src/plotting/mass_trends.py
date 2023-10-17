@@ -166,3 +166,191 @@ def plot_gas_mass_trends(
     axes[1].legend()
 
     return fig, axes
+
+
+def plot_gas_mass_trends_individuals(
+    halo_masses: NDArray,
+    gas_data: NDArray,
+    binned_halo_masses: NDArray,
+    binned_halo_masses_err: NDArray,
+    cool_gas: NDArray,
+    warm_gas: NDArray,
+    hot_gas: NDArray,
+    cool_gas_err: NDArray,
+    warm_gas_err: NDArray,
+    hot_gas_err: NDArray
+) -> tuple[Figure, Axes]:
+    """
+    Plot the mass trends of gas mass and gas fraction with halo mass.
+
+    The lot will consist of two columns and three rows, making six
+    subplots. The left column will show the gas fraction trend and
+    the right column the gas mass trend. The first row shows that trend
+    for cold gas, the second for warm gas, and the third for hot gas.
+    All subplots will also show the
+
+    All gas data arrays are expected to have shape (2, M) where
+    the first axis differentiates the weight type (fraction and mass),
+    the second axis the mass bins, i.e. the values. The individual values
+    are either the gas fraction of the corresponding regime in that mass
+    bin or the total gas mass in units of solar masses.
+
+    Opposed to this, the error arrays are of shape (2, 2, M), where the
+    first axis again holds the weight type, the second axis the lower
+    and upper length of the error bars, and the last axis hold the values.
+
+    Function does not save the figure to file but returns it.
+
+    :param halo_masses: The array of halo masses of shape (H, ) where
+        H is the total number of halos in the snapshot. Must be given in
+        units of log M_sol.
+    :param gas_data: The array containing the data points for the gas
+        fraction and mass for all three temperature regimes for every
+        halo. Shape must be (H, 2, 3), where the second axis contains
+        the fraction and mass data respectively and the third axis the
+        cool, warm and hot gas respectively.
+    :param binned_halo_masses: Array of shape (M, ) holding the average
+        halo masses per mass bin in units of log M_sol.
+    :param binned_halo_masses_err: The error in the halo masses per bin,
+        shape (M, ). Must be in units of log M_sol.
+    :param cool_gas: Cool gas data, shape (2, M)
+    :param warm_gas: Warm gas data, shape (2, M)
+    :param hot_gas: Hot gas data, shape (2, M)
+    :param cool_gas_err: Cool gas errors, shape (2, 2, M)
+    :param warm_gas_err: Warm gas errors, shape (2, 2, M)
+    :param hot_gas_err: Hot gas errors, shape (2, 2, M)
+    :return: Figure and axes objects after being created.
+    """
+    fig, axes = plt.subplots(nrows=3, ncols=2, figsize=(5, 8), sharex=True, sharey=False, gridspec_kw={"hspace": 0, "wspace": 0})
+    axes[-1][0].set_xlabel(r"Halo mass [$\log M_\odot$]")
+    axes[-1][1].set_xlabel(r"Halo mass [$\log M_\odot$]")
+    axes[0][0].set_title("Gas fraction")
+    axes[0][1].set_title("Gas mass")
+    for i in range(3):
+        for j in range(2):
+            # axes[i][j].set_yscale("log")
+            if j == 0:
+                # left column
+                axes[i][j].set_ylabel("Gas fraction")
+                axes[i][j].set_ylim([5e-4, 1.5])
+            else:
+                # right column
+                axes[i][j].set_ylabel(r"Gas mass [$M_\odot$]")
+                axes[i][j].set_ylim([5e7, 5e14])
+                axes[i][j].yaxis.set_label_position("right")
+                axes[i][j].yaxis.tick_right()
+
+    # colors
+    colors = {
+        "cool": "mediumblue",
+        "warm": "purple",
+        "hot": "darkorange",
+    }
+    scatter_config = {
+        "marker": ".",
+        "markersize": 1,
+        "linestyle": "none",
+        "alpha": 0.1,
+        "zorder": 1,
+    }
+    plot_config = {
+        "marker": "o",
+        "markersize": 4,
+        "linestyle": "none",
+        "capsize": 2,
+        "color": "black",
+        "zorder": 10,
+    }
+
+    # cool gas fraction
+    axes[0][0].errorbar(
+        binned_halo_masses,
+        cool_gas[0],
+        xerr=binned_halo_masses_err,
+        yerr=cool_gas_err[0],
+        label="Cool",
+        **plot_config,
+    )
+    axes[0][0].plot(
+        halo_masses,
+        gas_data[:, 0, 0],
+        color=colors["cool"],
+        **scatter_config,
+    )
+    # cool gas mass
+    axes[0][1].errorbar(
+        binned_halo_masses,
+        cool_gas[1],
+        xerr=binned_halo_masses_err,
+        yerr=cool_gas_err[1],
+        label="Cool",
+        **plot_config,
+    )
+    axes[0][1].plot(
+        halo_masses,
+        gas_data[:, 1, 0],
+        color=colors["cool"],
+        **scatter_config,
+    )
+    # warm gas fraction
+    axes[1][0].errorbar(
+        binned_halo_masses,
+        warm_gas[0],
+        xerr=binned_halo_masses_err,
+        yerr=warm_gas_err[0],
+        label="Warm",
+        **plot_config,
+    )
+    axes[1][0].plot(
+        halo_masses,
+        gas_data[:, 0, 1],
+        color=colors["warm"],
+        **scatter_config,
+    )
+    # warm gas mass
+    axes[1][1].errorbar(
+        binned_halo_masses,
+        warm_gas[1],
+        xerr=binned_halo_masses_err,
+        yerr=warm_gas_err[1],
+        label="Warm",
+        **plot_config,
+    )
+    axes[1][1].plot(
+        halo_masses,
+        gas_data[:, 1, 1],
+        color=colors["warm"],
+        **scatter_config,
+    )
+    # hot gas fraction
+    axes[2][0].errorbar(
+        binned_halo_masses,
+        hot_gas[0],
+        xerr=binned_halo_masses_err,
+        yerr=hot_gas_err[0],
+        label="Hot",
+        **plot_config,
+    )
+    axes[2][0].plot(
+        halo_masses,
+        gas_data[:, 0, 2],
+        color=colors["hot"],
+        **scatter_config,
+    )
+    # hot gas mass
+    axes[2][1].errorbar(
+        binned_halo_masses,
+        hot_gas[1],
+        xerr=binned_halo_masses_err,
+        yerr=hot_gas_err[1],
+        label="Hot",
+        **plot_config,
+    )
+    axes[2][1].plot(
+        halo_masses,
+        gas_data[:, 1, 2],
+        color=colors["hot"],
+        **scatter_config,
+    )
+
+    return fig, axes
