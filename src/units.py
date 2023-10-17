@@ -37,7 +37,8 @@ class UnitConverter:
                 "Group_M_Crit200",
                 "Group_M_Crit500",
                 "Group_M_Mean200",
-                "Group_M_TopHat200"
+                "Group_M_TopHat200",
+                "Masses",
             ],
         "distanceLike":
             [
@@ -67,8 +68,8 @@ class UnitConverter:
 
         :param quantity: Quantitiy in code units.
         :param field: Name of the field of the quantity.
-        :raises UnsupportedUnit: When the field has no supported unit
-            conversion available.
+        :raises UnsupportedUnitError: When the field has no supported
+            unit conversion available.
         :return: Quantity in physical units.
         """
         if field in cls.fields["massLike"]:

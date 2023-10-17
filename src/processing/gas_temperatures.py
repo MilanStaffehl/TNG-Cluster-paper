@@ -4,7 +4,7 @@ Functions for processing gas temperatures.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import numpy as np
 
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 def get_temperature_distribution_histogram(
     gas_data: dict[str, NDArray],
-    weight: str,
+    weight: Literal["frac", "mass"],
     n_bins: int | Sequence[float] = 50,
     log_temperature_range: tuple[float, float] = (3.0, 8.0),
     normalization: float = 1.0,
@@ -30,7 +30,9 @@ def get_temperature_distribution_histogram(
     will be logarithmic.
 
     :param gas_data: A dictionary with keys 'Masses' and 'Temperatures'
-        and corresponding arrays as values.
+        and corresponding arrays as values. 'Masses' must be in computational
+        units and convertible by ``units.UnitConverter.convert``.
+        'Temperature' must be given in units of Kelvin.
     :param weight: What weighting to choose. Can either be 'mass' for
         weighting the temperatures by gas cell mass or 'frac' for weighting
         the temperatures by gas fraction of the cell.
@@ -55,7 +57,7 @@ def get_temperature_distribution_histogram(
         total_gas_mass = np.sum(gas_data["Masses"])
         weights = gas_data["Masses"] / total_gas_mass
     else:
-        weights = gas_data["Masses"]
+        weights = units.UnitConverter.convert(gas_data["Masses"], "Masses")
 
     # generate and assign hist data
     hist, _ = np.histogram(

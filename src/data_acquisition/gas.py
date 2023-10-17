@@ -55,7 +55,8 @@ def get_halo_temperatures(
         temperatures. If additional fields were specified, they are added
         to this dictionary. Dictionary will always contain key-value-pairs
         for the keys "Temperature", "InternalEnergy", "ElectronAbundance",
-        "Masses" and "StarFormationRate".
+        "Masses" and "StarFormationRate". Note that all quantities are
+        in computational units as specified by the simulation data specs.
     """
     if additional_fields is None:
         additional_fields = []

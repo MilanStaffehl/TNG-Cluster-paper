@@ -264,7 +264,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
         """
         # labels y axis
         if self.weights == "mass":
-            ylabel = r"Gas mass per cell [$M_\odot$]"
+            ylabel = r"Gas mass [$M_\odot$]"
         else:
             ylabel = "Gas mass fraction"
         # labels x axis
