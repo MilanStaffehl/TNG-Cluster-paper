@@ -1,5 +1,6 @@
 [style]
 based_on_style = pep8
+blank_lines_between_top_level_imports_and_variables = 1
 dedent_closing_brackets = true
 indent_dictionary_value = true
 split_all_top_level_comma_separated_values = true
