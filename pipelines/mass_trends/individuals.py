@@ -348,6 +348,8 @@ class IndividualsMassTrendPipeline(base.Pipeline):
             logging.info("Creating missing figures directory.")
             filepath.mkdir(parents=True)
         f.savefig(filepath / filename, bbox_inches="tight")
+
+        logging.info("Successfully saved mass trend plot to file!")
         return 0
 
 

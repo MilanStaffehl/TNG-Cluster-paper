@@ -71,6 +71,50 @@ def bin_quantity(quantity: NDArray,
         yield masked_indices
 
 
+def mask_quantity(
+    quantity: NDArray,
+    mask: NDArray,
+    index: int = 0,
+    compress: bool = True
+) -> NDArray:
+    """
+    Return an array containing only non-masked values.
+
+    All entries in ``quantity`` that do not have a masking value equal
+    to ``masking_value`` in the corresponding position in ``mask`` are
+    masked by this function. The returned array can be either a numpy
+    masked array or a compressed version of the masked array, only
+    containing the unmasked values and nothing else.
+
+    The default behavior is to expect the mask to contain only zeros and
+    ones, with all values in the quantity array at the positions of ones
+    being masked and all values at positions of zeros remaining unmasked.
+    The function returns a compressed version of the masked array by
+    default. This can be changed by setting ``compressed=False``.
+
+    A custom value for which integer in the masking array which leaves
+    corresponding values unmasked can be chosen.
+
+    Can be directly used to filter out zeros from an array by setting
+    both ``quantity`` and ``mask`` to the array to filter.
+
+    :param quantity: Array of the quantity to mask.
+    :param mask: Masking array. Must be an array of integers. Must have
+        the same shape as ``quantity``.
+    :param index: The integers value for the index in the masking array
+        to keep unmasked. Defaults to 1.
+    :param compress: Whether to compress the masked array into a standard
+        numpy array before returning. Defaults to True.
+    :return: The masked quantity array.
+    """
+    mask = np.where(mask == index, 1, 0)
+    masked_indices = ma.masked_array(quantity).compress(mask)
+    if not compress:
+        return masked_indices
+    masked_indices = masked_indices.compressed()
+    return masked_indices
+
+
 def stack_histograms_per_mass_bin(
     histograms: NDArray,
     n_mass_bins: int,
