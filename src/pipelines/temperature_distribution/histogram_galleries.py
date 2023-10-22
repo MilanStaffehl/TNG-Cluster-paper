@@ -20,8 +20,9 @@ from pipelines import base
 
 if TYPE_CHECKING:
     # Reason for noqa: https://github.com/PyCQA/pyflakes/issues/648
-    from config import config  # noqa: F401
     from numpy.typing import NDArray
+
+    from library.config import config  # noqa: F401
 
 
 @dataclass

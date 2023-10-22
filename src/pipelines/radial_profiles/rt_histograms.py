@@ -21,8 +21,9 @@ from library.config import logging_config
 from pipelines import base
 
 if TYPE_CHECKING:
-    from config import config  # noqa: F401
     from numpy.typing import NDArray
+
+    from library.config import config  # noqa: F401
 
 
 @dataclass
