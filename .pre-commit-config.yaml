@@ -4,16 +4,16 @@ repos:
     rev: v4.4.0
     hooks:
     -   id: end-of-file-fixer
-        files: ^(library/.+\.py|scripts/.+\.py|pipelines/.+\.py|install.py)
+        files: ^(src/.+\.py|install.py)
     -   id: trailing-whitespace
-        files: ^(library/.+\.py|scripts/.+\.py|pipelines/.+\.py|install.py)
+        files: ^(src/.+\.py|install.py)
 -   repo: https://github.com/google/yapf
     rev: v0.40.1
     hooks:
     -   id: yapf
         entry: yapf
         language: python
-        files: ^(library/.+\.py|scripts/.+\.py|pipelines/.+\.py|install.py)
+        files: ^(src/.+\.py|install.py)
         types: [python]
         args: [-i, -p, -r]
 -   repo: https://github.com/PyCQA/isort
