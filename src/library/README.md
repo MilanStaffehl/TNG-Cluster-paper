@@ -1,6 +1,7 @@
-# Structure of the `src` directory
+# Structure of the `library` directory
 
-This document gives a short overview over the structure of the `src` directory.
+This document gives a short overview over the structure of the `library` 
+directory.
 
 
 ## Packages
@@ -27,5 +28,4 @@ The following top-level modules exist:
 
 - `compute`: Functions for computing physical quantities.
 - `constants`: Physical constants, global constants, simulation-specific constants.
-- `typedef`: Custom type definitions and type aliases.
 - `units`: Tools for unit conversion and unit verification.

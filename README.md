@@ -111,43 +111,46 @@ The repository is organized into the following directories:
 - `notebooks`: The notebooks directory contains Jupyter notebooks. The notebooks
   contain primarily test code, some on-the-side experiments and probing plots
   (that is, plots that are meant to get an overview over simulation data).
-- `scripts:` The scripts directory contains executable Python scripts that
-  can be used to create plots. It also contains batch job scripts for use with
-  slurm. The directory is organized into subdirectories. These subdirectories 
-  are roughly divided by the plot type the scripts inside them are meant to
-  produce. The names of the directories correspond to those of the project
-  [milestones](#milestones). You can find out more about what each of these 
-  milestones and subdirectories contain by reading the [ROADMAP](./ROADMAP.md)
-  or the GitHub milestones. 
-- `src`: The source directory contains the logic of this project, organized 
-  into modules and packages. It is the heart of the project, containing all
-  code that performs actual work, calculations and tasks. It is further
-  subdivided:
+- `src`: The source directory bundles all code that is used to generate plots
+  and data for this project. Itis structured into three main packages:
 
-  - `src.config`: This package contains modules that are used to set up the
-    environment for pipelines and to create containers for globally required
-    variables. It also contains modules to set up logging.
-  - `src.data_acquisition`: This package contains modules whose purpose it is
-    to load simulation data directly from the simulation hdf5 files. The 
-    functions in these modules can act as a simple wrapper to `illustris_python`
-    functions, but some may also pre-process data. 
-  - `src.loading`: As opposed to `data_acquisition`, the `loading` package
-    contains modules that support loading processed data from file that was
-    previously saved by a pipeline job (i.e. data from which a plot was created).
-    It implicitly also defines the format in which pipelines must save the data.
-  - `src.plotting`: This package contains modules that provide utilities for
-    plotting data. 
-  - `src.processing`: This is the largest package and contains various modules
-    for data processing. Data loaded with `data_acquisition` can be further
-    processed with code from this package. It also contains utilities for
-    parallelization and statistics.
+  - `scripts:` The scripts directory contains executable Python scripts that
+    can be used to create plots. It also contains batch job scripts for use with
+    slurm. The directory is organized into subdirectories. These subdirectories 
+    are roughly divided by the plot type the scripts inside them are meant to
+    produce. The names of the directories correspond to those of the project
+    [milestones](#milestones). You can find out more about what each of these 
+    milestones and subdirectories contain by reading the [ROADMAP](./ROADMAP.md)
+    or the GitHub milestones. 
+  - `library`: The library directory contains the logic of this project, organized 
+    into modules and packages. It is the heart of the project, containing all
+    code that performs actual work, calculations and tasks. It is further
+    subdivided:
 
-- `pipelines`: The pipelines directory contains modules with pipeline classes.
-  These classes are used to bundle together code from `src` in a sensible order
-  to achieve the task of loading, processing, saving to file and plotting data
-  from the simulations. They are also solely responsible for file IO. Similar
-  to the `scripts` directory, this directory is divided into topics that match
-  the milestones of this project.
+    - `library.config`: This package contains modules that are used to set up the
+      environment for pipelines and to create containers for globally required
+      variables. It also contains modules to set up logging.
+    - `library.data_acquisition`: This package contains modules whose purpose 
+      it is to load simulation data directly from the simulation hdf5 files. 
+      The functions in these modules can act as a simple wrapper to `illustris_python`
+      functions, but some may also pre-process data. 
+    - `library.loading`: As opposed to `data_acquisition`, the `loading` package
+      contains modules that support loading processed data from file that was
+      previously saved by a pipeline job (i.e. data from which a plot was created).
+      It implicitly also defines the format in which pipelines must save the data.
+    - `library.plotting`: This package contains modules that provide utilities for
+      plotting data. 
+    - `library.processing`: This is the largest package and contains various 
+      modules for data processing. Data loaded with `data_acquisition` can be 
+      further processed with code from this package. It also contains utilities 
+      for parallelization and statistics.
+
+  - `pipelines`: The pipelines directory contains modules with pipeline classes.
+    These classes are used to bundle together code from `library` in a sensible 
+    order to achieve the task of loading, processing, saving to file and plotting 
+    data from the simulations. They are also solely responsible for file IO. 
+    Similar to the `scripts` directory, this directory is divided into topics 
+    that match the milestones of this project.
 
 Alongside these directories tracked by the VC, the install script will also
 create directories that will be populated by the Python and/or batch scripts:
@@ -166,7 +169,7 @@ familiarized oneself with it. If you just want to find something specific
 quickly, you can find some guidance here:
 
 - **Re-usable code snippets:** You are most likely to find code that you might 
-  wish to re-use inside the `src` directory. The modules and packages therein 
+  wish to re-use inside the `library` directory. The modules and packages therein 
   are more or less intuitively named. Look for the module/package that closest 
   describes what you are looking for!
 - **Batch scripts for slurm:** Batch scripts for the different tasks are 
@@ -178,9 +181,9 @@ quickly, you can find some guidance here:
   you need to look into. All the Python scripts in `scripts` have a CLI, so
   to find out how to use them, simply run `python <script name>.py -h`.
 - **Code for topic X:** If you are looking for code (or output) of a specific
-  topic, search the `src` directory for the package whose name sounds most like
-  what you need. Inside of it, you can go through the modules that are related
-  to the topic.
+  topic, search the `library` directory for the package whose name sounds most 
+  like what you need. Inside of it, you can go through the modules that are 
+  related to the topic.
 - **The finished plots:** If you installed the code using the `install.py`
   script, you will find the figures under the `figures` directory in the
   subdirectory of the milestone they belong to. If you cannot find them there,
