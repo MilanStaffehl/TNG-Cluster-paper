@@ -209,6 +209,29 @@ def overplot_virial_temperatures(
     return fig, axes
 
 
+def overplot_temperature_divisions(
+    fig: Figure, axes: Axes, divisions: tuple[float, float]
+) -> tuple[Figure, Axes]:
+    """
+    Add vertical lines at the specified temperatures to the plot.
+
+    :param fig: The figure object, returned as-is.
+    :param axes: The axis onto which to plot the temperature divisions.
+    :param divisions: The temperature divisions to plot onto the axes.
+        Must be in the unit of the temperature axis (i.e. log K or
+        log T_vir).
+    :return: Figure and axes objects as tuple.
+    """
+    line_config = {
+        "linestyle": "dashdot",
+        "color": "black",
+        "linewidth": 1,
+    }
+    axes.axvline(divisions[0], **line_config)
+    axes.axvline(divisions[1], **line_config)
+    return fig, axes
+
+
 def plot_temperature_distribution_gallery(
     n_plots: int,
     halo_ids: NDArray,

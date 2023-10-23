@@ -52,7 +52,7 @@ the remaining dependencies from PyPI using
 
 ```bash
 cd ../../  # return to project root
-pip install requirements.txt
+pip install -r requirements.txt
 ```
 
 if you only want to use the code as-is. If you wish to contribute to the code
@@ -60,7 +60,7 @@ base, use of pre-commit and the related pre-commit hooks is recommended. Run
 
 ```bash
 cd ../../  # return to project root
-pip install requirements-dev.txt
+pip install -r requirements-dev.txt
 pre-commit install
 ```
 

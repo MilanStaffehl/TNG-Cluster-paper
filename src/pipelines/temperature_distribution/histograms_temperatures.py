@@ -46,6 +46,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
     weights: str = "frac"
     normalize: bool = False
     with_virial_temperatures: bool = True
+    temperature_divisions: tuple[float, float] | None = None
     quiet: bool = False
     to_file: bool = True
     no_plots: bool = False
@@ -286,6 +287,10 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 ptt.overplot_virial_temperatures(
                     f, a, virial_temperatures, i, mass_bin_mask
                 )
+            if self.temperature_divisions:
+                ptt.overplot_temperature_divisions(
+                    f, a, self.temperature_divisions
+                )
             # save figure
             filename = f"{self.paths['figures_file_stem']}_{i}.pdf"
             filepath = Path(self.paths["figures_dir"])
@@ -427,6 +432,10 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
                 ptt.overplot_virial_temperatures(
                     fig, axes, virial_temperatures, mass_bin, mass_bin_mask, c
                 )
+        if self.temperature_divisions:
+            ptt.overplot_temperature_divisions(
+                fig, axes, self.temperature_divisions
+            )
 
         # save figure
         filename = f"{self.paths['figures_file_stem']}_combined.pdf"
@@ -509,6 +518,10 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
                     c,
                     True
                 )
+        if self.temperature_divisions:
+            ptt.overplot_temperature_divisions(
+                fig, axes, self.temperature_divisions
+            )
 
         # save figure
         filename = f"{self.paths['figures_file_stem']}_combined.pdf"

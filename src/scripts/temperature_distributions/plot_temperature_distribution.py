@@ -77,6 +77,7 @@ def main(args: argparse.Namespace) -> None:
         "weights": weight_type,
         "normalize": args.normalize,
         "with_virial_temperatures": not args.normalize and args.overplot,
+        "temperature_divisions": (4.5, 5.5) if args.divisions else None,
         "quiet": args.quiet,
         "to_file": args.to_file,
         "no_plots": args.no_plots,
@@ -185,6 +186,13 @@ if __name__ == "__main__":
         "--combine",
         help="Combine all mass bins into one plot",
         dest="combine",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-d",
+        "--show-divisions",
+        help="Add vertical lines to plots to show temperature regimes",
+        dest="divisions",
         action="store_true",
     )
     parser.add_argument(
