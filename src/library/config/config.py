@@ -79,7 +79,7 @@ def get_default_config(
     """
     # find directories for data and figures
     cur_dir = Path(__file__).parent.resolve()
-    root_dir = cur_dir.parents[1]
+    root_dir = cur_dir.parents[2]
     with open(root_dir / "config.yaml", "r") as config_file:
         stream = config_file.read()
     config = yaml.full_load(stream)
