@@ -23,7 +23,7 @@ def main(args: argparse.Namespace) -> None:
 
     # paths
     figure_path = cfg.figures_home / f"mass_trends/{cfg.sim_path}"
-    figure_stem = f"mass_trend_{cfg.sim_path}"
+    figure_stem = f"mass_trend_hist_{cfg.sim_path}"
 
     if args.figurespath:
         new_path = Path(args.figurespath)
