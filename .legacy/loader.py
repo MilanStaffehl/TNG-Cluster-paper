@@ -3,16 +3,14 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING
 
+import constants
 import illustris_python as il
 import numpy as np
 import numpy.ma as ma
 
-import constants
-
 if TYPE_CHECKING:
-    from numpy.typing import ArrayLike
-
     import config
+    from numpy.typing import ArrayLike
 
 warnings.warn(
     "This module is deprecated and will likely not work.",

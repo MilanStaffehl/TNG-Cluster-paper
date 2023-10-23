@@ -1,12 +1,11 @@
 import warnings
 
+import config
+import constants
 import illustris_python as il
 import loader
 import numpy as np
 import pytest
-
-import config
-import constants
 
 warnings.warn(
     "This module is deprecated and will likely not work.",

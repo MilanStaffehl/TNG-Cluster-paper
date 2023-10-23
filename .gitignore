@@ -38,12 +38,12 @@ data/
 
 # nohup and batch output files
 *nohup.out
-src/scripts/**/output/
-src/scripts/**/batch/output/
+scripts/**/output/
+scripts/**/batch/output/
 
 # temporary scripts
-src/scripts/tmp*.py
-src/scripts/*tmp.py
+scripts/tmp*.py
+scripts/*tmp.py
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

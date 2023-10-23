@@ -111,17 +111,17 @@ The repository is organized into the following directories:
 - `notebooks`: The notebooks directory contains Jupyter notebooks. The notebooks
   contain primarily test code, some on-the-side experiments and probing plots
   (that is, plots that are meant to get an overview over simulation data).
+- `scripts:` The scripts directory contains executable Python scripts that
+  can be used to create plots. It also contains batch job scripts for use with
+  slurm. The directory is organized into subdirectories. These subdirectories 
+  are roughly divided by the plot type the scripts inside them are meant to
+  produce. The names of the directories correspond to those of the project
+  [milestones](#milestones). You can find out more about what each of these 
+  milestones and subdirectories contain by reading the [ROADMAP](./ROADMAP.md)
+  or the GitHub milestones. 
 - `src`: The source directory bundles all code that is used to generate plots
   and data for this project. Itis structured into three main packages:
 
-  - `scripts:` The scripts directory contains executable Python scripts that
-    can be used to create plots. It also contains batch job scripts for use with
-    slurm. The directory is organized into subdirectories. These subdirectories 
-    are roughly divided by the plot type the scripts inside them are meant to
-    produce. The names of the directories correspond to those of the project
-    [milestones](#milestones). You can find out more about what each of these 
-    milestones and subdirectories contain by reading the [ROADMAP](./ROADMAP.md)
-    or the GitHub milestones. 
   - `library`: The library directory contains the logic of this project, organized 
     into modules and packages. It is the heart of the project, containing all
     code that performs actual work, calculations and tasks. It is further

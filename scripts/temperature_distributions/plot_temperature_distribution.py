@@ -2,8 +2,9 @@ import argparse
 import sys
 from pathlib import Path
 
+import _paths  # noqa: F401  # inserts the src directory into path
 from library.config import config
-from pipelines.radial_profiles import rt_histograms
+from pipelines.temperature_distribution import histograms_temperatures as ht
 
 
 def main(args: argparse.Namespace) -> None:
@@ -21,12 +22,23 @@ def main(args: argparse.Namespace) -> None:
     # config
     cfg = config.get_default_config(sim)
 
-    # paths
-    base_dir = cfg.figures_home / f"radial_profiles/{cfg.sim_path}"
-    figure_stem = f"radial_profile_{cfg.sim_path}"
-    data_stem = f"radial_profile_{cfg.sim_path}"
+    # histogram weights
+    if args.use_mass:
+        weight_type = "mass"
+    else:
+        weight_type = "frac"
 
-    figure_path = base_dir / "temperature_profile"
+    # paths
+    base_dir = cfg.figures_home / f"temperature_distribution/{cfg.sim_path}"
+    if args.normalize:
+        figure_path = base_dir / "normalized"
+        figure_stem = f"temperature_hist_norm_{weight_type}_{cfg.sim_path}"
+        data_stem = f"temperature_hists_norm_{weight_type}_{cfg.sim_path}"
+    else:
+        figure_path = base_dir / "histograms"
+        figure_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
+        data_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
+
     if args.figurespath:
         new_path = Path(args.figurespath)
         if new_path.exists() and new_path.is_dir():
@@ -37,7 +49,7 @@ def main(args: argparse.Namespace) -> None:
                 f"Using fallback path {str(figure_path)} instead."
             )
 
-    data_path = cfg.data_home / "radial_profiles"
+    data_path = cfg.data_home / "temperature_distribution"
     if args.datapath:
         new_path = Path(args.datapath)
         if new_path.exists() and new_path.is_dir():
@@ -53,6 +65,7 @@ def main(args: argparse.Namespace) -> None:
         "data_dir": data_path,
         "figures_file_stem": figure_stem,
         "data_file_stem": data_stem,
+        "virial_temp_file_stem": f"virial_temperatures_{cfg.sim_path}"
     }
 
     pipeline_config = {
@@ -60,25 +73,31 @@ def main(args: argparse.Namespace) -> None:
         "paths": file_data,
         "processes": args.processes,
         "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
-        "n_temperature_bins": args.tbins,
-        "n_radial_bins": args.rbins,
-        "temperature_range": (3., 8.),
-        "radial_range": (0., 1.5),
+        "n_temperature_bins": args.bins,
+        "temperature_range": (-4.0, +4.0) if args.normalize else (3., 8.),
+        "weights": weight_type,
+        "normalize": args.normalize,
+        "with_virial_temperatures": not args.normalize and args.overplot,
+        "temperature_divisions": (4.5, 5.5) if args.divisions else None,
         "quiet": args.quiet,
         "to_file": args.to_file,
         "no_plots": args.no_plots,
     }
-    if args.from_file:
-        hist_plotter = rt_histograms.FromFilePipeline(**pipeline_config)
+    if args.from_file and not args.combine:
+        hist_plotter = ht.FromFilePipeline(**pipeline_config)
+    elif args.from_file and args.combine:
+        hist_plotter = ht.CombinedPlotsFromFilePipeline(**pipeline_config)
+    elif not args.from_file and args.combine:
+        hist_plotter = ht.CombinedPlotsPipeline(**pipeline_config)
     else:
-        hist_plotter = rt_histograms.Pipeline(**pipeline_config)
+        hist_plotter = ht.TemperatureHistogramsPipeline(**pipeline_config)
     hist_plotter.run()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog=f"python {Path(__file__).name}",
-        description="Plot radial temperature profiles of halos in TNG",
+        description="Plot temperature distribution of halos in TNG",
     )
     parser.add_argument(
         "-s",
@@ -104,7 +123,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f",
         "--to-file",
-        help="Whether to write the histogram data calclated to file",
+        help=(
+            "Whether to write the histogram and virial temperature data "
+            "calclated to file"
+        ),
         dest="to_file",
         action="store_true",
     )
@@ -140,19 +162,45 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "-tb",
-        "--tbins",
-        help="The number of temperature bins, defaults to 50",
-        dest="tbins",
-        type=int,
-        default=50,
-        metavar="NUMBER",
+        "-o",
+        "--no-overplot",
+        help="Suppress overplotting of virial temperature regions",
+        dest="overplot",
+        action="store_false",
     )
     parser.add_argument(
-        "-rb",
-        "--rbins",
-        help="The number of radial bins, defaults to 50",
-        dest="rbins",
+        "-m",
+        "--use-mass",
+        help="Use gas mass as hist weights instead of gas mass fraction",
+        dest="use_mass",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-n",
+        "--normalize-temperatures",
+        help="Normalize temperatures to virial temperature",
+        dest="normalize",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-c",
+        "--combine",
+        help="Combine all mass bins into one plot",
+        dest="combine",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-d",
+        "--show-divisions",
+        help="Add vertical lines to plots to show temperature regimes",
+        dest="divisions",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-b",
+        "--bins",
+        help="The number of temperature bins, defaults to 50",
+        dest="bins",
         type=int,
         default=50,
         metavar="NUMBER",

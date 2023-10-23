@@ -5,6 +5,8 @@ from pathlib import Path
 from library.config import config
 from pipelines.temperature_distribution import histogram_galleries
 
+from .. import _paths  # noqa: F401  # inserts the src directory into path
+
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
