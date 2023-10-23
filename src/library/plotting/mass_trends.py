@@ -294,6 +294,7 @@ def plot_gas_mass_trends_individuals(
         cmap=util.custom_cmap(colors["cool"]),
         range=(xlims, frac_lims),
         bins=(xbins, frac_bins),
+        norm="log",
     )
     # cool gas mass
     axes[0][1].errorbar(
@@ -310,6 +311,7 @@ def plot_gas_mass_trends_individuals(
         cmap=util.custom_cmap(colors["cool"]),
         range=(xlims, mass_lims),
         bins=(xbins, mass_bins),
+        norm="log",
     )
     # warm gas fraction
     axes[1][0].errorbar(
@@ -326,6 +328,7 @@ def plot_gas_mass_trends_individuals(
         cmap=util.custom_cmap(colors["warm"]),
         range=(xlims, frac_lims),
         bins=(xbins, frac_bins),
+        norm="log",
     )
     # warm gas mass
     axes[1][1].errorbar(
@@ -342,6 +345,7 @@ def plot_gas_mass_trends_individuals(
         cmap=util.custom_cmap(colors["warm"]),
         range=(xlims, mass_lims),
         bins=(xbins, mass_bins),
+        norm="log",
     )
     # hot gas fraction
     axes[2][0].errorbar(
@@ -358,6 +362,7 @@ def plot_gas_mass_trends_individuals(
         cmap=util.custom_cmap(colors["hot"]),
         range=(xlims, frac_lims),
         bins=(xbins, frac_bins),
+        norm="log",
     )
     # hot gas mass
     axes[2][1].errorbar(
@@ -374,6 +379,7 @@ def plot_gas_mass_trends_individuals(
         cmap=util.custom_cmap(colors["hot"]),
         range=(xlims, mass_lims),
         bins=(xbins, mass_bins),
+        norm="log",
     )
 
     return fig, axes
