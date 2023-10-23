@@ -8,7 +8,7 @@ import matplotlib.cm as cm
 import matplotlib.colors as cl
 import numpy as np
 
-RGBAColor: TypeAlias = Sequence[float, float, float, float]
+RGBAColor: TypeAlias = Sequence[float]
 
 
 def sample_cmap(colormap: str, samples: int, index: int) -> RGBAColor:

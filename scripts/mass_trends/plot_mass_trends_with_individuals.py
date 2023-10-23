@@ -2,7 +2,9 @@ import argparse
 import sys
 from pathlib import Path
 
-import _paths  # noqa: F401  # inserts the src directory into path
+root_dir = Path(__file__).parents[2].resolve()
+sys.path.insert(0, str(root_dir / "src"))
+
 from library.config import config
 from pipelines.mass_trends.individuals import IndividualsMassTrendPipeline
 
