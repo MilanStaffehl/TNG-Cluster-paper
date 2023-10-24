@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 from library.plotting import util
 
@@ -174,33 +175,19 @@ def plot_gas_mass_trends(
 def plot_gas_mass_trends_individuals(
     halo_masses: NDArray,
     gas_data: NDArray,
-    binned_halo_masses: NDArray,
-    binned_halo_masses_err: NDArray,
-    cool_gas: NDArray,
-    warm_gas: NDArray,
-    hot_gas: NDArray,
-    cool_gas_err: NDArray,
-    warm_gas_err: NDArray,
-    hot_gas_err: NDArray
+    n_bins: int = 60,
 ) -> tuple[Figure, Axes]:
     """
     Plot the mass trends of gas mass and gas fraction with halo mass.
 
-    The lot will consist of two columns and three rows, making six
+    The plot will consist of two columns and three rows, making six
     subplots. The left column will show the gas fraction trend and
     the right column the gas mass trend. The first row shows that trend
     for cold gas, the second for warm gas, and the third for hot gas.
-    All subplots will also show the
 
-    All gas data arrays are expected to have shape (2, M) where
-    the first axis differentiates the weight type (fraction and mass),
-    the second axis the mass bins, i.e. the values. The individual values
-    are either the gas fraction of the corresponding regime in that mass
-    bin or the total gas mass in units of solar masses.
-
-    Opposed to this, the error arrays are of shape (2, 2, M), where the
-    first axis again holds the weight type, the second axis the lower
-    and upper length of the error bars, and the last axis hold the values.
+    The figures will show a 2D histogram of the distribution of the data
+    points. This is necessary especially for large data sets. The number
+    of bins can optionally be set as well.
 
     Function does not save the figure to file but returns it.
 
@@ -212,16 +199,8 @@ def plot_gas_mass_trends_individuals(
         halo. Shape must be (H, 2, 3), where the second axis contains
         the fraction and mass data respectively and the third axis the
         cool, warm and hot gas respectively.
-    :param binned_halo_masses: Array of shape (M, ) holding the average
-        halo masses per mass bin in units of log M_sol.
-    :param binned_halo_masses_err: The error in the halo masses per bin,
-        shape (M, ). Must be in units of log M_sol.
-    :param cool_gas: Cool gas data, shape (2, M)
-    :param warm_gas: Warm gas data, shape (2, M)
-    :param hot_gas: Hot gas data, shape (2, M)
-    :param cool_gas_err: Cool gas errors, shape (2, 2, M)
-    :param warm_gas_err: Warm gas errors, shape (2, 2, M)
-    :param hot_gas_err: Hot gas errors, shape (2, 2, M)
+    :param n_bins: The number of bins for the histogram in both x and
+        y direction. Optional, defaults to 60.
     :return: Figure and axes objects after being created.
     """
     # set limits on plottable area
@@ -229,23 +208,23 @@ def plot_gas_mass_trends_individuals(
     frac_lims = (5e-4, 1.5)
     xlims = (8, 15)  # in log M_sol
     # create bins for the histograms in log scale for y-axis
-    N_BINS = 60
-    xbins = np.linspace(xlims[0], xlims[1], N_BINS, endpoint=True)
+    xbins = np.linspace(xlims[0], xlims[1], n_bins, endpoint=True)
     frac_bins = np.logspace(
-        np.log10(frac_lims[0]), np.log10(frac_lims[1]), N_BINS, endpoint=True
+        np.log10(frac_lims[0]), np.log10(frac_lims[1]), n_bins, endpoint=True
     )
     mass_bins = np.logspace(
-        np.log10(mass_lims[0]), np.log10(mass_lims[1]), N_BINS, endpoint=True
+        np.log10(mass_lims[0]), np.log10(mass_lims[1]), n_bins, endpoint=True
     )
     # create figure
     fig, axes = plt.subplots(
         nrows=3,
         ncols=2,
-        figsize=(5, 8),
+        figsize=(5, 6),
         sharex=True,
         sharey=False,
         gridspec_kw={"hspace": 0, "wspace": 0}
     )
+    fig.set_tight_layout(True)
     axes[-1][0].set_xlabel(r"Halo mass [$\log M_\odot$]")
     axes[-1][1].set_xlabel(r"Halo mass [$\log M_\odot$]")
     axes[0][0].set_title("Gas fraction")
@@ -270,25 +249,9 @@ def plot_gas_mass_trends_individuals(
         "warm": (128, 0, 128),  # purple
         "hot": (255, 140, 0),  # darkorange
     }
-    plot_config = {
-        "marker": "o",
-        "markersize": 4,
-        "linestyle": "none",
-        "capsize": 2,
-        "color": "black",
-        "zorder": 10,
-    }
 
     # cool gas fraction
-    axes[0][0].errorbar(
-        binned_halo_masses,
-        cool_gas[0],
-        xerr=binned_halo_masses_err,
-        yerr=cool_gas_err[0],
-        label="Cool",
-        **plot_config,
-    )
-    axes[0][0].hist2d(
+    h = axes[0][0].hist2d(
         halo_masses,
         gas_data[:, 0, 0],
         cmap=util.custom_cmap(colors["cool"]),
@@ -296,16 +259,14 @@ def plot_gas_mass_trends_individuals(
         bins=(xbins, frac_bins),
         norm="log",
     )
-    # cool gas mass
-    axes[0][1].errorbar(
-        binned_halo_masses,
-        cool_gas[1],
-        xerr=binned_halo_masses_err,
-        yerr=cool_gas_err[1],
-        label="Cool",
-        **plot_config,
+    inset = inset_axes(axes[0][0], width="5%", height="40%", loc="upper right")
+    cb = fig.colorbar(
+        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
     )
-    axes[0][1].hist2d(
+    cb.ax.yaxis.set_ticks_position("left")
+
+    # cool gas mass
+    h = axes[0][1].hist2d(
         halo_masses,
         gas_data[:, 1, 0],
         cmap=util.custom_cmap(colors["cool"]),
@@ -313,16 +274,14 @@ def plot_gas_mass_trends_individuals(
         bins=(xbins, mass_bins),
         norm="log",
     )
-    # warm gas fraction
-    axes[1][0].errorbar(
-        binned_halo_masses,
-        warm_gas[0],
-        xerr=binned_halo_masses_err,
-        yerr=warm_gas_err[0],
-        label="Warm",
-        **plot_config,
+    inset = inset_axes(axes[0][1], width="5%", height="40%", loc="upper right")
+    cb = fig.colorbar(
+        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
     )
-    axes[1][0].hist2d(
+    cb.ax.yaxis.set_ticks_position("left")
+
+    # warm gas fraction
+    h = axes[1][0].hist2d(
         halo_masses,
         gas_data[:, 0, 1],
         cmap=util.custom_cmap(colors["warm"]),
@@ -330,15 +289,13 @@ def plot_gas_mass_trends_individuals(
         bins=(xbins, frac_bins),
         norm="log",
     )
-    # warm gas mass
-    axes[1][1].errorbar(
-        binned_halo_masses,
-        warm_gas[1],
-        xerr=binned_halo_masses_err,
-        yerr=warm_gas_err[1],
-        label="Warm",
-        **plot_config,
+    inset = inset_axes(axes[1][0], width="5%", height="40%", loc="upper right")
+    cb = fig.colorbar(
+        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
     )
+    cb.ax.yaxis.set_ticks_position("left")
+
+    # warm gas mass
     axes[1][1].hist2d(
         halo_masses,
         gas_data[:, 1, 1],
@@ -347,16 +304,14 @@ def plot_gas_mass_trends_individuals(
         bins=(xbins, mass_bins),
         norm="log",
     )
-    # hot gas fraction
-    axes[2][0].errorbar(
-        binned_halo_masses,
-        hot_gas[0],
-        xerr=binned_halo_masses_err,
-        yerr=hot_gas_err[0],
-        label="Hot",
-        **plot_config,
+    inset = inset_axes(axes[1][1], width="5%", height="40%", loc="upper right")
+    cb = fig.colorbar(
+        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
     )
-    axes[2][0].hist2d(
+    cb.ax.yaxis.set_ticks_position("left")
+
+    # hot gas fraction
+    h = axes[2][0].hist2d(
         halo_masses,
         gas_data[:, 0, 2],
         cmap=util.custom_cmap(colors["hot"]),
@@ -364,16 +319,14 @@ def plot_gas_mass_trends_individuals(
         bins=(xbins, frac_bins),
         norm="log",
     )
-    # hot gas mass
-    axes[2][1].errorbar(
-        binned_halo_masses,
-        hot_gas[1],
-        xerr=binned_halo_masses_err,
-        yerr=hot_gas_err[1],
-        label="Hot",
-        **plot_config,
+    inset = inset_axes(axes[2][0], width="5%", height="40%", loc="lower right")
+    cb = fig.colorbar(
+        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
     )
-    axes[2][1].hist2d(
+    cb.ax.yaxis.set_ticks_position("left")
+
+    # hot gas mass
+    h = axes[2][1].hist2d(
         halo_masses,
         gas_data[:, 1, 2],
         cmap=util.custom_cmap(colors["hot"]),
@@ -381,5 +334,47 @@ def plot_gas_mass_trends_individuals(
         bins=(xbins, mass_bins),
         norm="log",
     )
+    inset = inset_axes(axes[2][1], width="5%", height="40%", loc="lower right")
+    cb = fig.colorbar(
+        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
+    )
+    cb.ax.yaxis.set_ticks_position("left")
 
     return fig, axes
+
+
+def overplot_datapoints(
+    x_data: NDArray,
+    y_data: NDArray,
+    x_err: NDArray,
+    y_err: NDArray,
+    axes: Axes
+) -> Axes:
+    """
+    Overplot the given data onto the given axes.
+
+    :param x_data: x-values, shape (N, ).
+    :param y_data: y-values, shape (N, ).
+    :param x_err: Error on the x values, shape (2, N).
+    :param y_err: Error on the y values, shape (2, N).
+    :param axes: The axes object onto which to plot the data.
+    :return: The updated axes object. Axes is altered in place, so this
+        is merely a convenience. The original axes does not need to be
+        replaced.
+    """
+    plot_config = {
+        "marker": "o",
+        "markersize": 4,
+        "linestyle": "none",
+        "capsize": 2,
+        "color": "black",
+        "zorder": 10,
+    }
+    axes.errorbar(
+        x_data,
+        y_data,
+        xerr=x_err,
+        yerr=y_err,
+        **plot_config,
+    )
+    return axes

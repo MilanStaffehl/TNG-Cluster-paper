@@ -312,38 +312,66 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         mass_err_right = (
             average_bin_masses[2] / average_bin_masses[0] / np.log(10)
         )
-        cool_gas_error = np.array(
-            [[cold_by_frac[1], cold_by_frac[2]],
-             [cold_by_mass[1], cold_by_mass[2]]]
-        )  # yapf: disable
-        warm_gas_error = np.array(
-            [[warm_by_frac[1], warm_by_frac[2]],
-             [warm_by_mass[1], warm_by_mass[2]]]
-        )  # yapf: disable
-        hot_gas_error = np.array(
-            [[hot_by_frac[1], hot_by_frac[2]],
-             [hot_by_mass[1], hot_by_mass[2]]]
-        )  # yapf: disable
+        binned_halo_masses = np.log10(average_bin_masses[0])
+        binned_halo_masses_err = np.array([mass_err_left, mass_err_right])
 
-        f, _ = ptm.plot_gas_mass_trends_individuals(
+        # Plot the individual halo dta points
+        f, a = ptm.plot_gas_mass_trends_individuals(
             halo_masses=np.log10(halo_masses),
             gas_data=gas_fraction_data,
-            binned_halo_masses=np.log10(average_bin_masses[0]),
-            binned_halo_masses_err=np.array([mass_err_left, mass_err_right]),
-            cool_gas=np.array([cold_by_frac[0], cold_by_mass[0]]),
-            warm_gas=np.array([warm_by_frac[0], warm_by_mass[0]]),
-            hot_gas=np.array([hot_by_frac[0], hot_by_mass[0]]),
-            cool_gas_err=cool_gas_error,
-            warm_gas_err=warm_gas_error,
-            hot_gas_err=hot_gas_error,
         )
+
+        # overplot the mean/median data points
+        ptm.overplot_datapoints(
+            binned_halo_masses,
+            cold_by_frac[0],
+            binned_halo_masses_err,
+            np.array([cold_by_frac[1], cold_by_frac[2]]),
+            axes=a[0][0],
+        )
+        ptm.overplot_datapoints(
+            binned_halo_masses,
+            cold_by_mass[0],
+            binned_halo_masses_err,
+            np.array([cold_by_mass[1], cold_by_mass[2]]),
+            axes=a[0][1],
+        )
+        ptm.overplot_datapoints(
+            binned_halo_masses,
+            warm_by_frac[0],
+            binned_halo_masses_err,
+            np.array([warm_by_frac[1], warm_by_frac[2]]),
+            axes=a[1][0],
+        )
+        ptm.overplot_datapoints(
+            binned_halo_masses,
+            warm_by_mass[0],
+            binned_halo_masses_err,
+            np.array([warm_by_mass[1], warm_by_mass[2]]),
+            axes=a[1][1],
+        )
+        ptm.overplot_datapoints(
+            binned_halo_masses,
+            hot_by_frac[0],
+            binned_halo_masses_err,
+            np.array([hot_by_frac[1], hot_by_frac[2]]),
+            axes=a[2][0],
+        )
+        ptm.overplot_datapoints(
+            binned_halo_masses,
+            hot_by_mass[0],
+            binned_halo_masses_err,
+            np.array([hot_by_mass[1], hot_by_mass[2]]),
+            axes=a[2][1],
+        )
+
         # save figure
         filename = f"{self.paths['figures_file_stem']}.pdf"
         filepath = Path(self.paths["figures_dir"])
         if not filepath.exists():
             logging.info("Creating missing figures directory.")
             filepath.mkdir(parents=True)
-        f.savefig(filepath / filename, bbox_inches="tight")
+        f.savefig(filepath / filename)
 
         logging.info("Successfully saved mass trend plot to file!")
         return 0
