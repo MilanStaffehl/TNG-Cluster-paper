@@ -26,14 +26,9 @@ if TYPE_CHECKING:
 @dataclass
 class IndividualsMassTrendPipeline(base.Pipeline):
     """
-    Pipeline to creat histograms of gas temperature distribution.
+    Pipeline to create plots of gas temperature fractions with halo mass.
 
-    Pipeline creates histograms of the temperature distribution of gas
-    in all halos of a chosen simulation and saves the plots and data to
-    file.
-
-    The pipeline only considers gas particles that belong to the FoF
-    group of a halo, not the fuzz particles around it.
+    .. TODO: Need to write proper docstring
     """
 
     mass_bin_edges: Sequence[float]
@@ -51,7 +46,7 @@ class IndividualsMassTrendPipeline(base.Pipeline):
 
     def run(self) -> int:
         """
-        Run the pipeline to produce histogram plots.
+        Run the pipeline to produce mass trend plots.
 
         Steps:
 
@@ -180,7 +175,7 @@ class IndividualsMassTrendPipeline(base.Pipeline):
 
         Since the functions for multiprocessing and sequential processing
         expect a Callable that takes as input only the halo ID and returns
-        the histogram as array, the corresponding functions must be
+        the data points as array, the corresponding functions must be
         bundled together. Additionally, some attributes of this class
         must be supplied to these functions. This helper method builds
         such a Callable by concatenating the required functions and
