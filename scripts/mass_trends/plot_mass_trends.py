@@ -6,11 +6,14 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library.config import config
-from pipelines.mass_trends.binned import MassTrendPipeline
+from pipelines.mass_trends.individuals import (
+    FromFilePipeline,
+    IndividualsMassTrendPipeline,
+)
 
 
 def main(args: argparse.Namespace) -> None:
-    """Create a plot of the trends of mass"""
+    """Create plot of gas mass trends for individual halos"""
     # sim data
     if args.sim == "TEST_SIM":
         sim = "TNG50-4"
@@ -21,12 +24,24 @@ def main(args: argparse.Namespace) -> None:
     else:
         raise ValueError(f"Unknown simulation type {args.sim}.")
 
+    # temperature divisions
+    if args.normalize:
+        temperature_divs = [0.0, 0.1, 1.0, 10.0]
+    else:
+        temperature_divs = [0.0, 4.5, 5.5, 10.0]
+
+    # whether to use median or mean
+    if args.average:
+        statistics = "mean"
+    else:
+        statistics = "median"
+
     # config
     cfg = config.get_default_config(sim)
 
     # paths
     figure_path = cfg.figures_home / f"mass_trends/{cfg.sim_path}"
-    figure_stem = f"mass_trend_hist_{cfg.sim_path}"
+    figure_stem = f"mass_trend_indiv_{cfg.sim_path}"
 
     if args.figurespath:
         new_path = Path(args.figurespath)
@@ -38,8 +53,8 @@ def main(args: argparse.Namespace) -> None:
                 f"Using fallback path {str(figure_path)} instead."
             )
 
-    data_path = cfg.data_home / "temperature_distribution"
-    data_stem = f"temperature_hist_frac_{cfg.sim_path}"
+    data_path = cfg.data_home / "mass_trends"
+    data_stem = f"mass_trends_individuals_{cfg.sim_path}"
     if args.datapath:
         new_path = Path(args.datapath)
         if new_path.exists() and new_path.is_dir():
@@ -50,32 +65,37 @@ def main(args: argparse.Namespace) -> None:
                 f"Attempting fallback path {str(data_path)} instead."
             )
 
-    # create pipeline parameter dictionary
     file_data = {
         "figures_dir": figure_path,
         "data_dir": data_path,
         "figures_file_stem": figure_stem,
         "data_file_stem": data_stem,
+        "virial_temp_file_stem": f"virial_temperatures_{cfg.sim_path}"
     }
 
     pipeline_config = {
         "config": cfg,
         "paths": file_data,
-        "processes": 1,
+        "processes": args.processes,
         "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
-        "normalize": args.normalized,
-        "cool_bins": args.n_cool_bins,
-        "warm_bins": args.n_warm_bins,
+        "temperature_divisions": temperature_divs,
+        "normalize": args.normalize,
+        "statistic_method": statistics,
+        "quiet": args.quiet,
+        "to_file": args.to_file,
+        "no_plots": args.no_plots,
     }
-
-    pipeline = MassTrendPipeline(**pipeline_config)
+    if args.from_file:
+        pipeline = FromFilePipeline(**pipeline_config)
+    else:
+        pipeline = IndividualsMassTrendPipeline(**pipeline_config)
     pipeline.run()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog=f"python {Path(__file__).name}",
-        description="Plot radial temperature profiles of halos in TNG",
+        description="Plot mass trends of gas of halos in TNG",
     )
     parser.add_argument(
         "-s",
@@ -90,33 +110,68 @@ if __name__ == "__main__":
         choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
     )
     parser.add_argument(
-        "-n",
-        "--normalized",
-        help="Whether to use the division based on virial temperature.",
-        dest="normalized",
+        "-p",
+        "--processes",
+        help=("Use multiprocessing, with the specified number of processes."),
+        type=int,
+        default=0,
+        dest="processes",
+        metavar="PROCESSES",
+    )
+    parser.add_argument(
+        "-f",
+        "--to-file",
+        help=(
+            "Whether to write the plot data and virial temperature data "
+            "calculated to file"
+        ),
+        dest="to_file",
         action="store_true",
     )
     parser.add_argument(
-        "--cool-bins",
+        "-l",
+        "--load-data",
         help=(
-            "The number of bins that belong to the cold regime. Defaults"
-            "to 15."
+            "When given, data is loaded from data files rather than newly "
+            "acquired. This only works if data files of the expected name are "
+            "present. When used, the flags -p, -f, -q have no effect."
         ),
-        dest="n_cool_bins",
-        metavar="NUMBER-OF-BINS",
-        type=int,
-        default=15,
+        dest="from_file",
+        action="store_true",
     )
     parser.add_argument(
-        "--warm-bins",
+        "-x",
+        "--no-plots",
         help=(
-            "The number of bins that belong to the warm regime, counted "
-            "from the last cool gas bin. Defaults to 15."
+            "Suppresses creation of plots, use to prevent overwriting "
+            "existing files."
         ),
-        dest="n_warm_bins",
-        metavar="NUMBER-OF-BINS",
-        type=int,
-        default=15,
+        dest="no_plots",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        help=(
+            "Prevent progress information to be emitted. Has no effect when "
+            "multiprocessing is used."
+        ),
+        dest="quiet",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-n",
+        "--normalize-temperatures",
+        help="Normalize temperatures to virial temperature",
+        dest="normalize",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-a",
+        "--use-average",
+        help="Plot averages instead of medians in the plot",
+        dest="average",
+        action="store_true",
     )
     parser.add_argument(
         "--figures-dir",
@@ -133,8 +188,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data-dir",
         help=(
-            "The directory where the data files are located. They are "
-            "expected to have the default names."
+            "The directory path under which to save the plots, if created. "
+            "Directories that do not exist will be recursively created. "
+            "When using --load-data, this directory is queried for data. "
             "It is recommended to leave this at the default value unless "
             "the expected directories do not exist and/or data has been saved "
             "somewhere else."
