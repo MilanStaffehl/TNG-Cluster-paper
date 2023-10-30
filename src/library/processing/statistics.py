@@ -341,7 +341,7 @@ def get_binned_medians(
     for binned_values in bin_quantity(values, bin_mask, n_bins):
         med.append(np.nanmedian(binned_values))
         lper.append(np.nanpercentile(binned_values, 16))
-        uper.append(np.nanpercentile(binned_values, 86))
+        uper.append(np.nanpercentile(binned_values, 84))
     lerr = np.abs(np.array(med) - np.array(lper))  # error below median
     uerr = np.abs(np.array(med) - np.array(uper))  # error above median
     return np.array([np.array(med), lerr, uerr])

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Callable, Literal, Sequence
 import numpy as np
 
 import library.data_acquisition as daq
-import library.loading.temperature_histograms as ldt
+import library.loading.mass_trends as ldm
 import library.plotting.mass_trends as ptm
 import library.processing as prc
 from library import compute
@@ -130,6 +130,7 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         masses = getter(
             halo_data[self.config.mass_field], mass_bin_mask, n_mass_bins
         )
+        # returned arrays have shape (3, M) where M is number of mass bins
         cold_by_frac = getter(points[:, 0, 0], mass_bin_mask, n_mass_bins)
         warm_by_frac = getter(points[:, 0, 1], mass_bin_mask, n_mass_bins)
         hot_by_frac = getter(points[:, 0, 2], mass_bin_mask, n_mass_bins)
@@ -141,14 +142,14 @@ class IndividualsMassTrendPipeline(base.Pipeline):
             filename = f"{self.paths['data_file_stem']}.npz"
             np.savez(
                 self.paths["data_dir"] / filename,
-                halo_data=points,
+                gas_data_points=points,
+                avg_masses=masses,
                 cold_by_frac=cold_by_frac,
                 warm_by_frac=warm_by_frac,
                 hot_by_frac=hot_by_frac,
                 cold_by_mass=cold_by_mass,
                 warm_by_mass=warm_by_mass,
                 hot_by_mass=hot_by_mass,
-                avg_masses=masses,
             )
         end = time.time()
         # get time spent on computation
@@ -401,43 +402,31 @@ class FromFilePipeline(IndividualsMassTrendPipeline):
             interrupting the execution.
         """
         # Step 0: verify all required data exists
-        hist_data_path = (
-            self.paths["data_dir"] / f"{self.paths['data_file_stem']}.npz"
-        )
-        vt_data_path = (
-            self.paths["data_dir"]
-            / f"{self.paths['virial_temp_file_stem']}.npy"
-        )
-        for path in [hist_data_path, vt_data_path]:
-            if not path.exists():
-                raise FileNotFoundError(
-                    f"Data file {str(path)} does not exist."
-                )
-        # Step 1: acquire halo data
-        fields = [self.config.mass_field, self.config.radius_field]
-        halo_data = daq.halos.get_halo_properties(
-            self.config.base_path, self.config.snap_num, fields=fields
-        )
-        # Step 2: get bin mask
-        mass_bin_mask = prc.statistics.sort_masses_into_bins(
-            halo_data[self.config.mass_field], self.mass_bin_edges
-        )
-        # Step 3: load virial temperatures
-        if self.with_virial_temperatures:
-            virial_temperatures = ldt.load_virial_temperatures(vt_data_path)
-        else:
-            virial_temperatures = None
-        # Step 4: get primary data - histograms for every halo
-        mean, median, perc = ldt.load_histogram_data(
-            hist_data_path,
-            (len(self.mass_bin_edges) - 1, self.n_temperature_bins)
-        )
-        # Step 6: plot the data
+        status = self._verify_directories()
+        if status > 0:
+            return status
+
         if self.no_plots:
             logging.warning(
                 "Was asked to load data without plotting it. This is pretty "
                 "pointless and probably not what you wanted."
             )
             return 0
-        self._plot(mean, median, perc, virial_temperatures, mass_bin_mask)
+
+        # Step 1: acquire halo data
+        fields = [self.config.mass_field, self.config.radius_field]
+        halo_data = daq.halos.get_halo_properties(
+            self.config.base_path, self.config.snap_num, fields=fields
+        )
+        # Step 2: load virial temperatures
+        data_dir = self.paths["data_dir"]
+        # Step 3: get primary data - histograms for every halo
+        n_mass_bins = len(self.mass_bin_edges) - 1
+        data_file = data_dir / f"{self.paths['data_file_stem']}.npz"
+        data = ldm.load_mass_trend_data(data_file, n_mass_bins)
+        if data is None:
+            logging.error("Could not load mass trend data from file.")
+            return 1
+        # Step 4: plot the data
+        self._plot(halo_data[self.config.mass_field], *data)
         return 0

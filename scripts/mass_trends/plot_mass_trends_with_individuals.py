@@ -6,7 +6,10 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library.config import config
-from pipelines.mass_trends.individuals import IndividualsMassTrendPipeline
+from pipelines.mass_trends.individuals import (
+    FromFilePipeline,
+    IndividualsMassTrendPipeline,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -20,6 +23,12 @@ def main(args: argparse.Namespace) -> None:
         sim = "TNG300-1"
     else:
         raise ValueError(f"Unknown simulation type {args.sim}.")
+
+    # temperature divisions
+    if args.normalize:
+        temperature_divs = [0.0, 0.1, 1.0, 10.0]
+    else:
+        temperature_divs = [0.0, 4.5, 5.5, 10.0]
 
     # whether to use median or mean
     if args.average:
@@ -69,7 +78,7 @@ def main(args: argparse.Namespace) -> None:
         "paths": file_data,
         "processes": args.processes,
         "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
-        "temperature_divisions": [0.0, 4.5, 5.5, 10.0],
+        "temperature_divisions": temperature_divs,
         "normalize": args.normalize,
         "statistic_method": statistics,
         "quiet": args.quiet,
@@ -77,7 +86,7 @@ def main(args: argparse.Namespace) -> None:
         "no_plots": args.no_plots,
     }
     if args.from_file:
-        raise NotImplementedError("Not yet implemented")
+        pipeline = FromFilePipeline(**pipeline_config)
     else:
         pipeline = IndividualsMassTrendPipeline(**pipeline_config)
     pipeline.run()
