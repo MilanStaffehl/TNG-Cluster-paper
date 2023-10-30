@@ -6,7 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library.config import config
-from pipelines.mass_trends.individuals import (
+from pipelines.mass_trends.temperatures import (
     FromFilePipeline,
     IndividualsMassTrendPipeline,
 )
