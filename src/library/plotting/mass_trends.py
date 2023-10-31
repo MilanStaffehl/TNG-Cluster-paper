@@ -143,6 +143,8 @@ def plot_gas_mass_trends_individuals(
 
     # font size
     fontsize = 8
+    # tick marks on color bar
+    tick_marks = [1, 1e3, 1e5, 1e7]
 
     # cool gas fraction
     h = axes[0][0].hist2d(
@@ -155,7 +157,10 @@ def plot_gas_mass_trends_individuals(
     )
     inset = inset_axes(axes[0][0], width="4%", height="35%", loc="upper right")
     cb = fig.colorbar(
-        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
+        h[3],
+        cax=inset,
+        orientation="vertical",
+        ticks=tick_marks,
     )
     cb.ax.yaxis.set_ticks_position("left")
     cb.ax.tick_params(labelsize=fontsize)
@@ -171,7 +176,10 @@ def plot_gas_mass_trends_individuals(
     )
     inset = inset_axes(axes[0][1], width="4%", height="35%", loc="upper right")
     cb = fig.colorbar(
-        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
+        h[3],
+        cax=inset,
+        orientation="vertical",
+        ticks=tick_marks,
     )
     cb.ax.yaxis.set_ticks_position("left")
     cb.ax.tick_params(labelsize=fontsize)
@@ -187,7 +195,10 @@ def plot_gas_mass_trends_individuals(
     )
     inset = inset_axes(axes[1][0], width="4%", height="35%", loc="upper right")
     cb = fig.colorbar(
-        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
+        h[3],
+        cax=inset,
+        orientation="vertical",
+        ticks=tick_marks,
     )
     cb.ax.yaxis.set_ticks_position("left")
     cb.ax.tick_params(labelsize=fontsize)
@@ -203,7 +214,10 @@ def plot_gas_mass_trends_individuals(
     )
     inset = inset_axes(axes[1][1], width="4%", height="35%", loc="upper right")
     cb = fig.colorbar(
-        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
+        h[3],
+        cax=inset,
+        orientation="vertical",
+        ticks=tick_marks,
     )
     cb.ax.yaxis.set_ticks_position("left")
     cb.ax.tick_params(labelsize=fontsize)
@@ -219,7 +233,10 @@ def plot_gas_mass_trends_individuals(
     )
     inset = inset_axes(axes[2][0], width="4%", height="35%", loc="lower right")
     cb = fig.colorbar(
-        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
+        h[3],
+        cax=inset,
+        orientation="vertical",
+        ticks=tick_marks,
     )
     cb.ax.yaxis.set_ticks_position("left")
     cb.ax.tick_params(labelsize=fontsize)
@@ -235,7 +252,10 @@ def plot_gas_mass_trends_individuals(
     )
     inset = inset_axes(axes[2][1], width="4%", height="35%", loc="lower right")
     cb = fig.colorbar(
-        h[3], cax=inset, orientation="vertical", ticks=[1, 10, 100]
+        h[3],
+        cax=inset,
+        orientation="vertical",
+        ticks=tick_marks,
     )
     cb.ax.yaxis.set_ticks_position("left")
     cb.ax.tick_params(labelsize=fontsize)

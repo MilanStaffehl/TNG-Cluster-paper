@@ -5,6 +5,7 @@ from pathlib import Path
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
+import glob_util
 from library.config import config
 from pipelines.mass_trends.temperatures import (
     FromFilePipeline,
@@ -15,14 +16,10 @@ from pipelines.mass_trends.temperatures import (
 def main(args: argparse.Namespace) -> None:
     """Create plot of gas mass trends for individual halos"""
     # sim data
-    if args.sim == "TEST_SIM":
-        sim = "TNG50-4"
-    elif args.sim == "DEV_SIM":
-        sim = "TNG50-3"
-    elif args.sim == "MAIN_SIM":
-        sim = "TNG300-1"
-    else:
-        raise ValueError(f"Unknown simulation type {args.sim}.")
+    sim = glob_util.translate_sim_name(args.sim)
+
+    # config
+    cfg = config.get_default_config(sim)
 
     # temperature divisions
     if args.normalize:
@@ -36,42 +33,21 @@ def main(args: argparse.Namespace) -> None:
     else:
         statistics = "median"
 
-    # config
-    cfg = config.get_default_config(sim)
+    # file name type flag
+    if args.normalize:
+        type_flag = "normalized"
+    else:
+        type_flag = "standard"
 
     # paths
-    figure_path = cfg.figures_home / f"mass_trends/{cfg.sim_path}"
-    figure_stem = f"mass_trend_indiv_{cfg.sim_path}"
-
-    if args.figurespath:
-        new_path = Path(args.figurespath)
-        if new_path.exists() and new_path.is_dir():
-            figure_path = new_path
-        else:
-            print(
-                f"WARNING: Given figures path is invalid: {str(new_path)}."
-                f"Using fallback path {str(figure_path)} instead."
-            )
-
-    data_path = cfg.data_home / "mass_trends"
-    data_stem = f"mass_trends_individuals_{cfg.sim_path}"
-    if args.datapath:
-        new_path = Path(args.datapath)
-        if new_path.exists() and new_path.is_dir():
-            data_path = new_path
-        else:
-            print(
-                f"WARNING: Given data path is invalid: {str(new_path)}."
-                f"Attempting fallback path {str(data_path)} instead."
-            )
-
-    file_data = {
-        "figures_dir": figure_path,
-        "data_dir": data_path,
-        "figures_file_stem": figure_stem,
-        "data_file_stem": data_stem,
-        "virial_temp_file_stem": f"virial_temperatures_{cfg.sim_path}"
-    }
+    file_data = glob_util.assemble_path_dict(
+        "mass_trends",
+        cfg,
+        type_flag,
+        args.normalize,
+        args.figurespath,
+        args.datapath,
+    )
 
     pipeline_config = {
         "config": cfg,

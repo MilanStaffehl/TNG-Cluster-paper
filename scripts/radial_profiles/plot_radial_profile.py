@@ -5,58 +5,34 @@ from pathlib import Path
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
+import glob_util
 from library.config import config
-from pipelines.radial_profiles import rt_histograms
+from pipelines.radial_profiles.rt_histograms import (
+    FromFilePipeline,
+    RadialProfilePipeline,
+)
 
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
     # sim data
-    if args.sim == "TEST_SIM":
-        sim = "TNG50-4"
-    elif args.sim == "DEV_SIM":
-        sim = "TNG50-3"
-    elif args.sim == "MAIN_SIM":
-        sim = "TNG300-1"
-    else:
-        raise ValueError(f"Unknown simulation type {args.sim}.")
+    sim = glob_util.translate_sim_name(args.sim)
 
     # config
     cfg = config.get_default_config(sim)
 
+    # type flag
+    type_flag = "temperature"
+
     # paths
-    base_dir = cfg.figures_home / f"radial_profiles/{cfg.sim_path}"
-    figure_stem = f"radial_profile_{cfg.sim_path}"
-    data_stem = f"radial_profile_{cfg.sim_path}"
-
-    figure_path = base_dir / "temperature_profile"
-    if args.figurespath:
-        new_path = Path(args.figurespath)
-        if new_path.exists() and new_path.is_dir():
-            figure_path = new_path
-        else:
-            print(
-                f"WARNING: Given figures path is invalid: {str(new_path)}."
-                f"Using fallback path {str(figure_path)} instead."
-            )
-
-    data_path = cfg.data_home / "radial_profiles"
-    if args.datapath:
-        new_path = Path(args.datapath)
-        if new_path.exists() and new_path.is_dir():
-            data_path = new_path
-        else:
-            print(
-                f"WARNING: Given data path is invalid: {str(new_path)}."
-                f"Using fallback path {str(data_path)} instead."
-            )
-
-    file_data = {
-        "figures_dir": figure_path,
-        "data_dir": data_path,
-        "figures_file_stem": figure_stem,
-        "data_file_stem": data_stem,
-    }
+    file_data = glob_util.assemble_path_dict(
+        "radial_profile",
+        cfg,
+        type_flag,
+        False,
+        args.figurespath,
+        args.datapath,
+    )
 
     pipeline_config = {
         "config": cfg,
@@ -72,9 +48,9 @@ def main(args: argparse.Namespace) -> None:
         "no_plots": args.no_plots,
     }
     if args.from_file:
-        hist_plotter = rt_histograms.FromFilePipeline(**pipeline_config)
+        hist_plotter = FromFilePipeline(**pipeline_config)
     else:
-        hist_plotter = rt_histograms.Pipeline(**pipeline_config)
+        hist_plotter = RadialProfilePipeline(**pipeline_config)
     hist_plotter.run()
 
 

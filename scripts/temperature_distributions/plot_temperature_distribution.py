@@ -5,6 +5,7 @@ from pathlib import Path
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
+import glob_util
 from library.config import config
 from pipelines.temperature_distribution import histograms_temperatures as ht
 
@@ -12,14 +13,7 @@ from pipelines.temperature_distribution import histograms_temperatures as ht
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
     # sim data
-    if args.sim == "TEST_SIM":
-        sim = "TNG50-4"
-    elif args.sim == "DEV_SIM":
-        sim = "TNG50-3"
-    elif args.sim == "MAIN_SIM":
-        sim = "TNG300-1"
-    else:
-        raise ValueError(f"Unknown simulation type {args.sim}.")
+    sim = glob_util.translate_sim_name(args.sim)
 
     # config
     cfg = config.get_default_config(sim)
@@ -30,45 +24,31 @@ def main(args: argparse.Namespace) -> None:
     else:
         weight_type = "frac"
 
-    # paths
-    base_dir = cfg.figures_home / f"temperature_distribution/{cfg.sim_path}"
-    if args.normalize:
-        figure_path = base_dir / "normalized"
-        figure_stem = f"temperature_hist_norm_{weight_type}_{cfg.sim_path}"
-        data_stem = f"temperature_hists_norm_{weight_type}_{cfg.sim_path}"
+    # subdirectory
+    if args.combine:
+        subdirectory = "combined"
+    elif args.normalize:
+        subdirectory = "normalized"
     else:
-        figure_path = base_dir / "histograms"
-        figure_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
-        data_stem = f"temperature_hist_{weight_type}_{cfg.sim_path}"
+        subdirectory = "histograms"
 
-    if args.figurespath:
-        new_path = Path(args.figurespath)
-        if new_path.exists() and new_path.is_dir():
-            figure_path = new_path
-        else:
-            print(
-                f"WARNING: Given figures path is invalid: {str(new_path)}."
-                f"Using fallback path {str(figure_path)} instead."
-            )
+    # type flag
+    type_flag = weight_type
+    if args.combine:
+        type_flag = f"combined_{type_flag}"
+    if args.normalize:
+        type_flag = f"norm_{type_flag}"
 
-    data_path = cfg.data_home / "temperature_distribution"
-    if args.datapath:
-        new_path = Path(args.datapath)
-        if new_path.exists() and new_path.is_dir():
-            data_path = new_path
-        else:
-            print(
-                f"WARNING: Given data path is invalid: {str(new_path)}."
-                f"Using fallback path {str(data_path)} instead."
-            )
-
-    file_data = {
-        "figures_dir": figure_path,
-        "data_dir": data_path,
-        "figures_file_stem": figure_stem,
-        "data_file_stem": data_stem,
-        "virial_temp_file_stem": f"virial_temperatures_{cfg.sim_path}"
-    }
+    # file paths
+    file_data = glob_util.assemble_path_dict(
+        "temperature_hist",
+        cfg,
+        type_flag,
+        not args.normalize and args.overplot,
+        args.figurespath,
+        args.datapath,
+        subdirectory,
+    )
 
     pipeline_config = {
         "config": cfg,
