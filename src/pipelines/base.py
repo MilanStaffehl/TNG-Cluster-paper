@@ -2,6 +2,7 @@
 Base class for pipelines.
 """
 import logging
+from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +28,7 @@ class Pipeline:
     paths: typedef.FileDict | typedef.FileDictVT
     processes: int
 
+    @abstractmethod
     def run(self) -> int:
         pass
 
