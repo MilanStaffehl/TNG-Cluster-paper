@@ -38,6 +38,7 @@ def main(args: argparse.Namespace) -> None:
         type_flag = "normalized"
     else:
         type_flag = "standard"
+    type_flag = f"{type_flag}_{statistics}"
 
     # paths
     file_data = glob_util.assemble_path_dict(
