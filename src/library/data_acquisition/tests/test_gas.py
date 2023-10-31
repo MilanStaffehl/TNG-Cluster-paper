@@ -93,6 +93,10 @@ def test_get_halo_temperatures_additional_fields(mocker):
     mock_loader.assert_called_with(
         "base/path", 99, 174, partType=0, fields=fields + ["AdditionalField"]
     )
-    # assert results
+    # assert remaining results
     expected_data = mock_data()
     expected_data.update({"Temperature": mock_temperatures()})
+    for key in test_data.keys():
+        if key == "AdditionalField":
+            continue  # tested above explicitly
+        np.testing.assert_array_equal(test_data[key], expected_data[key])

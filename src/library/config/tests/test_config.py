@@ -29,7 +29,7 @@ def test_default_config_vera():
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
     assert test_cfg.radius_field == "Group_R_Crit200"
-    root_dir = Path(__file__).parents[3].resolve()
+    root_dir = Path(__file__).parents[4].resolve()
     assert Path(test_cfg.data_home).resolve() == root_dir / "data"
     assert Path(test_cfg.figures_home).resolve() == root_dir / "figures"
 

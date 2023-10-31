@@ -39,6 +39,9 @@ def get_halo_temperatures(
     To retrieve additional fields, the ``additional_fields`` argument
     can be used.
 
+    .. attention:: All returned quantities are in computational units as
+        described by the data spevification of the simulation.
+
     :param halo_id: The ID of the halo to process.
     :param base_path: Base path of the simulation.
     :param snap_num: Snapshot number at which to load the data.
