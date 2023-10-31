@@ -28,7 +28,14 @@ class IndividualsMassTrendPipeline(base.Pipeline):
     """
     Pipeline to create plots of gas temperature fractions with halo mass.
 
-    .. TODO: Need to write proper docstring
+    Pipeline creates plots of the relationship between the gas fraction
+    and gas mass with halo mass for three temperture regimes: cool,
+    warm and hot gas. The datapoints for every halo are plotted as a
+    2D histogram, and additionally, the median is plotted for every mass
+    bin.
+
+    Pipeline only considers the gas belonging to a halo, not the fuzz
+    around the FoF.
     """
 
     mass_bin_edges: Sequence[float]
@@ -241,10 +248,6 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         :return: An array of virial temperatures for every halo in Kelvin
             if virial temperatures need to be plotted, None otherwise.
         """
-        # normalization requires vt, even if with_virial_temperatures is
-        # set to False
-        if not self.with_virial_temperatures and not self.normalize:
-            return None
         logging.info("Calculating virial temperatures.")
         if self.processes > 0:
             virial_temperatures = prc.parallelization.process_halo_data_starmap(

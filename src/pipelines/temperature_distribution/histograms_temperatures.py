@@ -21,10 +21,7 @@ from library.plotting import util
 from pipelines import base
 
 if TYPE_CHECKING:
-    # Reason for noqa: https://github.com/PyCQA/pyflakes/issues/648
     from numpy.typing import NDArray
-
-    from library.config import config  # noqa: F401
 
 
 @dataclass
