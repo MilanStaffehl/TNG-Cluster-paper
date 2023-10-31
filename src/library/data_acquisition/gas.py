@@ -60,6 +60,8 @@ def get_halo_temperatures(
         for the keys "Temperature", "InternalEnergy", "ElectronAbundance",
         "Masses" and "StarFormationRate". Note that all quantities are
         in computational units as specified by the simulation data specs.
+        If the halo has no gas particles or is skipped, the return value
+        is the dictionary ``{"count": 0}``.
     """
     if additional_fields is None:
         additional_fields = []

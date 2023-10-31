@@ -100,3 +100,59 @@ def test_get_halo_temperatures_additional_fields(mocker):
         if key == "AdditionalField":
             continue  # tested above explicitly
         np.testing.assert_array_equal(test_data[key], expected_data[key])
+
+
+def test_get_halo_temperatures_skip_condition():
+    """
+    Test the functionality wherein a skip condition is triggered.
+    """
+    test_data = daq.gas.get_halo_temperatures(
+        174,
+        "base/path",
+        99,
+        skip_condition=lambda x: True,  # always skips halo
+    )
+    assert test_data == {"count": 0}
+
+
+def test_get_halo_temperatures_skip_condition_untriggered(mocker):
+    """
+    Test that a given test condition returning False does not end call.
+    """
+    # mock the illustris load function
+    mock_loader = mocker.patch("illustris_python.snapshot.loadHalo")
+    mock_loader.return_value = mock_data()
+    mock_temps = mocker.patch("library.compute.get_temperature")
+    mock_temps.return_value = mock_temperatures()
+    # call the function with a skip condition
+    test_data = daq.gas.get_halo_temperatures(
+        174,
+        "base/path",
+        99,
+        skip_condition=lambda x: x % 2 == 1,  # ID is even, so it isn't skipped
+    )
+    # assert valid result
+    expected_data = mock_data()
+    expected_data.update({"Temperature": mock_temperatures()})
+    for key in test_data.keys():
+        np.testing.assert_array_equal(test_data[key], expected_data[key])
+
+
+def test_get_halo_temperature_skip_condition_additional_args():
+    """
+    Test that a skip condition with multiple args can be used.
+    """
+
+    # a mock skip condition with extra args
+    def mock_skip_condition(id_: int, arg1: str, arg2: int) -> bool:
+        return str(id_ - arg2) == arg1
+
+    # test function call
+    test_data = daq.gas.get_halo_temperatures(
+        174,
+        "base/path",
+        99,
+        skip_condition=mock_skip_condition,
+        skip_args=["173", 1],  # will cause halo to be skipped
+    )
+    assert test_data == {"count": 0}
