@@ -46,9 +46,6 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
     n_radial_bins: int
     temperature_range: tuple[float, float] = (3., 8.)
     radial_range: tuple[float, float] = (0., 1.5)  # units of R200c
-    quiet: bool = False
-    to_file: bool = True
-    no_plots: bool = False
 
     def __post_init__(self):
         # set up logging

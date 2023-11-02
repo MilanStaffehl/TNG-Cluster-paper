@@ -44,9 +44,7 @@ class IndividualsMassTrendPipeline(base.Pipeline):
     normalize: bool = False
     statistic_method: Literal["mean", "median"] = "median"
     running_median: bool = False
-    quiet: bool = False
-    to_file: bool = True
-    no_plots: bool = False
+
     data_points_hist_bins: ClassVar[int] = 60
 
     def __post_init__(self) -> None:

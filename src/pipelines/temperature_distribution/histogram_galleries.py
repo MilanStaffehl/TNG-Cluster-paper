@@ -40,9 +40,6 @@ class GalleriesPipeline(base.Pipeline):
     n_temperature_bins: int
     temperature_range: tuple[float, float] = (3., 8.)
     normalize: bool = False
-    quiet: bool = False
-    no_plots: bool = False
-    to_file: bool = True
 
     def __post_init__(self) -> None:
         # set up logging

@@ -27,6 +27,9 @@ class Pipeline:
     config: config.Config
     paths: typedef.FileDict | typedef.FileDictVT
     processes: int
+    quiet: bool
+    to_file: bool
+    no_plots: bool
 
     @abstractmethod
     def run(self) -> int:

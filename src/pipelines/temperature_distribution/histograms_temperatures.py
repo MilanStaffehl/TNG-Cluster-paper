@@ -44,9 +44,6 @@ class TemperatureHistogramsPipeline(base.Pipeline):
     normalize: bool = False
     with_virial_temperatures: bool = True
     temperature_divisions: tuple[float, float] | None = None
-    quiet: bool = False
-    to_file: bool = True
-    no_plots: bool = False
 
     def __post_init__(self) -> None:
         # set up logging
