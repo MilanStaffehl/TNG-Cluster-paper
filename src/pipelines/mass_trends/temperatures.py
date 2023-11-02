@@ -7,12 +7,13 @@ import logging.config
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal, Sequence
+from typing import TYPE_CHECKING, Callable, ClassVar, Literal, Sequence
 
 import numpy as np
 
 import library.data_acquisition as daq
 import library.loading.mass_trends as ldm
+import library.plotting.common as ptc
 import library.plotting.mass_trends as ptm
 import library.processing as prc
 from library import compute
@@ -42,9 +43,11 @@ class IndividualsMassTrendPipeline(base.Pipeline):
     temperature_divisions: tuple[float, float, float, float]
     normalize: bool = False
     statistic_method: Literal["mean", "median"] = "median"
+    running_median: bool = False
     quiet: bool = False
     to_file: bool = True
     no_plots: bool = False
+    data_points_hist_bins: ClassVar[int] = 60
 
     def __post_init__(self) -> None:
         # set up logging
@@ -118,7 +121,10 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         # i.e. cold, warm and hot gas.
 
         # Step 5: post-processing - average data points per mass bin
-        n_mass_bins = len(self.mass_bin_edges) - 1
+        if self.running_median:
+            n_mass_bins = self.data_points_hist_bins  # one median for every bin
+        else:
+            n_mass_bins = len(self.mass_bin_edges) - 1
         if self.statistic_method == "mean":
             getter = prc.statistics.get_binned_averages
         elif self.statistic_method == "median":
@@ -321,42 +327,46 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         )
 
         # overplot the mean/median data points
-        ptm.overplot_datapoints(
+        if self.running_median:
+            overplotter = ptc.overplot_running_median
+        else:
+            overplotter = ptc.overplot_datapoints
+        overplotter(
             binned_halo_masses,
             cold_by_frac[0],
             binned_halo_masses_err,
             np.array([cold_by_frac[1], cold_by_frac[2]]),
             axes=a[0][0],
         )
-        ptm.overplot_datapoints(
+        overplotter(
             binned_halo_masses,
             cold_by_mass[0],
             binned_halo_masses_err,
             np.array([cold_by_mass[1], cold_by_mass[2]]),
             axes=a[0][1],
         )
-        ptm.overplot_datapoints(
+        overplotter(
             binned_halo_masses,
             warm_by_frac[0],
             binned_halo_masses_err,
             np.array([warm_by_frac[1], warm_by_frac[2]]),
             axes=a[1][0],
         )
-        ptm.overplot_datapoints(
+        overplotter(
             binned_halo_masses,
             warm_by_mass[0],
             binned_halo_masses_err,
             np.array([warm_by_mass[1], warm_by_mass[2]]),
             axes=a[1][1],
         )
-        ptm.overplot_datapoints(
+        overplotter(
             binned_halo_masses,
             hot_by_frac[0],
             binned_halo_masses_err,
             np.array([hot_by_frac[1], hot_by_frac[2]]),
             axes=a[2][0],
         )
-        ptm.overplot_datapoints(
+        overplotter(
             binned_halo_masses,
             hot_by_mass[0],
             binned_halo_masses_err,
@@ -419,7 +429,10 @@ class FromFilePipeline(IndividualsMassTrendPipeline):
         # Step 2: load virial temperatures
         data_dir = self.paths["data_dir"]
         # Step 3: get primary data - histograms for every halo
-        n_mass_bins = len(self.mass_bin_edges) - 1
+        if self.running_median:
+            n_mass_bins = self.data_points_hist_bins
+        else:
+            n_mass_bins = len(self.mass_bin_edges) - 1
         data_file = data_dir / f"{self.paths['data_file_stem']}.npz"
         data = ldm.load_mass_trend_data(data_file, n_mass_bins)
         if data is None:

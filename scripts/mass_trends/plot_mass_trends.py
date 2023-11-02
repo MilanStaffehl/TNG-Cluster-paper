@@ -23,7 +23,7 @@ def main(args: argparse.Namespace) -> None:
 
     # temperature divisions
     if args.normalize:
-        temperature_divs = [-100.0, -1.0, 0.0, 100.0]
+        temperature_divs = [-100.0, -3.5, -1.0, 100.0]
     else:
         temperature_divs = [0.0, 4.5, 5.5, 10.0]
 
@@ -39,6 +39,8 @@ def main(args: argparse.Namespace) -> None:
     else:
         type_flag = "standard"
     type_flag = f"{type_flag}_{statistics}"
+    if args.running_median:
+        type_flag = f"{type_flag}_rm"
 
     # paths
     file_data = glob_util.assemble_path_dict(
@@ -58,6 +60,7 @@ def main(args: argparse.Namespace) -> None:
         "temperature_divisions": temperature_divs,
         "normalize": args.normalize,
         "statistic_method": statistics,
+        "running_median": args.running_median,
         "quiet": args.quiet,
         "to_file": args.to_file,
         "no_plots": args.no_plots,
@@ -148,6 +151,16 @@ if __name__ == "__main__":
         "--use-average",
         help="Plot averages instead of medians in the plot",
         dest="average",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-r",
+        "--running-median",
+        help=(
+            "Plot a continuous median with confidence region instead of "
+            "binned data points. Also works for averages."
+        ),
+        dest="running_median",
         action="store_true",
     )
     parser.add_argument(
