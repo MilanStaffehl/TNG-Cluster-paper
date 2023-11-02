@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class RadialProfilePipeline(base.Pipeline):
+class BinnedTemperatureProfilePipeline(base.Pipeline):
     """
     Plot a 2D histogram of temperature vs radial distance.
 
@@ -225,7 +225,7 @@ class RadialProfilePipeline(base.Pipeline):
             f.savefig(filepath / filename, bbox_inches="tight")
 
 
-class FromFilePipeline(RadialProfilePipeline):
+class FromFilePipeline(BinnedTemperatureProfilePipeline):
     """
     Pipeline to create radial temperature profiles from file.
 
