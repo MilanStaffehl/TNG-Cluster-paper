@@ -37,6 +37,14 @@ def get_halo_properties(
     :return: A dictionary of the field values for every halo, including
         a list of halo IDs.
     """
+    # verify and correct input types
+    if not isinstance(fields, list):
+        logging.warning(
+            "Received a string instead of a list of fields for halo data "
+            "acquistion. Please use a list of fields."
+        )
+        fields = [fields]
+
     logging.info("Loading halo properties.")
     # verify units can be converted
     supported = units.UnitConverter.supported_fields()
@@ -46,6 +54,10 @@ def get_halo_properties(
 
     # load halo properties
     halo_data = il.groupcat.loadHalos(base_path, snap_num, fields=fields)
+    # turn arrays into dictionaries as expected
+    if not isinstance(halo_data, dict):
+        halo_data = {fields[0]: halo_data}
+
     # create ids
     num_halos = len(halo_data[fields[0]])
     ids = np.indices([num_halos], sparse=True)[0]
