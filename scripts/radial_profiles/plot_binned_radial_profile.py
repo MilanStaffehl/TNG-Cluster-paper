@@ -7,7 +7,7 @@ sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
 from library.config import config
-from pipelines.radial_profiles.rt_histograms import (
+from pipelines.radial_profiles.temperature_binned import (
     FromFilePipeline,
     RadialProfilePipeline,
 )
