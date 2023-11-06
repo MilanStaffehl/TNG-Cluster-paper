@@ -16,7 +16,8 @@ if TYPE_CHECKING:
 def process_halo_data_parallelized(
     callback: Callable[[int], NDArray],
     halo_ids: Sequence[int],
-    processes: int
+    processes: int,
+    chunksize: int | None = None,
 ) -> NDArray:
     """
     Process halo data using multiprocessing.
@@ -40,10 +41,21 @@ def process_halo_data_parallelized(
         of the temperature!
     :param halo_ids: Sequence of halo IDs for all halos to process.
     :param processes: The number of processes to use.
+    :param chunksize: The number of halos to process per subprocess. If
+        left empty, an appropriate chunk size will be automatically
+        calculated and used.
+    :return: Array of the return values of ``callback`` after applying
+        the argument list to it. Order is preserved as if it were
+        sequentially processed.
     """
     logging.info("Start processing halo data on mutliple cores.")
-    # multiprocess the entire problem
-    chunksize = round(len(halo_ids) / processes / 4, -2)
+    # determine a valid chunksize
+    if chunksize is None or len(halo_ids) / processes < chunksize < 0:
+        chunksize = round(len(halo_ids) / processes / 4, -2)
+        logging.debug(f"Autosetting chunksize to {chunksize}.")
+    else:
+        chunksize = round(chunksize)
+    # multiprocess the problem
     logging.info(
         f"Starting {processes} subprocesses with chunksize {chunksize}."
     )
@@ -58,7 +70,10 @@ def process_halo_data_parallelized(
 
 
 def process_halo_data_starmap(
-    callback: Callable[..., NDArray], processes: int, *input_args: NDArray
+    callback: Callable[..., NDArray],
+    processes: int,
+    *input_args: NDArray,
+    chunksize: int | None = None,
 ) -> NDArray | None:
     """
     Process halo properties using multiprocessing starmap.
@@ -96,6 +111,9 @@ def process_halo_data_starmap(
     :param processes: The number of processes to use.
     :param *input_args: One-dimensional NDArrays of the same length. Must
         be as many as ``callback`` takes positional arguments.
+    :param chunksize: The number of halos to process per subprocess. If
+        left empty, an appropriate chunk size will be automatically
+        calculated and used.
     :return: Array of the return values of ``callback`` for every column
         of applying ``input_args`` to ``callback``.
     """
@@ -119,7 +137,13 @@ def process_halo_data_starmap(
 
     # splice input args together
     argument_pairs = np.array(list(input_args)).transpose()
-    chunksize = round(length / processes / 4, -2)
+    # determine a valid chunksize
+    if chunksize is None or length / processes < chunksize < 0:
+        chunksize = round(length / processes / 4, -2)
+        logging.debug(f"Autosetting chunksize to {chunksize}.")
+    else:
+        chunksize = round(chunksize)
+    # multiprocess the problem using starmap
     logging.info(
         f"Starting {processes} subprocesses with chunksize {chunksize}."
     )

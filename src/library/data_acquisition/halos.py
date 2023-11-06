@@ -56,7 +56,7 @@ def get_halo_properties(
     halo_data = il.groupcat.loadHalos(base_path, snap_num, fields=fields)
     # turn arrays into dictionaries as expected
     if not isinstance(halo_data, dict):
-        halo_data = {fields[0]: halo_data}
+        halo_data = {fields[0]: halo_data}  # There's only one field
 
     # create ids
     num_halos = len(halo_data[fields[0]])
