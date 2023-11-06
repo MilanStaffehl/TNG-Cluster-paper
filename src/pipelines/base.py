@@ -2,12 +2,13 @@
 Base class for pipelines.
 """
 import logging
+import logging.config
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
 
 import typedef
-from library.config import config
+from library.config import config, logging_config
 
 
 @dataclass
@@ -30,6 +31,11 @@ class Pipeline:
     quiet: bool
     to_file: bool
     no_plots: bool
+
+    def __post_init__(self):
+        # set up logging
+        log = logging_config.get_logging_config("INFO")
+        logging.config.dictConfig(log)
 
     @abstractmethod
     def run(self) -> int:

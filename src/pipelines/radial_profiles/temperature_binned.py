@@ -17,7 +17,6 @@ import library.loading.radial_profiles as ldr
 import library.plotting.radial_profiles as ptr
 import library.processing as prc
 from library import constants
-from library.config import logging_config
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -46,11 +45,6 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
     n_radial_bins: int
     temperature_range: tuple[float, float] = (3., 8.)
     radial_range: tuple[float, float] = (0., 1.5)  # units of R200c
-
-    def __post_init__(self):
-        # set up logging
-        log = logging_config.get_logging_config("INFO")
-        logging.config.dictConfig(log)
 
     def run(self) -> int:
         """

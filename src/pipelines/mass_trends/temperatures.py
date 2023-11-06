@@ -17,7 +17,6 @@ import library.plotting.common as ptc
 import library.plotting.mass_trends as ptm
 import library.processing as prc
 from library import compute
-from library.config import logging_config
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -46,11 +45,6 @@ class IndividualsMassTrendPipeline(base.Pipeline):
     running_median: bool = False
 
     data_points_hist_bins: ClassVar[int] = 60
-
-    def __post_init__(self) -> None:
-        # set up logging
-        log_cfg = logging_config.get_logging_config("INFO")
-        logging.config.dictConfig(log_cfg)
 
     def run(self) -> int:
         """

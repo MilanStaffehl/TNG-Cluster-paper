@@ -16,7 +16,6 @@ import library.loading.temperature_histograms as ldt
 import library.plotting.temperature_histograms as ptt
 import library.processing as prc
 from library import compute
-from library.config import logging_config
 from library.plotting import util
 from pipelines import base
 
@@ -44,11 +43,6 @@ class TemperatureHistogramsPipeline(base.Pipeline):
     normalize: bool = False
     with_virial_temperatures: bool = True
     temperature_divisions: tuple[float, float] | None = None
-
-    def __post_init__(self) -> None:
-        # set up logging
-        log_cfg = logging_config.get_logging_config("INFO")
-        logging.config.dictConfig(log_cfg)
 
     def run(self) -> int:
         """
