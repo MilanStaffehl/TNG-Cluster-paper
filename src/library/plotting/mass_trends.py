@@ -90,9 +90,9 @@ def plot_gas_mass_trends_individuals(
 
     # colors
     colors = {
-        "cool": (0, 0, 205),  # mediumblue
+        "cool": (30, 144, 255),  # dodgerblue
         "warm": (128, 0, 128),  # purple
-        "hot": (210, 4, 45),  # cherry
+        "hot": (220, 20, 60),  # crimson
     }
 
     # font size
