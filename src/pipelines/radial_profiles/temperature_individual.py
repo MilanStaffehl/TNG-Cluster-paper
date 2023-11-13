@@ -53,12 +53,13 @@ class IndividualTemperatureProfilePipeline(Pipeline):
 
         :return: Exit code.
         """
-        # Step 0: create directories, start memory monitoring
+        # Step 0: create directories, start memory monitoring, timing
         self._create_directories()
         tracemalloc.start()
+        begin = time.time()
 
         # Step 1: acquire halo data
-        fields = [self.config.mass_field]
+        fields = [self.config.mass_field, "GroupPos"]
         halo_data = daq.halos.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
@@ -76,10 +77,14 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         selected_masses = prc.statistics.mask_quantity(  # noqa: F841
             halo_data[self.config.mass_field], mask, index=2, compress=True
         )
+        selected_positions = prc.statistics.mask_quantity(  # noqa: F841
+            halo_data["GroupPos"], mask, index=2, compress=True
+        )
         del halo_data  # free memory
         del mask  # free memory
         mem = tracemalloc.get_traced_memory()
-        self._memlog("Memory usage after restricting halos", mem[0], "MB")
+        self._memlog("Memory usage after restricting halos", mem[0], "kB")
+        timepoint = self._timeit(begin, "loading and selecting halo data")
 
         # Step 3: Load gas cell data for temperature
         logging.info("Loading gas cell data for all gas particles.")
@@ -92,9 +97,9 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
         mem = tracemalloc.get_traced_memory()
         self._memlog("Memory used after loading particles", mem[0])
+        timepoint = self._timeit(timepoint, "loading gas cell data")
 
         # Step 4: Calculate temperature of every gas cell
-        begin = time.time()
         part_shape = gas_data["InternalEnergy"].shape
         logging.info(
             f"Calculating temperature for {part_shape[0]:,} gas cells."
@@ -110,13 +115,10 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 chunksize=chunksize,
             )
         else:
-            temps = prc.sequential.process_data_multiargs(  # noqa: F841
-                compute.get_temperature,
-                gas_data["InternalEnergy"].shape,  # 1D array of length G
+            temps = compute.get_temperature_np(  # noqa: F841
                 gas_data["InternalEnergy"],
                 gas_data["ElectronAbundance"],
                 gas_data["StarFormationRate"],
-                quiet=self.quiet,
             )
         # clean up unneeded data
         del gas_data
@@ -126,14 +128,11 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             "Current memory used after temperature calculation and clean-up",
             mem[0]
         )
+        timepoint = self._timeit(
+            timepoint, "calculating gas cell temperatures"
+        )
 
         # Step 5: Load gas cell position data
-
-        end = time.time()
-        # get time spent on computation
-        time_diff = end - begin
-        time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
-        logging.info(f"Spent {time_fmt} hours on execution.")
 
     def _memlog(
         self,

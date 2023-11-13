@@ -48,6 +48,33 @@ def get_temperature(
     return temperature
 
 
+def get_temperature_np(
+    internal_energy: float | NDArray,
+    electron_abundance: float | NDArray,
+    star_formation_rate: float | NDArray
+) -> NDArray:
+    """
+    Return the temperature of the cells given. Uses numpy array maths.
+
+    Function does the same thing as :func:`get_temperature`, but it
+    utilizes numpy functions in order to porcess entire arrays without
+    the use of ``np.vectorize``.
+
+    :param internal_energy: internal energy of the gas cell in units of
+        km/s^2
+    :param electron_abundance: number density of electrons in the gas as
+        fraction of the hydrogen number density (n_e / n_H)
+    :param star_formation_rate: the SFR of the gas cell in solar masses
+        per year
+    :return: temperature of the gas in Kelvin
+    """
+    # constants are in cgs
+    molecular_weight = (4 * m_p / (1 + 3 * X_H + 4 * X_H * electron_abundance))
+    temperature = (2 / 3 * internal_energy / k_B * 1e10 * molecular_weight)
+    # star forming gas is assigned 10^3 Kelvin
+    return np.where(star_formation_rate > 0, 1e3, temperature)
+
+
 @np.vectorize
 def get_virial_temperature(
     mass: float | NDArray, radius: float | NDArray
