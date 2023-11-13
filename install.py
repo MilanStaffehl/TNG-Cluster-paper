@@ -17,8 +17,6 @@ def install():
     print("Setting up top-level directories.")
     for directory in [data_home, external, figures_home]:
         directory.mkdir()
-    print("Setting up subdirectories.")
-    (external / "illustris_python").mkdir()
 
 
 if __name__ == "__main__":
