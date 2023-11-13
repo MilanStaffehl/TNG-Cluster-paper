@@ -3,6 +3,7 @@ Base class for pipelines.
 """
 import logging
 import logging.config
+import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -106,3 +107,23 @@ class Pipeline:
                 )
                 return 3
         return 0
+
+    def _timeit(self, start_time: float, step_description: str) -> float:
+        """
+        Log the time passed since the given ``time``.
+
+        Message will include the description of the time interval, i.e.
+        what process was performed during this time.
+
+        :param start_time: The time when the current process started in seconds
+            since the epoch. Can be retrieved using ``time.time()``.
+        :param step_description: Name or description of the step that
+            was timed.
+        :return: The current time since the epoch in seconds. Can be
+            used to time the next process.
+        """
+        now = time.time()
+        time_diff = now - start_time
+        time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
+        logging.info(f"Spent {time_fmt} hours on {step_description}.")
+        return now

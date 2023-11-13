@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -17,6 +18,11 @@ def main(args: argparse.Namespace) -> None:
 
     # config
     cfg = config.get_default_config(sim)
+
+    # warn of impossible combinations
+    if args.grid and args.combine:
+        logging.warn("Combining the -g and -c flags is not possible.")
+        sys.exit(1)
 
     # histogram weights
     if args.use_mass:
@@ -41,7 +47,7 @@ def main(args: argparse.Namespace) -> None:
 
     # file paths
     file_data = glob_util.assemble_path_dict(
-        "temperature_hist",
+        "temperature_distribution",
         cfg,
         type_flag,
         not args.normalize and args.overplot,
@@ -71,6 +77,8 @@ def main(args: argparse.Namespace) -> None:
         hist_plotter = ht.CombinedPlotsFromFilePipeline(**pipeline_config)
     elif not args.from_file and args.combine:
         hist_plotter = ht.CombinedPlotsPipeline(**pipeline_config)
+    elif args.grid:
+        hist_plotter = ht.PlotGridPipeline(**pipeline_config)
     else:
         hist_plotter = ht.TemperatureHistogramsPipeline(**pipeline_config)
     hist_plotter.run()
@@ -167,8 +175,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--combine",
-        help="Combine all mass bins into one plot",
+        help="Combine all mass bins into one plot. Not compatible with -g.",
         dest="combine",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-g",
+        "--grid",
+        help=(
+            "Plot all plots into one figure in a grid. This is only possible if the histogram data already exists as it must be loaded. Not compatible with -c."
+        ),
+        dest="grid",
         action="store_true",
     )
     parser.add_argument(

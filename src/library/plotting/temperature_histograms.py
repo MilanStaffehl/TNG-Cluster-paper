@@ -78,6 +78,45 @@ def plot_temperature_distribution(
     axes.set_xlabel(xlabel, fontsize=labelsize)
     axes.set_ylabel(ylabel, fontsize=labelsize)
 
+    overplot_histogram(
+        axes, mean, median, errors, temperature_range, facecolor, log
+    )
+    return fig, axes
+
+
+def overplot_histogram(
+    axes: Axes,
+    mean: NDArray,
+    median: NDArray,
+    errors: NDArray,
+    temperature_range: tuple[float, float],
+    facecolor: str,
+    log: bool = True,
+) -> Axes:
+    """
+    Plot a temperature distribution histogram onto the given axes.
+
+    The plot will contain a histogram of the mean temperature in every
+    bin as well ass points with error bars for the median and the given
+    percentiles in every temperature bin. The Axes object is returned
+    for convenience only; it is altered in place.
+
+    :param axes: The Axes onto which to plot the histogram.
+    :param mean: Array of the means. Must have shape (T,) where T is the
+        number of temperature bins.
+    :param median: Array of the medians. Must have shape (T, ).
+    :param errors: Array of lower and upper errors (16th and 84th
+        percentile). Must have shape (2, T).
+    :param temperature_range: The lower and upper limits on the
+        temperatures. Equal to the left boundary of the lowest and the
+        right boundary of the highest temperature bin.
+    :param facecolor: A valid CSS color name or matplotlib color name.
+    :param log: Whether to plot the y-axis in logarithmic scale, defaults
+        to True.
+    :return: The Axes object, with the histogram plotted onto it. Only
+        returned for convenience, as the original Axes object is altered
+        in place.
+    """
     # calculate bin positions
     _, bins = np.histogram(
         np.array([0]), bins=len(mean), range=temperature_range
@@ -110,7 +149,7 @@ def plot_temperature_distribution(
         "capsize": 2.0,
     }
     axes.errorbar(centers, median, yerr=errors, **error_config)
-    return fig, axes
+    return axes
 
 
 def get_errorbar_lengths(median: NDArray, percentiles: NDArray) -> NDArray:
@@ -402,4 +441,80 @@ def plot_temperature_distributions_in_one(
     axes.legend(
         loc="lower center", bbox_to_anchor=(0.5, 1.1), ncol=len(means) // 2
     )
+    return fig, axes
+
+
+def plot_temperature_distribution_in_grid(
+    mean: NDArray,
+    median: NDArray,
+    errors: NDArray,
+    temperature_range: tuple[float, float],
+    ylimits: tuple[float, float],
+    mass_bin_edges: NDArray,
+    xlabel: str,
+    ylabel: str,
+    facecolor: str,
+    log: bool = True,
+) -> tuple[Figure, Axes]:
+    """
+    Plot the temperature distribution histograms into a single grid plot.
+
+    Function produces a (2 x M/2) grid of plots containing the temperature
+    distribution histograms given.
+
+    :param mean: An array of shape (M, T) containing the histogram mean
+        values. M is the number of mass bins, T the number of temperature
+        bins.
+    :param median: An array of shape (M, T) containing the histogram
+        median values. M is the number of mass bins, T the number of
+        temperature bins.
+    :param means: An array of shape (M, 2, T) containing the 16th and 84th
+        percentiles of every temperature bin. M is the number of mass
+        bins, T the number of temperature bins.
+    :param temperature_range: The range of temperatures of the histograms
+        in units of log10(Kelvin).
+    :param ylimits: The lower and upper limits for the y-axis (matplotlib
+        is not very good at automatically deciding on good ranges here).
+    :param mass_bin_edges: The edges of the mass bins in units of solar
+        masses.
+    :param xlabel: Label for the x axis.
+    :param ylabel: Label for the y axis.
+    :param facecolor: Color for the histogram bars.
+    :param log: Whether to plot the y-axis in log scale. Defaults to True.
+    :return: A tuple of the matplotlib figure and axes objects, with the
+        plot drawn onto them.
+    """
+    n_mass_bins = len(mass_bin_edges) - 1
+    ncols = (n_mass_bins + 1) // 2
+
+    fig, axes = plt.subplots(
+        figsize=(1.5 * n_mass_bins, 5),
+        nrows=2,
+        ncols=ncols,
+        sharex=True,
+        sharey=True,
+        gridspec_kw={"hspace": 0, "wspace": 0}
+    )
+
+    # axes config
+    axes[0][0].set_ylabel(ylabel)
+    axes[1][0].set_ylabel(ylabel)
+    for ax in axes[1]:
+        ax.set_xlabel(xlabel)
+    flat_axes = axes.flatten()
+    for ax in flat_axes:
+        ax.set_ylim(ylimits)
+
+    # plotting
+    for i in range(n_mass_bins):
+        overplot_histogram(
+            flat_axes[i],
+            mean[i],
+            median[i],
+            errors[i],
+            temperature_range,
+            facecolor,
+            log,
+        )
+
     return fig, axes

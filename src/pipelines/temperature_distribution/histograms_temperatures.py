@@ -312,18 +312,12 @@ class FromFilePipeline(TemperatureHistogramsPipeline):
             interrupting the execution.
         """
         # Step 0: verify all required data exists
+        if exit_code := self._verify_directories() > 0:
+            return exit_code
         hist_data_path = (
             self.paths["data_dir"] / f"{self.paths['data_file_stem']}.npz"
         )
-        vt_data_path = (
-            self.paths["data_dir"]
-            / f"{self.paths['virial_temp_file_stem']}.npy"
-        )
-        for path in [hist_data_path, vt_data_path]:
-            if not path.exists():
-                raise FileNotFoundError(
-                    f"Data file {str(path)} does not exist."
-                )
+
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
         halo_data = daq.halos.get_halo_properties(
@@ -335,7 +329,10 @@ class FromFilePipeline(TemperatureHistogramsPipeline):
         )
         # Step 3: load virial temperatures
         if self.with_virial_temperatures:
-            virial_temperatures = ldt.load_virial_temperatures(vt_data_path)
+            virial_temperatures = ldt.load_virial_temperatures(
+                self.paths["data_dir"]
+                / f"{self.paths['virial_temp_file_stem']}.npy"
+            )
         else:
             virial_temperatures = None
         # Step 4: get primary data - histograms for every halo
@@ -518,3 +515,82 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
             logging.info("Creating missing figures directory.")
             filepath.mkdir(parents=True)
         fig.savefig(filepath / filename, bbox_inches="tight")
+
+
+class PlotGridPipeline(FromFilePipeline):
+    """
+    Pipeline to plot the otherwise separate histograms into one 2x3 grid
+    of plots.
+    """
+
+    def _plot(
+        self,
+        mean: NDArray,
+        median: NDArray,
+        percentiles: NDArray,
+        virial_temperatures: NDArray | None,
+        mass_bin_mask: NDArray | None
+    ) -> None:
+        """
+        Plot figure with all mass bin histograms ordered into a grid.
+
+        :param mean: The array of histogram means of shape (M, T) where
+            M is the number of mass bins and T the number of temperature
+            bins.
+        :param median: The array of histogram medians of shape (M, T)
+            where M is the number of mass bins and T the number of
+            temperature bins.
+        :param percentiles: The array of 16th and 84th percentile of every
+            temperature bin. Must be of shape (M, 2, T) where M is the
+            number of mass bins and T the number of temperature bins.
+        :param virial_temperatures: Array of virial temperatures for all
+            halos. Can be set to None if ``self.with_virial_temperatures``
+            is False.
+        :param mass_bin_mask: The array containing the mass bin number
+            of every halo, i.e. the number of the mass bin into which the
+            halo with the corresponding array index falls.
+        """
+        logging.info("Plotting histogram data in grid plot.")
+        # labels y axis
+        if self.weights == "mass":
+            ylabel = r"Gas mass [$M_\odot$]"
+            ylimits = [1, 1e13]
+        else:
+            ylabel = "Gas mass fraction"
+            ylimits = [8e-7, 1]
+        # labels x axis
+        if self.normalize:
+            xlabel = r"Gas temperature $T / T_{vir}$ [dex]"
+        else:
+            xlabel = "Gas temperature [log K]"
+        # color of the histogram
+        facecolor = "lightblue" if self.weights == "frac" else "pink"
+
+        # plot the actual figure
+        f, a = ptt.plot_temperature_distribution_in_grid(
+            mean,
+            median,
+            percentiles,
+            self.temperature_range,
+            ylimits,
+            self.mass_bin_edges,
+            xlabel,
+            ylabel,
+            facecolor,
+        )
+        if self.with_virial_temperatures:
+            for i, axes in enumerate(a.flatten()):
+                if i > len(self.mass_bin_edges) - 1:
+                    break  # only plot mass bins that exist
+                ptt.overplot_virial_temperatures(
+                    f, axes, virial_temperatures, i, mass_bin_mask
+                )
+
+        # save figure
+        filename = f"{self.paths['figures_file_stem']}_grid.pdf"
+        filepath = Path(self.paths["figures_dir"])
+        if not filepath.exists():
+            logging.info("Creating missing figures directory.")
+            filepath.mkdir(parents=True)
+        f.savefig(filepath / filename, bbox_inches="tight")
+        logging.info("Successfully saved plot to file!")
