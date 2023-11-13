@@ -14,25 +14,26 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def process_halo_data_sequentially(
+def process_data_sequentially(
     callback: Callable[..., NDArray],
-    halo_ids: Sequence[int],
+    data: Sequence[int],
     data_shape: tuple[int],
     kwargs: dict[str, Any] | None = None,
     quiet: bool = False,
 ) -> NDArray:
     """
-    Process halo data sequentially.
+    Process data sequentially.
 
-    This method calls the given Callable ``callback`` with every halo
-    ID in ``halo_ids`` in order or appearance. Optionally, keyworded
-    arguments can be supplied to the Callable. The resulting data is
-    bundled into one array and returned.
+    This method calls the given Callable ``callback`` with every entry
+    in ``data`` in order of appearance. Optionally, keyworded arguments
+    can be supplied to the Callable. These keyworded arguments will be
+    the same across calls, while the positional argument will be from
+    the ``data`` array and thus vary per call. The results are bundled
+    into one array and returned.
 
-    To achieve a function that will take a halo ID and return processed
-    data, it is advised to create a wrapper function around the DAQ
-    function for temperature acquisition and the corresponding processing
-    function.
+    To achieve a function that will take a single data point and return
+    processed data, it is advised to create a wrapper function around
+    the desired DAQ functions.
 
     :param callback: A function to process halo data. Its signature is
         arbitrary, but it must take as first positional argument a halo
@@ -40,7 +41,7 @@ def process_halo_data_sequentially(
         verification is performed to ensure all arguments are matched.
         Callable must return the processed temperatures, NOT the values
         of the temperature!
-    :param halo_ids: Sequence of halo IDs for all halos to process.
+    :param data: Sequence of data points to hand to the callback.
     :param data_shape: The shape of the NDArray that ``callback`` returns.
     :param kwargs: A dictionary of keyworded arguments for ``callback``.
         Defaults to None which is equivalent to no further arguments.
@@ -52,9 +53,9 @@ def process_halo_data_sequentially(
     if kwargs is None:
         kwargs = {}
     logging.info("Start processing halo data sequentially.")
-    n_halos = len(halo_ids)
+    n_halos = len(data)
     data = np.zeros((n_halos, ) + data_shape)
-    for i, halo_id in enumerate(halo_ids):
+    for i, halo_id in enumerate(data):
         if not quiet:
             perc = i / n_halos * 100
             print(f"Processing halo {i}/{n_halos} ({perc:.1f}%)", end="\r")
@@ -63,15 +64,15 @@ def process_halo_data_sequentially(
     return data
 
 
-def process_halo_data_multiargs(
+def process_data_multiargs(
     callback: Callable[..., NDArray],
     data_shape: tuple[int],
     *input_args: NDArray,
     quiet: bool = False,
     kwargs: dict[str, Any] | None = None,
-) -> NDArray:
+) -> NDArray | None:
     """
-    Process halo data sequentially for callbacks with multiple arguments.
+    Process data sequentially for callbacks with multiple arguments.
 
     This method is meant for callables that take more than one variable
     argument.
@@ -107,11 +108,11 @@ def process_halo_data_multiargs(
     :param callback: A function to process halo properties. Must take as
         many positional arguments as input args are given.
     :param data_shape: The shape of the NDArray that ``callback`` returns.
-    :param *input_args: One-dimensional NDArrays of the same length. Must
+    :param input_args: One-dimensional NDArrays of the same length. Must
         be as many as ``callback`` takes positional arguments.
     :param quiet: Whether to suppress status information output. Keyword
         only arg, defaults to False.
-    :kwargs: Optional keyworded arguments for ``callback`` that remain
+    :param kwargs: Optional keyworded arguments for ``callback`` that remain
         static across different calls.
     :return: Array of the return values of ``callback`` for every column
         of applying ``input_args`` to ``callback``.

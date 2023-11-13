@@ -101,7 +101,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
         if self.processes > 0:
             chunksize = min(50_000_000, part_shape[0] / self.processes / 20)
-            temps = prc.parallelization.process_halo_data_starmap(  # noqa: F841
+            temps = prc.parallelization.process_data_starmap(  # noqa: F841
                 compute.get_temperature,
                 self.processes,
                 gas_data["InternalEnergy"],
@@ -110,7 +110,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 chunksize=chunksize,
             )
         else:
-            temps = prc.sequential.process_halo_data_multiargs(  # noqa: F841
+            temps = prc.sequential.process_data_multiargs(  # noqa: F841
                 compute.get_temperature,
                 gas_data["InternalEnergy"].shape,  # 1D array of length G
                 gas_data["InternalEnergy"],

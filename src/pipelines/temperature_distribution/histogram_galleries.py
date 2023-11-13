@@ -74,7 +74,7 @@ class GalleriesPipeline(base.Pipeline):
         selected_radii = halo_data[self.config.radius_field][selected_halo_ids]
         logging.info("Finished loading and selecting halo masses & radii.")
         # Step 3: acquire virial temperatures
-        virial_temperatures = prc.sequential.process_halo_data_multiargs(
+        virial_temperatures = prc.sequential.process_data_multiargs(
             compute.get_virial_temperature,
             tuple(),
             selected_masses,

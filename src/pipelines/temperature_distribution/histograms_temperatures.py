@@ -88,13 +88,13 @@ class TemperatureHistogramsPipeline(base.Pipeline):
             norm = np.ones(len(halo_data["IDs"]))
         callback = self._get_callback(halo_data[self.config.mass_field], norm)
         if self.processes > 0:
-            hists = prc.parallelization.process_halo_data_parallelized(
+            hists = prc.parallelization.process_data_parallelized(
                 callback,
                 halo_data["IDs"],
                 self.processes,
             )
         else:
-            hists = prc.sequential.process_halo_data_sequentially(
+            hists = prc.sequential.process_data_sequentially(
                 callback,
                 halo_data["IDs"],
                 (self.n_temperature_bins, ),
@@ -195,14 +195,14 @@ class TemperatureHistogramsPipeline(base.Pipeline):
             return None
         logging.info("Calculating virial temperatures.")
         if self.processes > 0:
-            virial_temperatures = prc.parallelization.process_halo_data_starmap(
+            virial_temperatures = prc.parallelization.process_data_starmap(
                 compute.get_virial_temperature,
                 self.processes,
                 halo_data[self.config.mass_field],
                 halo_data[self.config.radius_field],
             )
         else:
-            virial_temperatures = prc.sequential.process_halo_data_multiargs(
+            virial_temperatures = prc.sequential.process_data_multiargs(
                 compute.get_virial_temperature,
                 tuple(),
                 halo_data[self.config.mass_field],

@@ -86,13 +86,13 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
             halo_data[self.config.radius_field],
         )
         if self.processes > 0:
-            hists = prc.parallelization.process_halo_data_parallelized(
+            hists = prc.parallelization.process_data_parallelized(
                 callback,
                 halo_data["IDs"],
                 self.processes,
             )
         else:
-            hists = prc.sequential.process_halo_data_sequentially(
+            hists = prc.sequential.process_data_sequentially(
                 callback,
                 halo_data["IDs"],
                 (self.n_radial_bins, self.n_temperature_bins),

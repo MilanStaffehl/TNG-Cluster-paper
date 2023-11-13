@@ -13,25 +13,26 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def process_halo_data_parallelized(
+def process_data_parallelized(
     callback: Callable[[int], NDArray],
-    halo_ids: Sequence[int],
+    data: Sequence[int],
     processes: int,
     chunksize: int | None = None,
 ) -> NDArray:
     """
-    Process halo data using multiprocessing.
+    Process data using multiprocessing.
 
-    This method calls the given Callable ``callback`` with every halo
-    ID in ``halo_ids`` in parallel. The chunking of data is done
-    automatically based on the number of processes and the length of the
-    list of halo indices. The callback can only have the described
-    signature.
+    This method calls the given Callable ``callback`` with every entry
+    in ``data`` in parallel. The chunking of data is done automatically
+    based on the number of processes and the length of the list of halo
+    indices. The callback can only have the described signature.
 
-    To achieve a function that will take a halo ID and return processed
-    data, it is advised to create a wrapper function around the DAQ
-    function for temperature acquisition and the corresponding processing
-    function.
+    To achieve a function that will take a single data point and return
+    processed data, it is advised to create a wrapper function around the
+    DAQ functions that are required.
+
+    The function returns an ordered aray of the results of the call of
+    the callback with the given data.
 
     :param callback: A function to process halo data. Must have the
         described signature (takes a single halo ID as argument, returns
@@ -39,7 +40,9 @@ def process_halo_data_parallelized(
         arguments, create a wrapper function that handles data injection.
         Callable must return the processed temperatures, NOT the values
         of the temperature!
-    :param halo_ids: Sequence of halo IDs for all halos to process.
+    :param data: Sequence of data to process by handing it as the sole
+        variable argument to the given callback. Can be for example a
+        halo ID.
     :param processes: The number of processes to use.
     :param chunksize: The number of halos to process per subprocess. If
         left empty, an appropriate chunk size will be automatically
@@ -50,8 +53,8 @@ def process_halo_data_parallelized(
     """
     logging.info("Start processing halo data on mutliple cores.")
     # determine a valid chunksize
-    if chunksize is None or len(halo_ids) / processes < chunksize < 0:
-        chunksize = round(len(halo_ids) / processes / 4, -2)
+    if chunksize is None or len(data) / processes < chunksize < 0:
+        chunksize = round(len(data) / processes / 4, -2)
         logging.debug(f"Autosetting chunksize to {chunksize}.")
     else:
         chunksize = round(chunksize)
@@ -60,7 +63,7 @@ def process_halo_data_parallelized(
         f"Starting {processes} subprocesses with chunksize {chunksize}."
     )
     with mp.Pool(processes=processes) as pool:
-        results = pool.map(callback, halo_ids, chunksize=int(chunksize))
+        results = pool.map(callback, data, chunksize=int(chunksize))
         pool.close()
         pool.join()
     logging.info("Finished processing halo data.")
@@ -69,7 +72,7 @@ def process_halo_data_parallelized(
     return np.array(results)
 
 
-def process_halo_data_starmap(
+def process_data_starmap(
     callback: Callable[..., NDArray],
     processes: int,
     *input_args: NDArray,
