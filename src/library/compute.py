@@ -13,7 +13,7 @@ from library.constants import HUBBLE, X_H, G, M_sol, k_B, kpc, m_p
 
 
 @np.vectorize
-def get_temperature(
+def get_temperature_vectorized(
     internal_energy: float | NDArray,
     electron_abundance: float | NDArray,
     star_formation_rate: float | NDArray
@@ -48,7 +48,7 @@ def get_temperature(
     return temperature
 
 
-def get_temperature_np(
+def get_temperature(
     internal_energy: float | NDArray,
     electron_abundance: float | NDArray,
     star_formation_rate: float | NDArray
