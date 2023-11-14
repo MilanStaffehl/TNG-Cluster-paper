@@ -53,15 +53,15 @@ def process_data_sequentially(
     if kwargs is None:
         kwargs = {}
     logging.info("Start processing halo data sequentially.")
-    n_halos = len(data)
-    data = np.zeros((n_halos, ) + data_shape)
-    for i, halo_id in enumerate(data):
+    n_points = len(data)
+    results = np.zeros((n_points, ) + data_shape)
+    for i, data_point in enumerate(data):
         if not quiet:
-            perc = i / n_halos * 100
-            print(f"Processing halo {i}/{n_halos} ({perc:.1f}%)", end="\r")
-        data[i] = callback(halo_id, **kwargs)
-    logging.info("Finished processing halo data.")
-    return data
+            perc = i / n_points * 100
+            print(f"Processing entry {i}/{n_points} ({perc:.1f}%)", end="\r")
+        results[i] = callback(data_point, **kwargs)
+    logging.info(f"Finished processing data.{' ' * 10}")
+    return results
 
 
 def process_data_multiargs(
@@ -138,12 +138,12 @@ def process_data_multiargs(
             return
 
     logging.info("Start processing halo data sequentially.")
-    data = np.zeros((length, ) + data_shape)
+    results = np.zeros((length, ) + data_shape)
     input_data = np.array(input_args).transpose()
     for i in range(length):
         if not quiet:
             perc = i / length * 100
-            print(f"Processing halo {i}/{length} ({perc:.1f}%)", end="\r")
-        data[i] = callback(*input_data[i], **kwargs)
-    logging.info("Finished processing halo data.")
-    return data
+            print(f"Processing entry {i}/{length} ({perc:.1f}%)", end="\r")
+        results[i] = callback(*input_data[i], **kwargs)
+    logging.info(f"Finished processing data.{' ' * 10}")
+    return results
