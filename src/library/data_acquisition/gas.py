@@ -138,7 +138,9 @@ def get_gas_properties(
             raise units.UnsupportedUnitError(field)
 
     # load gas particle data
-    gas_data = il.snapshot.loadSubset(base_path, snap_num, fields=fields)
+    gas_data = il.snapshot.loadSubset(
+        base_path, snap_num, partType=0, fields=fields
+    )
     # turn arrays into dictionaries to comply with expected return type
     if not isinstance(gas_data, dict):
         gas_data = {fields[0]: gas_data}  # only one field exists

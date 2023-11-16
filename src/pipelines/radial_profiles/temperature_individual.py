@@ -33,7 +33,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         super().__post_init__()
         # define cutom logging level for memory infos
         logging.addLevelName(18, "MEMLOG")
-        if self.quiet:
+        if not self.quiet:
             logging_config.change_level(18)
 
     def run(self) -> int:
