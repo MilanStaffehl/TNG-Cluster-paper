@@ -47,6 +47,7 @@ class UnitConverter:
                 "Group_R_Mean200",
                 "Group_R_TopHat200",
                 "GroupPos",
+                "Coordinates",
             ],
         "unitless": ["count", ]
     }
