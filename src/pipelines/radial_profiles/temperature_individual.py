@@ -7,6 +7,7 @@ import tracemalloc
 from typing import Literal
 
 import illustris_python as il
+from scipy.spatial import KDTree
 
 import library.data_acquisition as daq
 import library.processing as prc
@@ -32,7 +33,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         super().__post_init__()
         # define cutom logging level for memory infos
         logging.addLevelName(18, "MEMLOG")
-        logging_config.change_level(18)
+        if self.quiet:
+            logging_config.change_level(18)
 
     def run(self) -> int:
         """
@@ -45,7 +47,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         3. Load gas cell data required for temperature calculation.
         4. Calculate gas cell temperature, discard obsolete data.
         5. Load gas cell position data.
-        6. For every selected halo:
+        6. Create a KDTree from the positions for fast querying
+        7. For every selected halo:
            i. Query gas cells for neighbors.
            ii. Create a 2D histogram of temperature vs. distance.
            iii. Save figure and data to file.
@@ -104,35 +107,56 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         logging.info(
             f"Calculating temperature for {part_shape[0]:,} gas cells."
         )
-        if self.processes > 0:
-            chunksize = min(50_000_000, part_shape[0] / self.processes / 20)
-            temps = prc.parallelization.process_data_starmap(  # noqa: F841
-                compute.get_temperature,
-                self.processes,
-                gas_data["InternalEnergy"],
-                gas_data["ElectronAbundance"],
-                gas_data["StarFormationRate"],
-                chunksize=chunksize,
-            )
-        else:
-            temps = compute.get_temperature_np(  # noqa: F841
-                gas_data["InternalEnergy"],
-                gas_data["ElectronAbundance"],
-                gas_data["StarFormationRate"],
-            )
+        temps = compute.get_temperature(  # noqa: F841
+            gas_data["InternalEnergy"],
+            gas_data["ElectronAbundance"],
+            gas_data["StarFormationRate"],
+        )
         # clean up unneeded data
         del gas_data
-        mem = tracemalloc.get_traced_memory()
-        self._memlog("Peak memory usage during execution", mem[1])
-        self._memlog(
-            "Current memory used after temperature calculation and clean-up",
-            mem[0]
-        )
-        timepoint = self._timeit(
-            timepoint, "calculating gas cell temperatures"
+        # diagnostics
+        timepoint = self._diagnostics(
+            timepoint, "calculating gas temperatures"
         )
 
         # Step 5: Load gas cell position data
+        gas_positions = daq.gas.get_gas_properties(  # noqa: F841
+            self.config.base_path, self.config.snap_num, ["Coordinates"]
+        )
+        # diagnostics
+        timepoint = self._diagnostics(timepoint, "loading gas cell positions")
+        # construct KDTree
+        positions_tree = KDTree(gas_positions["Coordinates"])  # noqa: F841
+        # diagnostics
+        timepoint = self._diagnostics(timepoint, "constructing KDTree")
+
+    def _diagnostics(
+        self,
+        start_time: int,
+        step_description: str,
+        reset_peak: bool = True
+    ) -> int:
+        """
+        Log diagnostic data.
+
+        :param start_time: The start time of the step to diagnose in
+            seconds since the epoch.
+        :param step_description: A description of the step for which the
+            diagnostics are logged.
+        :param reset_peak: Whether to reset the peak of the traced
+            memory (so that in the next step, the peak can be determined
+            independently of the previous steps).
+        :return: The time point of the diagnostic in seconds since the
+            epoch.
+        """
+        # memory diagnostics
+        mem = tracemalloc.get_traced_memory()
+        self._memlog(f"Peak memory usage during {step_description}", mem[1])
+        self._memlog(f"Current memory usage after {step_description}", mem[0])
+        if reset_peak:
+            tracemalloc.reset_peak()
+        # runtime diagnostics
+        return self._timeit(start_time, step_description)
 
     def _memlog(
         self,
@@ -151,15 +175,15 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         :param unit: The unit to convert the memory into. Can be one of
             the following: kB, MB, GB. If omitted, the memory is given
             in bytes. Defaults to display in gigabytes.
+        :return: None
         """
-        if not self.quiet:
-            match unit:
-                case "kB":
-                    memory = memory_used / 1024.
-                case "MB":
-                    memory = memory_used / 1024. / 1024.
-                case "GB":
-                    memory = memory_used / 1024. / 1024. / 1024.
-                case _:
-                    unit = "Bytes"  # assume the unit is bytes
-            logging.log(18, f"{message}: {memory:,.4} {unit}.")
+        match unit:
+            case "kB":
+                memory = memory_used / 1024.
+            case "MB":
+                memory = memory_used / 1024. / 1024.
+            case "GB":
+                memory = memory_used / 1024. / 1024. / 1024.
+            case _:
+                unit = "Bytes"  # assume the unit is bytes
+        logging.log(18, f"{message}: {memory:,.4} {unit}.")

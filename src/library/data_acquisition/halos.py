@@ -34,6 +34,8 @@ def get_halo_properties(
     :param snap_num: The snapshot number from which to load the data.
     :param fields: The list of fields to load. Must match the name of the
         field in the simulation.
+    :raises UnsupportedUnitError: If one of the fields has a unit that
+        cannot be converted into physical units.
     :return: A dictionary of the field values for every halo, including
         a list of halo IDs.
     """
@@ -46,7 +48,8 @@ def get_halo_properties(
         fields = [fields]
 
     logging.info("Loading halo properties.")
-    # verify units can be converted
+    # verify units can be converted (done first to avoid loading data
+    # that cannot be converted later anyway)
     supported = units.UnitConverter.supported_fields()
     for field in fields:
         if field not in supported:
@@ -67,7 +70,7 @@ def get_halo_properties(
     for field, data in halo_data.items():
         halo_data_physical[field] = units.UnitConverter.convert(data, field)
     halo_data_physical["IDs"] = ids
-    logging.info("Finished loading halo masses & radii.")
+    logging.info("Finished loading halo properties.")
     return halo_data_physical
 
 

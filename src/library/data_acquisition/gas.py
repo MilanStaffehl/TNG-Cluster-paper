@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Callable, Sequence
 
 import illustris_python as il
 
-from library import compute
+from library import compute, units
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -99,3 +99,54 @@ def get_halo_temperatures(
 
     gas_data["Temperature"] = temperatures
     return gas_data
+
+
+def get_gas_properties(
+    base_path: str,
+    snap_num: int,
+    fields: list[str],
+) -> dict[str, NDArray]:
+    """
+    Load and return properties of all gas cells in the simulation.
+
+    The function will convert units as far as they are known into physical
+    units. The data is returned as a dictionary. The keys are identical
+    to the field names given by ``fields`` and contain as values the
+    loaded and unit-converted data for the gas particles.
+
+    :param base_path: The base path of the simulation to use.
+    :param snap_num: The snapshot number from which to load the data.
+    :param fields: The list of fields to load. Must match the name of
+        the field in the simulation.
+    :raises UnsupportedUnitError: If one of the fields has a unit that
+        cannot be converted into physical units.
+    :return: A dictionary of the field values for every gas cell,
+        converted into physical units.
+    """
+    if not isinstance(fields, list):
+        logging.warning(
+            "Received a string instead of a list of fields for particle data "
+            "acquistion. Please use a list of fields instead."
+        )
+        fields = [fields]
+
+    logging.info(f"Loading gas particle properties {', '.join(fields)}.")
+    # verify units (done first to avoid loading time if conversion would fail)
+    supported = units.UnitConverter.supported_fields()
+    for field in fields:
+        if field not in supported:
+            raise units.UnsupportedUnitError(field)
+
+    # load gas particle data
+    gas_data = il.snapshot.loadSubset(base_path, snap_num, fields=fields)
+    # turn arrays into dictionaries to comply with expected return type
+    if not isinstance(gas_data, dict):
+        gas_data = {fields[0]: gas_data}  # only one field exists
+
+    # convert units
+    gas_data_physical = {}
+    for field, data in gas_data.items():
+        gas_data_physical[field] = units.UnitConverter.convert(data, field)
+    del gas_data  # memory clean-up
+    logging.info("Finished loading gas particle properties.")
+    return gas_data_physical
