@@ -1,19 +1,24 @@
 """
 Pipeline to plot radial temperature profiles for individual halos.
 """
+from __future__ import annotations
+
 import logging
 import time
 import tracemalloc
-from typing import Literal
+from typing import TYPE_CHECKING, Callable, Literal
 
 import illustris_python as il
-from scipy.spatial import KDTree
+import numpy as np
 
 import library.data_acquisition as daq
 import library.processing as prc
 from library import compute
 from library.config import logging_config
 from pipelines.base import Pipeline
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 class IndividualTemperatureProfilePipeline(Pipeline):
@@ -128,24 +133,54 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
-        # construct KDTree
-        logging.info("Constructing KDTree of gas cell positions.")
-        positions_tree = KDTree(  # noqa: F841
-            gas_data["Coordinates"],
-            balanced_tree=False,
-            compact_nodes=False,
-        )
-        # diagnostics
-        timepoint = self._diagnostics(timepoint, "constructing KDTree")
 
-        # test: query tree
-        part = positions_tree.query_ball_point(  # noqa: F841
-            selected_positions[0], selected_radii[0]
+        # quey a single halo
+        callback = self._get_callback()
+        if self.processes > 0:
+            indices = prc.parallelization.process_data_parallelized(
+                callback,
+                gas_data["Coordinates"],
+                self.processes,
+            )
+        else:
+            n_part = len(gas_data["Masses"])
+            indices = np.zeros(n_part)
+            for i in range(n_part):
+                indices[i] = callback(gas_data["Coordinates"][i])
+        selection = prc.statistics.mask_quantity(  # noqa: F841
+            temps, indices, index=1, compress=True
         )
         timepoint = self._diagnostics(timepoint, "querying single ball")
 
         tracemalloc.stop()
         return 0
+
+    def _get_callback(self, center: NDArray,
+                      radius: float) -> Callable[[NDArray], int]:
+        """
+        Return a callable for brute-force ballpoint querying.
+
+        Function returns a callable that, when called with the position
+        of a gas particle, will determine whether that particle is within
+        ``radius`` distance of ``center``. The result is returned as an
+        integer: 1 meaning the particle is within the ball, 0 meaning it
+        is not.
+
+        :param center: The position vector of the center of the ball.
+        :param radius: The radius of the ball.
+        :return: A Callable accepting a position vector and returning
+            whether that position is within or outside of the ball.
+        """
+
+        def callback_func(position: NDArray) -> int:
+            distance = np.linalg.norm(position - center)
+            if distance > radius:
+                return 0
+            else:
+                return 1
+
+        # return the callable
+        return callback_func
 
     def _diagnostics(
         self,
