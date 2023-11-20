@@ -62,7 +62,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         begin = time.time()
 
         # Step 1: acquire halo data
-        fields = [self.config.mass_field, "GroupPos"]
+        fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
         halo_data = daq.halos.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
@@ -82,6 +82,9 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
         selected_positions = prc.statistics.mask_quantity(  # noqa: F841
             halo_data["GroupPos"], mask, index=2, compress=True
+        )
+        selected_radii = prc.statistics.mask_quantity(  # noqa: F841
+            halo_data[self.config.radius_field], mask, index=2, compress=True
         )
         del halo_data  # free memory
         del mask  # free memory
@@ -120,16 +123,26 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
 
         # Step 5: Load gas cell position data
-        gas_positions = daq.gas.get_gas_properties(  # noqa: F841
-            self.config.base_path, self.config.snap_num, ["Coordinates"]
+        gas_data = daq.gas.get_gas_properties(  # noqa: F841
+            self.config.base_path, self.config.snap_num, ["Coordinates", "Masses"]
         )
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
         # construct KDTree
         logging.info("Constructing KDTree of gas cell positions.")
-        positions_tree = KDTree(gas_positions["Coordinates"])  # noqa: F841
+        positions_tree = KDTree(  # noqa: F841
+            gas_data["Coordinates"],
+            balanced_tree=False,
+            compact_nodes=False,
+        )
         # diagnostics
         timepoint = self._diagnostics(timepoint, "constructing KDTree")
+
+        # test: query tree
+        part = positions_tree.query_ball_point(  # noqa: F841
+            selected_positions[0], selected_radii[0]
+        )
+        timepoint = self._diagnostics(timepoint, "querying single ball")
 
         tracemalloc.stop()
         return 0
