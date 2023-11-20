@@ -98,6 +98,10 @@ def mask_quantity(
     Can be directly used to filter out zeros from an array by setting
     both ``quantity`` and ``mask`` to the array to filter.
 
+    Note that multidimensional ``quantity`` arrays will be masked along
+    the first axis (axis 0), such that any vectors inside the array will
+    retain their shape.
+
     :param quantity: Array of the quantity to mask.
     :param mask: Masking array. Must be an array of integers. Must have
         the same shape as ``quantity``.
@@ -108,10 +112,12 @@ def mask_quantity(
     :return: The masked quantity array.
     """
     mask = np.where(mask == index, 1, 0)
-    masked_indices = ma.masked_array(quantity).compress(mask)
+    masked_indices = ma.masked_array(quantity).compress(mask, axis=0)
     if not compress:
         return masked_indices
     masked_indices = masked_indices.compressed()
+    if len(quantity.shape) > 1:
+        masked_indices = masked_indices.reshape(-1, *quantity.shape[1:])
     return masked_indices
 
 
