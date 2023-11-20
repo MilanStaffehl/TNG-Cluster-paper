@@ -126,9 +126,13 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
         # construct KDTree
+        logging.info("Constructing KDTree of gas cell positions.")
         positions_tree = KDTree(gas_positions["Coordinates"])  # noqa: F841
         # diagnostics
         timepoint = self._diagnostics(timepoint, "constructing KDTree")
+
+        tracemalloc.stop()
+        return 0
 
     def _diagnostics(
         self,

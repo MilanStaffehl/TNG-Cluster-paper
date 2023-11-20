@@ -114,6 +114,9 @@ def get_gas_properties(
     to the field names given by ``fields`` and contain as values the
     loaded and unit-converted data for the gas particles.
 
+    Note that all data existing in float64 format will be downcast to
+    float32 type to save memory.
+
     :param base_path: The base path of the simulation to use.
     :param snap_num: The snapshot number from which to load the data.
     :param fields: The list of fields to load. Must match the name of
@@ -130,7 +133,7 @@ def get_gas_properties(
         )
         fields = [fields]
 
-    logging.info(f"Loading gas particle properties {', '.join(fields)}.")
+    logging.info(f"Loading gas particle properties: {', '.join(fields)}.")
     # verify units (done first to avoid loading time if conversion would fail)
     supported = units.UnitConverter.supported_fields()
     for field in fields:
@@ -139,7 +142,7 @@ def get_gas_properties(
 
     # load gas particle data
     gas_data = il.snapshot.loadSubset(
-        base_path, snap_num, partType=0, fields=fields
+        base_path, snap_num, partType=0, fields=fields, float32=True
     )
     # turn arrays into dictionaries to comply with expected return type
     if not isinstance(gas_data, dict):
