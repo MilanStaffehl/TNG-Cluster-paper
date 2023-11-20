@@ -138,9 +138,12 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         timepoint = self._diagnostics(timepoint, "constructing KDTree")
 
         # test: query tree
+        STARTTIME = time.time_ns()
         part = positions_tree.query_ball_point(  # noqa: F841
             selected_positions[0], selected_radii[0]
         )
+        ENDTIME = time.time_ns()
+        logging.info(f"Took {ENDTIME - STARTTIME:,.2f} ns for one query.")
         timepoint = self._diagnostics(timepoint, "querying single ball")
 
         tracemalloc.stop()
