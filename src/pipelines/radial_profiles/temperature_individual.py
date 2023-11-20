@@ -133,7 +133,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         positions_tree = KDTree(  # noqa: F841
             gas_data["Coordinates"],
             balanced_tree=False,
-            compact_nodes=False,
+            compact_nodes=True,
         )
         # diagnostics
         timepoint = self._diagnostics(timepoint, "constructing KDTree")
