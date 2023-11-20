@@ -25,4 +25,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s MAIN_SIM
+srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s MAIN_SIM -p $SLURM_CPUS_PER_TASK
