@@ -160,7 +160,9 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 gas_data["Coordinates"], indices, index=1, compress=True
             )
             # find radial distance
-            part_distances = np.linalg.norm(positions - selected_positions[i])
+            part_distances = np.linalg.norm(
+                positions - selected_positions[i], axis=1
+            )
             # normalize distance to virial radius
             part_distances = part_distances / selected_radii[i]
             # weight by gas mass
