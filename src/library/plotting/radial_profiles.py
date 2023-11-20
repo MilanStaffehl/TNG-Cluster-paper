@@ -11,6 +11,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.colors import Colormap
     from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
@@ -90,3 +91,66 @@ def plot_radial_temperature_profile(
     axes.legend()
 
     return fig, axes
+
+
+def generate_generic_radial_profile(
+    radial_distance: NDArray,
+    y_data: NDArray,
+    y_label: str,
+    weights: NDArray | None = None,
+    colorbar_label: str = "Count",
+    title: str | None = None,
+    bins: int = 50,
+    colormap: str | Colormap = "inferno"
+) -> tuple[Figure, Axes, NDArray]:
+    """
+    Return a 2D histogram of the given data (y-data vs radial distance).
+
+    The function plots the datapoints, given by the two arrays for
+    radial distance (x-data) and the other quantity (y-data) as a 2D
+    histogram radial profile. The function returns the figure and axes
+    object as well as the 2D array and the edges describing the histogram.
+
+    :param radial_distance: The shape (N, ) array of radial distances
+        for all data points in units of virial radii.
+    :param y_data: The shape (N, ) array of the quantity to plot vs the
+        radial distance (e.g. temperature).
+    :param y_label: The labe for the y-axis of the plot.
+    :param weights: The shpe (N, ) array of weights to apply to the
+        individual data points. Set to None to use the count of data
+        points instead. Defaults to None.
+    :param colorbar_label: The label of the colorbar. If weights are used,
+        this label should reflect the weighting. Defaults to "Count".
+    :param title: Title for the figure. If set to None, the figure will
+        have no title. Defaults to None.
+    :param bins: The number of bins to use along each axis. Ddefaults
+        to 50.
+    :param colormap: Name or colormap class to use for the 2D histogram.
+        Defaults to "inferno".
+    :return: A tuple containing the following entries:
+        - The figure object.
+        - The axes object.
+        - The (bins, bins) shape array of histogram data, givig the
+          histogram value of every bin.
+        - The x-edges of the histogram.
+        - The y-edges of the histogram.
+    """
+    logging.info(f"Plotting radial profile for {y_label}.")
+    # figure set-up
+    fig, axes = plt.subplots(figsize=(6, 5))
+    axes.set_xlabel(r"Radial distance from center [$R_{200c}$]")
+    axes.set_ylabel(y_label)
+    if title is not None:
+        axes.set_title(title)
+
+    # plot data
+    hist_config = {
+        "cmap": colormap,
+        "bins": bins,
+    }
+    if weights:
+        hist_config.update({"weights": weights})
+    hist = axes.hist2d(radial_distance, y_data, **hist_config)
+    # add colorbar
+    fig.colorbar(hist[-1], ax=axes, location="right", label=colorbar_label)
+    return fig, axes, hist[0], hist[1], hist[3]
