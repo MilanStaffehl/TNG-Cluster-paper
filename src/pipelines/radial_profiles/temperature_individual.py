@@ -138,36 +138,27 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # Step 6: Create the radial profiles
         logging.info("Begin processing halos.")
         for i in len(selected_ids):
-            # quey a single halo
-            callback = self._get_callback(
-                selected_positions[i], 2 * selected_radii[i]
+            # calculate distance for all particles
+            distances = np.linalg.norm(
+                gas_data["Coordinates"] - selected_positions[i], axis=1
             )
-            if self.processes > 0:
-                indices = prc.parallelization.process_data_parallelized(
-                    callback,
-                    gas_data["Coordinates"],
-                    self.processes,
-                )
-            else:
-                n_part = len(gas_data["Masses"])
-                indices = np.zeros(n_part)
-                for i in range(n_part):
-                    indices[i] = callback(gas_data["Coordinates"][i])
-            part_temperatures = prc.statistics.mask_quantity(  # noqa: F841
-                temps, indices, index=1, compress=True
+            # create a mask for only the halos within radius
+            mask = np.where(distances <= selected_radii[i], 1, 0)
+            # mask and normalize distances
+            part_distances = prc.statistics.mask_quantity(
+                distances, mask, index=1, compress=True
             )
-            positions = prc.statistics.mask_quantity(
-                gas_data["Coordinates"], indices, index=1, compress=True
-            )
-            # find radial distance
-            part_distances = np.linalg.norm(
-                positions - selected_positions[i], axis=1
-            )
-            # normalize distance to virial radius
             part_distances = part_distances / selected_radii[i]
+            # mask temperatures
+            part_temperatures = prc.statistics.mask_quantity(
+                temps,
+                mask,
+                index=1,
+                compress=True,
+            )
             # weight by gas mass
             weights = prc.statistics.mask_quantity(
-                gas_data["Masses"], indices, index=1, compress=True
+                gas_data["Masses"], mask, index=1, compress=True
             )
             self._plot_halo(
                 selected_ids[i],
@@ -176,6 +167,12 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 part_temperatures,
                 weights
             )
+            # cleanup
+            del part_distances
+            del part_temperatures
+            del weights
+            del distances
+            del mask
 
         timepoint = self._diagnostics(
             timepoint, "plotting individual profiles"
