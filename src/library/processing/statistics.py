@@ -31,7 +31,7 @@ def sort_masses_into_bins(
     warnings.warn(
         "Called function 'sort_masses_into_bins', which is merely an alias "
         "for 'numpy.digitize'. Use the latter instead.",
-        UserWarning,
+        DeprecationWarning,
         stacklevel=2,
     )
     return np.digitize(masses, mass_bins)

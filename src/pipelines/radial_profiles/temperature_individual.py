@@ -7,6 +7,7 @@ import tracemalloc
 from typing import Literal
 
 import illustris_python as il
+import numpy as np
 from scipy.spatial import KDTree
 
 import library.data_acquisition as daq
@@ -71,9 +72,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
 
         # Step 2: select only halos above threshhold mass
         logging.info("Restricting halo data to log(M) > 14.")
-        mask = prc.statistics.sort_masses_into_bins(
-            halo_data[self.config.mass_field], [0, 1e14, 1e25]
-        )
+        mask = np.digitize(halo_data[self.config.mass_field], [0, 1e14, 1e25])
         selected_ids = prc.statistics.mask_quantity(  # noqa: F841
             halo_data["IDs"], mask, index=2, compress=True
         )

@@ -25,7 +25,7 @@ def main(args: argparse.Namespace) -> None:
 
     # paths
     file_data = glob_util.assemble_path_dict(
-        "radial_profile",
+        "radial_profiles",
         cfg,
         type_flag,
         False,
