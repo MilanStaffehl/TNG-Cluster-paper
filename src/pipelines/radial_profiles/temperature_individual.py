@@ -6,12 +6,14 @@ from __future__ import annotations
 import logging
 import time
 import tracemalloc
+from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Literal
 
 import illustris_python as il
 import numpy as np
 
 import library.data_acquisition as daq
+import library.plotting.radial_profiles as ptr
 import library.processing as prc
 from library import compute
 from library.config import logging_config
@@ -52,8 +54,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         3. Load gas cell data required for temperature calculation.
         4. Calculate gas cell temperature, discard obsolete data.
         5. Load gas cell position data.
-        6. Create a KDTree from the positions for fast querying
-        7. For every selected halo:
+        6. For every selected halo:
            i. Query gas cells for neighbors.
            ii. Create a 2D histogram of temperature vs. distance.
            iii. Save figure and data to file.
@@ -134,26 +135,100 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
 
-        # quey a single halo
-        callback = self._get_callback()
-        if self.processes > 0:
-            indices = prc.parallelization.process_data_parallelized(
-                callback,
-                gas_data["Coordinates"],
-                self.processes,
+        # Step 6: Create the radial profiles
+        logging.info("Begin processing halos.")
+        for i in len(selected_ids):
+            # quey a single halo
+            callback = self._get_callback(
+                selected_positions[i], 2 * selected_radii[i]
             )
-        else:
-            n_part = len(gas_data["Masses"])
-            indices = np.zeros(n_part)
-            for i in range(n_part):
-                indices[i] = callback(gas_data["Coordinates"][i])
-        selection = prc.statistics.mask_quantity(  # noqa: F841
-            temps, indices, index=1, compress=True
-        )
-        timepoint = self._diagnostics(timepoint, "querying single ball")
+            if self.processes > 0:
+                indices = prc.parallelization.process_data_parallelized(
+                    callback,
+                    gas_data["Coordinates"],
+                    self.processes,
+                )
+            else:
+                n_part = len(gas_data["Masses"])
+                indices = np.zeros(n_part)
+                for i in range(n_part):
+                    indices[i] = callback(gas_data["Coordinates"][i])
+            part_temperatures = prc.statistics.mask_quantity(  # noqa: F841
+                temps, indices, index=1, compress=True
+            )
+            positions = prc.statistics.mask_quantity(
+                gas_data["Coordinates"], indices, index=1, compress=True
+            )
+            # find radial distance
+            part_distances = np.linalg.norm(positions - selected_positions[i])
+            # normalize distance to virial radius
+            part_distances = part_distances / selected_radii[i]
+            # weight by gas mass
+            weights = prc.statistics.mask_quantity(
+                gas_data["Masses"], indices, index=1, compress=True
+            )
+            self._plot_halo(
+                selected_ids[i],
+                selected_masses[i],
+                part_distances,
+                part_temperatures,
+                weights
+            )
 
+        timepoint = self._diagnostics(
+            timepoint, "plotting individual profiles"
+        )
         tracemalloc.stop()
         return 0
+
+    def _plot_halo(
+        self,
+        halo_id: int,
+        halo_mass: float,
+        distances: NDArray,
+        temperatures: NDArray,
+        weights: NDArray
+    ) -> None:
+        title = (
+            f"Temperature profile of halo {halo_id} "
+            f"(10^{np.log10(halo_mass):.2f} log M_sol)"
+        )
+        f, _, h, xe, ye = ptr.generate_generic_radial_profile(
+            distances,
+            np.log10(temperatures),
+            "Temperature [log K]",
+            weights=weights,
+            colorbar_label="Gas fraction",
+            density=True,
+            title=title,
+        )
+
+        # save data
+        if self.to_file:
+            logging.debug(
+                f"Writing histogram data for halo {halo_id} to file."
+            )
+            filepath = Path(self.paths["data_dir"]) / "individuals"
+            filename = (f"{self.paths['data_file_stem']}_halo_{halo_id}.npz")
+            np.savez(
+                filepath / filename,
+                hist=h,
+                xedges=xe,
+                yedges=ye,
+            )
+
+        # save figure
+        if self.no_plots:
+            return
+        name = (f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf")
+        path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
+        if not path.exists():
+            logging.debug(
+                f"Creating missing figures directory for halo "
+                f"{halo_id}."
+            )
+            path.mkdir(parents=True)
+        f.savefig(path / name, bbox_inches="tight")
 
     def _get_callback(self, center: NDArray,
                       radius: float) -> Callable[[NDArray], int]:
