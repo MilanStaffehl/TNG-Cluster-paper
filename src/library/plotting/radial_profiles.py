@@ -101,7 +101,8 @@ def generate_generic_radial_profile(
     colorbar_label: str = "Count",
     title: str | None = None,
     bins: int = 50,
-    colormap: str | Colormap = "inferno"
+    colormap: str | Colormap = "inferno",
+    density: bool = False,
 ) -> tuple[Figure, Axes, NDArray]:
     """
     Return a 2D histogram of the given data (y-data vs radial distance).
@@ -127,6 +128,9 @@ def generate_generic_radial_profile(
         to 50.
     :param colormap: Name or colormap class to use for the 2D histogram.
         Defaults to "inferno".
+    :param density: Whether to treat the plot as a density plot, i.e.
+        whether to normalize the histogram such that all data adds up
+        to one. Defaults to False.
     :return: A tuple containing the following entries:
         - The figure object.
         - The axes object.
@@ -147,6 +151,7 @@ def generate_generic_radial_profile(
     hist_config = {
         "cmap": colormap,
         "bins": bins,
+        "density": density,
     }
     if weights:
         hist_config.update({"weights": weights})
