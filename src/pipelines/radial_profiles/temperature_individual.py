@@ -1,20 +1,27 @@
 """
 Pipeline to plot radial temperature profiles for individual halos.
 """
+from __future__ import annotations
+
 import logging
 import time
 import tracemalloc
-from typing import Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Callable, Literal
 
 import illustris_python as il
 import numpy as np
 from scipy.spatial import KDTree
 
 import library.data_acquisition as daq
+import library.plotting.radial_profiles as ptr
 import library.processing as prc
 from library import compute
 from library.config import logging_config
 from pipelines.base import Pipeline
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 class IndividualTemperatureProfilePipeline(Pipeline):
@@ -48,8 +55,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         3. Load gas cell data required for temperature calculation.
         4. Calculate gas cell temperature, discard obsolete data.
         5. Load gas cell position data.
-        6. Create a KDTree from the positions for fast querying
-        7. For every selected halo:
+        6. For every selected halo:
            i. Query gas cells for neighbors.
            ii. Create a 2D histogram of temperature vs. distance.
            iii. Save figure and data to file.
@@ -127,7 +133,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
-        # construct KDTree
+
+        # Step 6: construct KDTree
         logging.info("Constructing KDTree of gas cell positions.")
         positions_tree = KDTree(  # noqa: F841
             gas_data["Coordinates"],
@@ -137,17 +144,129 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # diagnostics
         timepoint = self._diagnostics(timepoint, "constructing KDTree")
 
-        # test: query tree
-        STARTTIME = time.time_ns()
-        part = positions_tree.query_ball_point(  # noqa: F841
-            selected_positions[0], selected_radii[0]
-        )
-        ENDTIME = time.time_ns()
-        logging.info(f"Took {ENDTIME - STARTTIME:,.2f} ns for one query.")
-        timepoint = self._diagnostics(timepoint, "querying single ball")
+        # Step 7: Create the radial profiles
+        logging.info("Begin processing halos.")
+        for i in len(selected_ids):
+            # calculate distance for all particles
+            distances = np.linalg.norm(
+                gas_data["Coordinates"] - selected_positions[i], axis=1
+            )
+            # create a mask for only the halos within radius
+            mask = np.where(distances <= 2 * selected_radii[i], 1, 0)
+            # mask and normalize distances
+            part_distances = prc.statistics.mask_quantity(
+                distances, mask, index=1, compress=True
+            )
+            part_distances = part_distances / selected_radii[i]
+            # mask temperatures
+            part_temperatures = prc.statistics.mask_quantity(
+                temps,
+                mask,
+                index=1,
+                compress=True,
+            )
+            # weight by gas mass
+            weights = prc.statistics.mask_quantity(
+                gas_data["Masses"], mask, index=1, compress=True
+            )
+            timepoint = self._diagnostics(
+                timepoint, "preparing and selecting single halo data"
+            )
+            self._plot_halo(
+                selected_ids[i],
+                selected_masses[i],
+                part_distances,
+                part_temperatures,
+                weights
+            )
+            # cleanup
+            del part_distances
+            del part_temperatures
+            del weights
+            del distances
+            del mask
 
-        tracemalloc.stop()
-        return 0
+            timepoint = self._diagnostics(
+                timepoint, "plotting individual profiles"
+            )
+            tracemalloc.stop()
+            return 0
+
+    def _plot_halo(
+        self,
+        halo_id: int,
+        halo_mass: float,
+        distances: NDArray,
+        temperatures: NDArray,
+        weights: NDArray
+    ) -> None:
+        title = (
+            f"Temperature profile of halo {halo_id} "
+            f"(10^{np.log10(halo_mass):.2f} log M_sol)"
+        )
+        f, _, h, xe, ye = ptr.generate_generic_radial_profile(
+            distances,
+            np.log10(temperatures),
+            "Temperature [log K]",
+            weights=weights,
+            colorbar_label="Gas fraction",
+            density=True,
+            title=title,
+        )        
+
+        # save data
+        if self.to_file:
+            logging.debug(
+                f"Writing histogram data for halo {halo_id} to file."
+            )
+            filepath = Path(self.paths["data_dir"]) / "individuals"
+            filename = (f"{self.paths['data_file_stem']}_halo_{halo_id}.npz")
+            np.savez(
+                filepath / filename,
+                hist=h,
+                xedges=xe,
+                yedges=ye,
+            )
+
+        # save figure
+        if self.no_plots:
+            return
+        name = (f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf")
+        path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
+        if not path.exists():
+            logging.debug(
+                f"Creating missing figures directory for halo "
+                f"{halo_id}."
+            )
+            path.mkdir(parents=True)
+        f.savefig(path / name, bbox_inches="tight")
+
+    def _get_callback(self, center: NDArray,
+                      radius: float) -> Callable[[NDArray], int]:
+        """
+        Return a callable for brute-force ballpoint querying.
+
+        Function returns a callable that, when called with the position
+        of a gas particle, will determine whether that particle is within
+        ``radius`` distance of ``center``. The result is returned as an
+        integer: 1 meaning the particle is within the ball, 0 meaning it
+        is not.
+
+        :param center: The position vector of the center of the ball.
+        :param radius: The radius of the ball.
+        :return: A Callable accepting a position vector and returning
+            whether that position is within or outside of the ball.
+        """
+
+        def callback_func(position: NDArray) -> int:
+            distance = np.linalg.norm(position - center)
+            if distance > radius:
+                return 0
+            else:
+                return 1
+
+        # return the callable
+        return callback_func
 
     def _diagnostics(
         self,

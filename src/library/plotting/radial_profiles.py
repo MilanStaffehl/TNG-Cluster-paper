@@ -153,7 +153,7 @@ def generate_generic_radial_profile(
         "bins": bins,
         "density": density,
     }
-    if weights:
+    if weights is not None:
         hist_config.update({"weights": weights})
     hist = axes.hist2d(radial_distance, y_data, **hist_config)
     # add colorbar
