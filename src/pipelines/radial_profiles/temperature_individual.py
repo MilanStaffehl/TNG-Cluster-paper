@@ -91,8 +91,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         selected_radii = prc.statistics.mask_quantity(  # noqa: F841
             halo_data[self.config.radius_field], mask, index=2, compress=True
         )
-        del halo_data  # free memory
-        del mask  # free memory
+        del halo_data, mask  # free memory
         mem = tracemalloc.get_traced_memory()
         self._memlog("Memory usage after restricting halos", mem[0], "kB")
         timepoint = self._timeit(begin, "loading and selecting halo data")
@@ -147,28 +146,19 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # Step 7: Create the radial profiles
         logging.info("Begin processing halos.")
         for i in len(selected_ids):
-            # calculate distance for all particles
-            distances = np.linalg.norm(
-                gas_data["Coordinates"] - selected_positions[i], axis=1
-            )
-            # create a mask for only the halos within radius
-            mask = np.where(distances <= 2 * selected_radii[i], 1, 0)
-            # mask and normalize distances
-            part_distances = prc.statistics.mask_quantity(
-                distances, mask, index=1, compress=True
-            )
-            part_distances = part_distances / selected_radii[i]
-            # mask temperatures
-            part_temperatures = prc.statistics.mask_quantity(
-                temps,
-                mask,
-                index=1,
-                compress=True,
-            )
+            # find all particles within 2 * R_vir
+            neighbors = positions_tree.query_ball_point(
+                selected_positions[i], 2 * selected_radii[i]
+            )  # list of indces, can be used for slices
+            # slice and normalize distances
+            part_positions = gas_data["Coordinates"][neighbors]
+            part_distances = np.linalg.norm(
+                part_positions - selected_positions[i], axis=1
+            ) / selected_radii[i]
+            # slice temperatures
+            part_temperatures = temps[neighbors]
             # weight by gas mass
-            weights = prc.statistics.mask_quantity(
-                gas_data["Masses"], mask, index=1, compress=True
-            )
+            weights = gas_data["Masses"][neighbors]
             timepoint = self._diagnostics(
                 timepoint, "preparing and selecting single halo data"
             )
@@ -180,17 +170,13 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 weights
             )
             # cleanup
-            del part_distances
-            del part_temperatures
-            del weights
-            del distances
-            del mask
+            del part_positions, part_distances, part_temperatures, weights
 
-            timepoint = self._diagnostics(
-                timepoint, "plotting individual profiles"
-            )
-            tracemalloc.stop()
-            return 0
+        timepoint = self._diagnostics(
+            timepoint, "plotting individual profiles"
+        )
+        tracemalloc.stop()
+        return 0
 
     def _plot_halo(
         self,
@@ -212,7 +198,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             colorbar_label="Gas fraction",
             density=True,
             title=title,
-        )        
+        )
 
         # save data
         if self.to_file:
