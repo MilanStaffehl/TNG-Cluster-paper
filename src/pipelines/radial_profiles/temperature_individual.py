@@ -131,7 +131,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         logging.info("Constructing KDTree of gas cell positions.")
         positions_tree = KDTree(  # noqa: F841
             gas_data["Coordinates"],
-            balanced_tree=False,
+            balanced_tree=True,
             compact_nodes=True,
         )
         # diagnostics
