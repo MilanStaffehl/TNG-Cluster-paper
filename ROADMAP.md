@@ -11,6 +11,15 @@ A brief overview over the steps taken. The numbers match the subdirectory names 
 
 **Result:** Using gas mass fraction for all subsequent tasks is better suited to not lose those halos that have low total gas mass but still might be interesing. The temperature divisions between cool, warm and hot gas are chosen in two ways: once as absolute values, once as fractions of the virial temperature.
 
+Temperature regimes are chosen as follows:
+
+| **Regime** | **Absolute (log K)** | **Relative ($T_{vir}$)** |
+|------------|----------------------|--------------------------|
+| Cool       | < 4.5                | < 0.5                    |
+| Warm       | 4.5 - 5.5            | 0.5 - 1                  |
+| Hot        | > 5.5                | > 1                      |
+
+
 GitHub issues for tasks:
 
 - [x] [#4 Plot: plot temperature distribution in halos](https://github.com/MilanStaffehl/thesisProject/issues/4)
