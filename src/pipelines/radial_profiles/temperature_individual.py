@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Callable, Literal
 
 import illustris_python as il
 import numpy as np
+from scipy.spatial import KDTree
 
 import library.data_acquisition as daq
 import library.plotting.radial_profiles as ptr
@@ -77,9 +78,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
 
         # Step 2: select only halos above threshhold mass
         logging.info("Restricting halo data to log(M) > 14.")
-        mask = prc.statistics.sort_masses_into_bins(
-            halo_data[self.config.mass_field], [0, 1e14, 1e25]
-        )
+        mask = np.digitize(halo_data[self.config.mass_field], [0, 1e14, 1e25])
         selected_ids = prc.statistics.mask_quantity(  # noqa: F841
             halo_data["IDs"], mask, index=2, compress=True
         )
@@ -134,6 +133,16 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
+
+        # Step 6: construct KDTree
+        logging.info("Constructing KDTree of gas cell positions.")
+        positions_tree = KDTree(  # noqa: F841
+            gas_data["Coordinates"],
+            balanced_tree=True,
+            compact_nodes=True,
+        )
+        # diagnostics
+        timepoint = self._diagnostics(timepoint, "constructing KDTree")
 
         # Step 7: Create the radial profiles
         logging.info("Begin processing halos.")
@@ -203,7 +212,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             colorbar_label="Gas fraction",
             density=True,
             title=title,
-        )
+        )        
 
         # save data
         if self.to_file:

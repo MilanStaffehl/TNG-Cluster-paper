@@ -4,6 +4,7 @@ Tools for statistics with temperature and gas cell data.
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Iterator, Sequence, TypeVar
 
 import numpy as np
@@ -27,6 +28,12 @@ def sort_masses_into_bins(
     :param mass_bins: List of bin edges, must have same unit as ``masses``.
     :return: Array of mask indices for masses.
     """
+    warnings.warn(
+        "Called function 'sort_masses_into_bins', which is merely an alias "
+        "for 'numpy.digitize'. Use the latter instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return np.digitize(masses, mass_bins)
 
 
@@ -81,10 +88,10 @@ def mask_quantity(
     Return an array containing only non-masked values.
 
     All entries in ``quantity`` that do not have a masking value equal
-    to ``masking_value`` in the corresponding position in ``mask`` are
-    masked by this function. The returned array can be either a numpy
-    masked array or a compressed version of the masked array, only
-    containing the unmasked values and nothing else.
+    to ``index`` in the corresponding position in ``mask`` are masked
+    by this function. The returned array can be either a numpy masked
+    array or a compressed version of the masked array, only containing
+    the unmasked values and nothing else.
 
     The default behavior is to expect the mask to contain only zeros and
     ones, with all values in the quantity array at the positions of ones
@@ -95,8 +102,9 @@ def mask_quantity(
     A custom value for which integer in the masking array which leaves
     corresponding values unmasked can be chosen.
 
-    Can be directly used to filter out zeros from an array by setting
-    both ``quantity`` and ``mask`` to the array to filter.
+    Note that multidimensional ``quantity`` arrays will be masked along
+    the first axis (axis 0), such that any vectors inside the array will
+    retain their shape.
 
     :param quantity: Array of the quantity to mask.
     :param mask: Masking array. Must be an array of integers. Must have
@@ -108,10 +116,12 @@ def mask_quantity(
     :return: The masked quantity array.
     """
     mask = np.where(mask == index, 1, 0)
-    masked_indices = ma.masked_array(quantity).compress(mask)
+    masked_indices = ma.masked_array(quantity).compress(mask, axis=0)
     if not compress:
         return masked_indices
     masked_indices = masked_indices.compressed()
+    if len(quantity.shape) > 1:
+        masked_indices = masked_indices.reshape(-1, *quantity.shape[1:])
     return masked_indices
 
 
