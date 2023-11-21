@@ -149,11 +149,12 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         timepoint = self._diagnostics(timepoint, "constructing KDTree")
 
         # Step 7: Create the radial profiles
-        logging.info("Begin processing halos.")
+        workers = self.processes if self.processes else 1
+        logging.info(f"Begin processing halos with {workers} workers.")
         for i in range(len(selected_ids)):
             # find all particles within 2 * R_vir
             neighbors = positions_tree.query_ball_point(
-                selected_positions[i], 2 * selected_radii[i]
+                selected_positions[i], 2 * selected_radii[i], workers=workers
             )  # list of indces, can be used for slices
             # slice and normalize distances
             part_positions = gas_data["Coordinates"][neighbors]
@@ -171,7 +172,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 selected_masses[i],
                 part_distances,
                 part_temperatures,
-                weights
+                weights,
             )
             # cleanup
             del part_positions, part_distances, part_temperatures, weights
