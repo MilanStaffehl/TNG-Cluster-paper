@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import time
 import tracemalloc
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Literal
 
@@ -24,6 +25,7 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
+@dataclass
 class IndividualTemperatureProfilePipeline(Pipeline):
     """
     Pipeline to create plots of radial temperature distribution.
@@ -36,6 +38,9 @@ class IndividualTemperatureProfilePipeline(Pipeline):
     This pipeline must load all particle data in order to be able to
     plot gas particles that do ot belong to halos as well.
     """
+
+    radial_bins: int
+    temperature_bins: int
 
     def __post_init__(self):
         super().__post_init__()
@@ -145,7 +150,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
 
         # Step 7: Create the radial profiles
         logging.info("Begin processing halos.")
-        for i in len(selected_ids):
+        for i in range(len(selected_ids)):
             # find all particles within 2 * R_vir
             neighbors = positions_tree.query_ball_point(
                 selected_positions[i], 2 * selected_radii[i]
@@ -198,6 +203,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             colorbar_label="Gas fraction",
             density=True,
             title=title,
+            xbins=self.radial_bins,
+            ybins=self.temperature_bins,
         )
 
         # save data

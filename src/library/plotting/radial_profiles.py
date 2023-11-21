@@ -100,7 +100,8 @@ def generate_generic_radial_profile(
     weights: NDArray | None = None,
     colorbar_label: str = "Count",
     title: str | None = None,
-    bins: int = 50,
+    xbins: int = 50,
+    ybins: int = 50,
     colormap: str | Colormap = "inferno",
     density: bool = False,
 ) -> tuple[Figure, Axes, NDArray]:
@@ -124,7 +125,9 @@ def generate_generic_radial_profile(
         this label should reflect the weighting. Defaults to "Count".
     :param title: Title for the figure. If set to None, the figure will
         have no title. Defaults to None.
-    :param bins: The number of bins to use along each axis. Ddefaults
+    :param xbins: The number of bins to use along the x-axis. Ddefaults
+        to 50.
+    :param ybins: The number of bins to use along the y-axis. Ddefaults
         to 50.
     :param colormap: Name or colormap class to use for the 2D histogram.
         Defaults to "inferno".
@@ -150,7 +153,7 @@ def generate_generic_radial_profile(
     # plot data
     hist_config = {
         "cmap": colormap,
-        "bins": bins,
+        "bins": (xbins, ybins),
         "density": density,
     }
     if weights is not None:

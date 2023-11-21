@@ -40,6 +40,8 @@ def main(args: argparse.Namespace) -> None:
         "quiet": args.quiet,
         "to_file": args.to_file,
         "no_plots": args.no_plots,
+        "radial_bins": args.rbins,
+        "temperature_bins": args.tbins,
     }
     if args.from_file:
         raise NotImplementedError("No from file plotting possible yet.")
