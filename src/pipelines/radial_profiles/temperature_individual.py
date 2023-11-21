@@ -164,9 +164,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             part_temperatures = temps[neighbors]
             # weight by gas mass
             weights = gas_data["Masses"][neighbors]
-            timepoint = self._diagnostics(
-                timepoint, "preparing and selecting single halo data"
-            )
+            weights /= np.sum(gas_data["Masses"][neighbors])
+            # plot and save data
             self._plot_halo(
                 selected_ids[i],
                 selected_masses[i],
@@ -201,7 +200,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             "Temperature [log K]",
             weights=weights,
             colorbar_label="Gas fraction",
-            density=True,
+            density=False,
             title=title,
             xbins=self.radial_bins,
             ybins=self.temperature_bins,
