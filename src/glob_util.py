@@ -21,6 +21,7 @@ def assemble_path_dict(
     alt_figure_dir: str | Path | None = None,
     alt_data_dir: str | Path | None = None,
     figures_subdirectory: str | Path | None = None,
+    data_subdirectory: str | Path | None = None,
 ) -> typedef.FileDict:
     """
     Assemble a valid file dictionary from the given input.
@@ -59,6 +60,9 @@ def assemble_path_dict(
     :param figures_subdirectory: An optional subdirectory inside the
         figures home where to save figures. Must be given relative to
         the figures home directory.
+    :param data_subdirectory: An optional subdirectory inside the
+        data home where to save data files. Must be given relative to
+        the data home directory.
     :return: A valid file path dictionary.
     """
     figure_path = cfg.figures_home / milestone / cfg.sim_path
@@ -77,6 +81,8 @@ def assemble_path_dict(
             )
 
     data_path = cfg.data_home / milestone
+    if data_subdirectory:
+        data_path = data_path / Path(data_subdirectory)
     data_stem = f"{milestone}_{type_flag}_{cfg.sim_path}"
 
     if alt_data_dir:

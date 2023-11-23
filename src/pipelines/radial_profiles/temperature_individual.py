@@ -180,6 +180,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         timepoint = self._diagnostics(
             timepoint, "plotting individual profiles"
         )
+        self._timeit(begin, "total execution")
         tracemalloc.stop()
         return 0
 
@@ -212,7 +213,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             logging.debug(
                 f"Writing histogram data for halo {halo_id} to file."
             )
-            filepath = Path(self.paths["data_dir"]) / "individuals"
+            filepath = Path(self.paths["data_dir"])
             filename = (f"{self.paths['data_file_stem']}_halo_{halo_id}.npz")
             np.savez(
                 filepath / filename,
