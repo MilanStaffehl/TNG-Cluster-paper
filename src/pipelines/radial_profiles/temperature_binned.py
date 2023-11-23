@@ -201,11 +201,24 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
         file.
         """
         for i in range(len(self.mass_bin_edges) - 1):
+            msg = (
+                f"mass bin 10^{np.log10(self.mass_bin_edges[i])} - 10^"
+                f"{np.log10(self.mass_bin_edges[i + 1])}"
+            )
+            title = (
+                r"$M_{200c}$: "
+                rf"${np.log10(self.mass_bin_edges[i]):.1f} < \log \ M_\odot < "
+                rf"{np.log10(self.mass_bin_edges[i + 1]):.1f}$"
+            )
             f, a = ptr.plot_radial_temperature_profile(
                 histograms[i],
                 running_averages[i],
-                (self.mass_bin_edges[i], self.mass_bin_edges[i + 1]),
+                msg,
                 self.radial_range + self.temperature_range,
+                title=title,
+            )
+            f, a = ptr.overplot_running_average(
+                f, a, running_averages, self.radial_range + self.temperature_range
             )
             # save figure
             filename = f"{self.paths['figures_file_stem']}_{i}.pdf"

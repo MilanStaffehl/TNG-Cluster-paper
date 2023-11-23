@@ -8,13 +8,14 @@ import time
 import tracemalloc
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Literal
 
 import illustris_python as il
 import numpy as np
 from scipy.spatial import KDTree
 
 import library.data_acquisition as daq
+import library.loading.radial_profiles as ld
 import library.plotting.radial_profiles as ptr
 import library.processing as prc
 from library import compute
@@ -220,6 +221,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 hist=h,
                 xedges=xe,
                 yedges=ye,
+                halo_id=halo_id,
+                halo_mass=halo_mass,
             )
 
         # save figure
@@ -235,38 +238,11 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             path.mkdir(parents=True)
         f.savefig(path / name, bbox_inches="tight")
 
-    def _get_callback(self, center: NDArray,
-                      radius: float) -> Callable[[NDArray], int]:
-        """
-        Return a callable for brute-force ballpoint querying.
-
-        Function returns a callable that, when called with the position
-        of a gas particle, will determine whether that particle is within
-        ``radius`` distance of ``center``. The result is returned as an
-        integer: 1 meaning the particle is within the ball, 0 meaning it
-        is not.
-
-        :param center: The position vector of the center of the ball.
-        :param radius: The radius of the ball.
-        :return: A Callable accepting a position vector and returning
-            whether that position is within or outside of the ball.
-        """
-
-        def callback_func(position: NDArray) -> int:
-            distance = np.linalg.norm(position - center)
-            if distance > radius:
-                return 0
-            else:
-                return 1
-
-        # return the callable
-        return callback_func
-
     def _diagnostics(
         self,
         start_time: int,
         step_description: str,
-        reset_peak: bool = True
+        reset_peak: bool = True,
     ) -> int:
         """
         Log diagnostic data.
@@ -319,3 +295,62 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             case _:
                 unit = "Bytes"  # assume the unit is bytes
         logging.log(18, f"{message}: {memory:,.4} {unit}.")
+
+
+class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
+    """
+    Pipeline to recreate the temp profiles of individual halos from file.
+    """
+
+    def __post_init__(self) -> None:
+        return super().__post_init__()
+
+    def run(self) -> int:
+        """
+        Recreate radial temperature profiles from file.
+
+        Steps for every halo:
+
+        1. Load data from file
+        2. Plot the halo data
+
+        :return: Exit code.
+        """
+        # Step 0: verify directories
+        if exit_code := self._verify_directories() > 0:
+            return exit_code
+
+        # Step 1: load data
+        load_generator = ld.load_individuals(
+            self.paths["data_dir"], (self.radial_bins, self.temperature_bins)
+        )
+        for halo_data in load_generator:
+            halo_id = halo_data['halo_id']
+            ranges = np.concatenate([halo_data["xedges"], halo_data["yedges"]])
+            title = (
+                rf"Halo {halo_id} "
+                rf"($10^{{{np.log10(halo_data['halo_mass']):.2f}}} M_\odot$)"
+            )
+            f, _ = ptr.plot_radial_temperature_profile(
+                halo_data["histogram"],
+                f"halo {halo_id}",
+                ranges,
+                title=title,
+                cbar_label="Gas fraction",
+            )
+            # save figure
+            if self.no_plots:
+                logging.warning(
+                    "Was asked to load data but not plot it. This is pretty "
+                    "pointless and probably not what you wanted."
+                )
+                return 1
+            name = (f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf")
+            path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
+            if not path.exists():
+                logging.debug(
+                    f"Creating missing figures directory for halo "
+                    f"{halo_id}."
+                )
+                path.mkdir(parents=True)
+            f.savefig(path / name, bbox_inches="tight")

@@ -9,6 +9,7 @@ import glob_util
 from library.config import config
 from pipelines.radial_profiles.temperature_individual import (
     IndividualTemperatureProfilePipeline,
+    ITProfilesFromFilePipeline,
 )
 
 
@@ -45,7 +46,7 @@ def main(args: argparse.Namespace) -> None:
         "temperature_bins": args.tbins,
     }
     if args.from_file:
-        raise NotImplementedError("No from file plotting possible yet.")
+        pipeline = ITProfilesFromFilePipeline(**pipeline_config)
     else:
         pipeline = IndividualTemperatureProfilePipeline(**pipeline_config)
     pipeline.run()
@@ -55,7 +56,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog=f"python {Path(__file__).name}",
         description=(
-            "Plot individual radial profiles of all halos in TNG with mass above 10^14 solar masses."
+            "Plot individual radial profiles of all halos in TNG with mass "
+            "above 10^14 solar masses."
         ),
     )
     parser.add_argument(
