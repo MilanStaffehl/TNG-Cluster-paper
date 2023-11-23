@@ -85,16 +85,16 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # Step 2: select only halos above threshhold mass
         logging.info("Restricting halo data to log(M) > 14.")
         mask = np.digitize(halo_data[self.config.mass_field], [0, 1e14, 1e25])
-        selected_ids = prc.statistics.mask_quantity(  # noqa: F841
+        selected_ids = prc.statistics.mask_quantity(
             halo_data["IDs"], mask, index=2, compress=True
         )
-        selected_masses = prc.statistics.mask_quantity(  # noqa: F841
+        selected_masses = prc.statistics.mask_quantity(
             halo_data[self.config.mass_field], mask, index=2, compress=True
         )
-        selected_positions = prc.statistics.mask_quantity(  # noqa: F841
+        selected_positions = prc.statistics.mask_quantity(
             halo_data["GroupPos"], mask, index=2, compress=True
         )
-        selected_radii = prc.statistics.mask_quantity(  # noqa: F841
+        selected_radii = prc.statistics.mask_quantity(
             halo_data[self.config.radius_field], mask, index=2, compress=True
         )
         del halo_data, mask  # free memory
@@ -120,7 +120,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         logging.info(
             f"Calculating temperature for {part_shape[0]:,} gas cells."
         )
-        temps = compute.get_temperature(  # noqa: F841
+        temps = compute.get_temperature(
             gas_data["InternalEnergy"],
             gas_data["ElectronAbundance"],
             gas_data["StarFormationRate"],
@@ -133,15 +133,16 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
 
         # Step 5: Load gas cell position data
-        gas_data = daq.gas.get_gas_properties(  # noqa: F841
-            self.config.base_path, self.config.snap_num, ["Coordinates", "Masses"]
+        gas_data = daq.gas.get_gas_properties(
+            self.config.base_path,
+            self.config.snap_num, ["Coordinates", "Masses"]
         )
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
 
         # Step 6: construct KDTree
         logging.info("Constructing KDTree of gas cell positions.")
-        positions_tree = KDTree(  # noqa: F841
+        positions_tree = KDTree(
             gas_data["Coordinates"],
             balanced_tree=True,
             compact_nodes=True,
