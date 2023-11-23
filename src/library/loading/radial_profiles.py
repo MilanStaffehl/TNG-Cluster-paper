@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterator
 
 import numpy as np
 
@@ -98,3 +98,94 @@ def load_radial_profile_data(
 
     logging.info("Successfully loaded verified data.")
     return histograms, averages
+
+
+def load_individuals(
+    filepath: str | Path,
+    expected_shape: tuple[int, int] | None = None,
+    fail_fast: bool = False,
+) -> Iterator[dict[str, NDArray] | None]:
+    """
+    Yield the histrogram data from file for every file in the directory.
+
+    Function goes through all files in the given directory ``filepath``
+    and yields the halo histogram data for every such file. The yielded
+    value is a dictionary with keys 'histogram' (the histogram data as
+    a 2D array), 'xedges', 'yedges' (the minimum and maximum value of the
+    histogram on both axes), 'halo_id' and 'halo_mass' (given in physical
+    units).
+
+    :param filepath: Path of the directory in which the data files are
+        located. All non-file entries are ignored.
+    :param expected_shape: The shape of the histogram array. Optional,
+        defaults to None which means no verification.
+    :param fail_fast: Whether to raise a ``StopIteration`` when
+        encountering an invalid histogram shape or to simply yield None
+        instead. False means the function will yield None and continue
+        to iterate through the files, True means an invalid data shape
+        will cause a ``StopIteration`` exception to be raised.
+    :raises StopIteration: Raised when a histogram shape does not match
+        the expected shape while ``fail_fast`` is ``True``.
+    :yield: A dictionary of the halo data including the radial profile
+        2D histogram data. The yielded result is a dictionary with the
+        following keys:
+
+        - ``histogram``: The 2D histogram array, containing the histogram
+          values.
+        - ``xedges``: Tuple of the lower and upper edges of the x-axis.
+        - ``yedges``: Tuple of the lower and upper edges of the y-axis.
+        - ``halo_id``: The ID of the halo as integer. Note that this
+          will be an NDArray of shape (1, ).
+        - ``halo_mass``: The mass of the halo in units of solar masses.
+          The exact type of mass measure depends on the setup when the
+          data was saved, but typically, this is the virial mass (M_200c).
+          Note that this will be an NDArray of shape (1, ).
+    """
+    if not isinstance(filepath, Path):
+        filepath = Path(filepath)
+
+    if not filepath.is_dir():
+        logging.error(
+            "Expected data file directory, got file or simlink instead:\n"
+            f"{str(filepath)}"
+        )
+
+    # load every file individually and yield it
+    for filename in filepath.iterdir():
+        if not filename.is_file():
+            logging.warning(f"Skipping non-file entry {filename}.")
+        with np.load(filename) as data_file:
+            histogram = data_file["hist"]
+            xedges = data_file["xedges"]
+            yedges = data_file["yedges"]
+            halo_id = data_file["halo_id"]
+            halo_mass = data_file["halo_mass"]
+
+        # construct dictionary
+        halo_data = {
+            "histogram": histogram,
+            "xedges": xedges,
+            "yedges": yedges,
+            "halo_id": halo_id,
+            "halo_mass": halo_mass,
+        }
+
+        # if data verification is undesired, yield data right away
+        if expected_shape is None:
+            yield halo_data
+            continue  # skip over all data verification code below
+
+        # verify the data shape (is skipped for expected_shape = None)
+        if histogram.shape != expected_shape:
+            logging.error(
+                f"Halo {halo_id} has histogram data not mathcing the ecpected "
+                f"shape: Expected shape {expected_shape} but got "
+                f"{histogram.shape} instead."
+            )
+            if fail_fast:
+                raise StopIteration
+            else:
+                logging.warning("Yielding None. This may cause issues.")
+                yield None
+        else:
+            yield halo_data
