@@ -149,7 +149,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # Step 5: Load gas cell position data
         gas_data = daq.gas.get_gas_properties(
             self.config.base_path,
-            self.config.snap_num, ["Coordinates", "Masses"]
+            self.config.snap_num,
+            fields=["Coordinates", "Masses"],
         )
         gas_data["Temperatures"] = temps
         # diagnostics
