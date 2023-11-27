@@ -3,7 +3,6 @@ Tools for plotting radial profiles.
 """
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Sequence
 
 import matplotlib.pyplot as plt
@@ -164,7 +163,6 @@ def generate_generic_radial_profile(
         - The x-edges of the histogram.
         - The y-edges of the histogram.
     """
-    logging.info(f"Plotting radial profile for {y_label}.")
     # figure set-up
     fig, axes = plt.subplots(figsize=(6, 5))
     axes.set_xlabel(r"Radial distance from center [$R_{200c}$]")
