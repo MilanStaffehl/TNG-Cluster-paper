@@ -71,7 +71,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         :return: Exit code.
         """
         # Step 0: create directories, start memory monitoring, timing
-        self._create_directories()
+        self._create_directories(["particle_ids", "temperature_profiles"])
         tracemalloc.start()
         begin = time.time()
 
@@ -164,6 +164,14 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             part_distances = np.linalg.norm(
                 part_positions - selected_positions[i], axis=1
             ) / selected_radii[i]
+            # save data to file
+            logging.debug(
+                f"Saving particle indices and distances of halo "
+                f"{selected_ids[i]} to file."
+            )
+            if self.to_file:
+                filepath = self.paths["data_dir"] / "particle_ids"
+                np.save(filepath / f"halo_{selected_ids[i]}.npy", neighbors)
             # slice temperatures
             part_temperatures = temps[neighbors]
             # weight by gas mass
@@ -216,7 +224,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             logging.debug(
                 f"Writing histogram data for halo {halo_id} to file."
             )
-            filepath = Path(self.paths["data_dir"])
+            filepath = Path(self.paths["data_dir"]) / "temperature_profiles"
             filename = (f"{self.paths['data_file_stem']}_halo_{halo_id}.npz")
             np.savez(
                 filepath / filename,

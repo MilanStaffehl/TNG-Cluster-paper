@@ -32,7 +32,8 @@ def main(args: argparse.Namespace) -> None:
         False,
         args.figurespath,
         args.datapath,
-        data_subdirectory=f"./individuals/{cfg.sim_path}"
+        figures_subdirectory="./individuals/",
+        data_subdirectory=f"./individuals/{cfg.sim_path}/",
     )
 
     pipeline_config = {

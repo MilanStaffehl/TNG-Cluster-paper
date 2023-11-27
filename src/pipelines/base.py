@@ -7,6 +7,7 @@ import time
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
 
 import typedef
 from library.config import config, logging_config
@@ -42,12 +43,19 @@ class Pipeline:
     def run(self) -> int:
         pass
 
-    def _create_directories(self) -> None:
+    def _create_directories(
+        self, subdirs: Sequence[str | Path] | None = None
+    ) -> None:
         """
         Create data directories if required.
+
+        :param subdirs: Additional dubdirectories of the data directory
+            to check and create if non-existent.
         """
         if not hasattr(self, "to_file"):
             return
+        if subdirs is None:
+            subdirs = []
         if self.to_file:
             data_path = Path(self.paths["data_dir"])
             if not data_path.exists():
@@ -55,6 +63,13 @@ class Pipeline:
                     f"Creating missing data directory {str(data_path)}."
                 )
                 data_path.mkdir(parents=True)
+            for subdirectory in subdirs:
+                additional_path = data_path / subdirectory
+                if not additional_path.exists():
+                    logging.info(
+                        f"Creating missing subdirectory {subdirectory}."
+                    )
+                    additional_path.mkdir()
 
     def _verify_directories(self) -> int:
         """
