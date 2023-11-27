@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def plot_radial_temperature_profile(
+def plot_radial_profile(
     histogram2d: NDArray,
     ranges: Sequence[float, float, float, float],
     xlabel: str = r"Distance from halo center [$R_{200c}$]",
@@ -132,7 +132,7 @@ def generate_generic_radial_profile(
     ybins: int = 50,
     colormap: str | Colormap = "inferno",
     density: bool = False,
-) -> tuple[Figure, Axes, NDArray]:
+) -> tuple[Figure, Axes, NDArray, NDArray, NDArray]:
     """
     Return a 2D histogram of the given data (y-data vs radial distance).
 

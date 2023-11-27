@@ -210,7 +210,7 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
                 rf"${np.log10(self.mass_bin_edges[i]):.1f} < \log \ M_\odot < "
                 rf"{np.log10(self.mass_bin_edges[i + 1]):.1f}$"
             )
-            f, a = ptr.plot_radial_temperature_profile(
+            f, a = ptr.plot_radial_profile(
                 histograms[i],
                 running_averages[i],
                 msg,

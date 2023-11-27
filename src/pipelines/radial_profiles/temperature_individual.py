@@ -473,7 +473,7 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
                 rf"Halo {halo_id} "
                 rf"($10^{{{np.log10(halo_data['halo_mass']):.2f}}} M_\odot$)"
             )
-            f, _ = ptr.plot_radial_temperature_profile(
+            f, _ = ptr.plot_radial_profile(
                 halo_data["histogram"],
                 f"halo {halo_id}",
                 ranges,
