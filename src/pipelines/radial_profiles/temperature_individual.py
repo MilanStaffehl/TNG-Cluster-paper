@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
 import illustris_python as il
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import KDTree
 
@@ -238,6 +239,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             )
             path.mkdir(parents=True)
         f.savefig(path / name, bbox_inches="tight")
+        plt.close(f)
 
     def _diagnostics(
         self,
