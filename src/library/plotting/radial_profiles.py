@@ -54,7 +54,6 @@ def plot_radial_temperature_profile(
         "Count".
     :return: The figure and axes objects with the data drawn onto them.
     """
-    logging.info(f"Plotting radial temperature profile for {log_msg}.")
     # create and configure figure and axes
     fig, axes = plt.subplots(figsize=(6, 5))
     fig.set_tight_layout(True)
