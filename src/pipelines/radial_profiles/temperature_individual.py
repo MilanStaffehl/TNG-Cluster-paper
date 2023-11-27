@@ -156,9 +156,9 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
 
-        # Step 6: plot profile for every halo
-        id_dir = (self.paths["data_dir"] / "particle_ids").iterdir()
-        available_ids = set([f.stem for f in id_dir])
+        # Step 6: check if KDTree construction is required
+        part_id_directory = Path(self.paths["data_dir"]) / "particle_ids"
+        available_ids = set([f.stem for f in part_id_directory.iterdir()])
         required_ids = set(
             [f"particles_halo_{i}" for i in selected_halos["ids"]]
         )
@@ -168,79 +168,50 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 "Found particle IDs of associated particles for all halos. "
                 "Continuing with existing particle ID data."
             )
-            ec = self._plot_with_id_files(gas_data, selected_halos)
+            use_tree = False
         else:
             logging.info(
                 "Not all selected halos have particle IDs of associated "
                 "particles saved. Continuing with KDTree construction."
             )
-            ec = self._plot_with_tree(gas_data, selected_halos)
-
-        self._timeit(begin, "total execution")
-        tracemalloc.stop()
-        return ec
-
-    def _plot_with_tree(
-        self, gas_data: dict[str, NDArray], selected_halos: dict[str, NDArray]
-    ) -> int:
-        """
-        Plot and save temperature profiles by constructing a KDTree.
-
-        Function takes all loaded gas data and selected halo data and
-        constructs a KDTree from the gas particle positions in order to
-        query the halo positions for surrounding gas particles. This
-        takes a considerable amount of time and should be avoided if at
-        all possible by instead using the pre-saved IDs of particles
-        associated with every halo.
-
-        Function will then create a temperature radial profile and save
-        both the plot and the data in the plot required to recreate it
-        to file.
-
-        :param gas_data: The dictionary with the positions and masses of
-            all gas particles in the simulation. Must have keys
-            ``Coordinates`` and ``Masses`` with the corresponding values
-            being arrays containing these data in physical units.
-        :param selected_halos: The dictionary of data on the selected
-            halos. Must contain keys ``ids``, ``masses``, ``positions``
-            and ``radii``, with the corresponding values being arrays
-            of shape (H,) or (H, 3) in the cas eof the positions, holding
-            the quantities for all selected halos in physical units.
-        :return: Exit code.
-        """
-        timepoint = time.time()
-        logging.info("Constructing KDTree of gas cell positions.")
-
-        positions_tree = KDTree(
-            gas_data["Coordinates"],
-            balanced_tree=True,
-            compact_nodes=True,
-        )
-        # diagnostics
-        timepoint = self._diagnostics(timepoint, "constructing KDTree")
+            logging.info("Constructing KDTree from particle positions.")
+            use_tree = True
+            positions_tree = KDTree(
+                gas_data["Coordinates"],
+                balanced_tree=True,
+                compact_nodes=True,
+            )
+            # diagnostics
+            timepoint = self._diagnostics(timepoint, "constructing KDTree")
+        # prepare variables for querying
+        workers = self.processes if self.processes else 1
 
         # Step 7: Create the radial profiles
-        workers = self.processes if self.processes else 1
-        logging.info(f"Begin processing halos with {workers} workers.")
+        logging.info("Begin processing halos.")
         for i in range(len(selected_halos["ids"])):
             halo_id = selected_halos["ids"][i]
             # find all particles within 2 * R_vir
-            neighbors = positions_tree.query_ball_point(
-                selected_halos["positions"][i],
-                2 * selected_halos["radii"][i],
-                workers=workers
-            )  # list of indces, can be used for slices
+            if use_tree:
+                neighbors = positions_tree.query_ball_point(
+                    selected_halos["positions"][i],
+                    2 * selected_halos["radii"][i],
+                    workers=workers
+                )
+            else:
+                neighbors = np.load(
+                    part_id_directory / f"particles_halo_{halo_id}.npy"
+                )
             # slice and normalize distances
             part_positions = gas_data["Coordinates"][neighbors]
             part_distances = np.linalg.norm(
                 part_positions - selected_halos["positions"][i], axis=1
             ) / selected_halos["radii"][i]
             # save data to file
-            logging.debug(
-                f"Saving particle indices and distances of halo {halo_id} to "
-                "file."
-            )
             if self.to_file:
+                logging.debug(
+                    f"Saving particle indices and distances of halo {halo_id} "
+                    "to file."
+                )
                 filepath = self.paths["data_dir"] / "particle_ids"
                 np.save(filepath / f"particles_halo_{halo_id}.npy", neighbors)
             # slice temperatures
@@ -262,69 +233,9 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         timepoint = self._diagnostics(
             timepoint, "plotting individual profiles"
         )
-        return 0
 
-    def _plot_with_id_files(
-        self, gas_data: dict[str, NDArray], selected_halos: dict[str, NDArray]
-    ) -> int:
-        """
-        Plot and save temperature profiles using particle ID files.
-
-        Function takes all loaded gas data and selected halo data and
-        uses pre-saved particle IDs for particles associated to every
-        halo in order to find its neighbors. This is the preferable
-        method of finding all particles in a sphere arounf the halos.
-
-        Function will then create a temperature radial profile and save
-        both the plot and the data in the plot required to recreate it
-        to file.
-
-        :param gas_data: The dictionary with the positions and masses of
-            all gas particles in the simulation. Must have keys
-            ``Coordinates`` and ``Masses`` with the corresponding values
-            being arrays containing these data in physical units.
-        :param selected_halos: The dictionary of data on the selected
-            halos. Must contain keys ``ids``, ``masses``, ``positions``
-            and ``radii``, with the corresponding values being arrays
-            of shape (H,) or (H, 3) in the cas eof the positions, holding
-            the quantities for all selected halos in physical units.
-        :return: Exit code.
-        """
-        timepoint = time.time()
-
-        # Step 7: Create the radial profiles
-        logging.info(f"Begin processing {len(selected_halos['ids'])} halos.")
-        part_id_directory = self.paths["data_dir"] / "particle_ids"
-        for i in range(len(selected_halos["ids"])):
-            halo_id = selected_halos["ids"][i]
-            # find all particles within 2 * R_vir
-            neighbors = np.load(
-                part_id_directory / f"particles_halo_{halo_id}.npy"
-            )
-            # slice and normalize distances
-            part_positions = gas_data["Coordinates"][neighbors]
-            part_distances = np.linalg.norm(
-                part_positions - selected_halos["positions"][i], axis=1
-            ) / selected_halos["radii"][i]
-            # slice temperatures
-            part_temperatures = gas_data["Temperatures"][neighbors]
-            # weight by gas mass
-            weights = gas_data["Masses"][neighbors]
-            weights /= np.sum(gas_data["Masses"][neighbors])
-            # plot and save data
-            self._plot_halo(
-                selected_halos["ids"][i],
-                selected_halos["masses"][i],
-                part_distances,
-                part_temperatures,
-                weights,
-            )
-            # cleanup
-            del part_positions, part_distances, part_temperatures, weights
-
-        timepoint = self._diagnostics(
-            timepoint, "plotting individual profiles"
-        )
+        self._timeit(begin, "total execution")
+        tracemalloc.stop()
         return 0
 
     def _plot_halo(
