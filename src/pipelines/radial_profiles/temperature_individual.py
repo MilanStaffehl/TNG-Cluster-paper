@@ -219,6 +219,32 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             # weight by gas mass
             weights = gas_data["Masses"][neighbors]
             weights /= np.sum(gas_data["Masses"][neighbors])
+            # create histogram
+            h, xe, ye = np.histogram2d(
+                part_distances,
+                part_temperatures,
+                bins=(self.radial_bins, self.temperature_bins),
+                weights=weights,
+            )
+            # save data
+            if self.to_file:
+                logging.debug(
+                    f"Writing histogram data for halo {halo_id} to file."
+                )
+                filepath = Path(
+                    self.paths["data_dir"]
+                ) / "temperature_profiles"
+                filename = (
+                    f"{self.paths['data_file_stem']}_halo_{halo_id}.npz"
+                )
+                np.savez(
+                    filepath / filename,
+                    hist=h,
+                    xedges=xe,
+                    yedges=ye,
+                    halo_id=halo_id,
+                    halo_mass=selected_halos["masses"][i],
+                )
             # plot and save data
             self._plot_halo(
                 halo_id,
@@ -229,6 +255,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             )
             # cleanup
             del part_positions, part_distances, part_temperatures, weights
+            del h, xe, ye
 
         timepoint = self._diagnostics(
             timepoint, "plotting individual profiles"
@@ -242,41 +269,27 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         self,
         halo_id: int,
         halo_mass: float,
-        distances: NDArray,
-        temperatures: NDArray,
-        weights: NDArray
+        histogram: NDArray,
+        xedges: NDArray,
+        yedges: NDArray,
     ) -> None:
+        """
+        Plot the histogram of a single halo.
+
+        :param halo_id: The halo ID.
+        :param halo_mass: The mass of the halo in units of solar masses.
+        :param histogram: The (N, N) shape array of the histogram data.
+        :param xedges: The edges of the x bins.
+        :param yedges: The edges of the y bins.
+        """
         title = (
             f"Temperature profile of halo {halo_id} "
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
-        f, _, h, xe, ye = ptr.generate_generic_radial_profile(
-            distances,
-            np.log10(temperatures),
-            "Temperature [log K]",
-            weights=weights,
-            colorbar_label="Gas fraction",
-            density=False,
-            title=title,
-            xbins=self.radial_bins,
-            ybins=self.temperature_bins,
+        ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+        f, _ = ptr.plot_radial_profile(
+            histogram, ranges, title=title, cbar_label="Gas fraction"
         )
-
-        # save data
-        if self.to_file:
-            logging.debug(
-                f"Writing histogram data for halo {halo_id} to file."
-            )
-            filepath = Path(self.paths["data_dir"]) / "temperature_profiles"
-            filename = (f"{self.paths['data_file_stem']}_halo_{halo_id}.npz")
-            np.savez(
-                filepath / filename,
-                hist=h,
-                xedges=xe,
-                yedges=ye,
-                halo_id=halo_id,
-                halo_mass=halo_mass,
-            )
 
         # save figure
         if self.no_plots:
@@ -374,37 +387,16 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
         if exit_code := self._verify_directories() > 0:
             return exit_code
 
+        if self.no_plots:
+            logging.warning(
+                "Was asked to load data but not plot it. This is pretty "
+                "pointless and probably not what you wanted."
+            )
+            return 1
+
         # Step 1: load data
         load_generator = ld.load_individuals(
             self.paths["data_dir"], (self.radial_bins, self.temperature_bins)
         )
         for halo_data in load_generator:
-            halo_id = halo_data['halo_id']
-            ranges = np.concatenate([halo_data["xedges"], halo_data["yedges"]])
-            title = (
-                rf"Halo {halo_id} "
-                rf"($10^{{{np.log10(halo_data['halo_mass']):.2f}}} M_\odot$)"
-            )
-            f, _ = ptr.plot_radial_profile(
-                halo_data["histogram"],
-                f"halo {halo_id}",
-                ranges,
-                title=title,
-                cbar_label="Gas fraction",
-            )
-            # save figure
-            if self.no_plots:
-                logging.warning(
-                    "Was asked to load data but not plot it. This is pretty "
-                    "pointless and probably not what you wanted."
-                )
-                return 1
-            name = (f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf")
-            path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
-            if not path.exists():
-                logging.debug(
-                    f"Creating missing figures directory for halo "
-                    f"{halo_id}."
-                )
-                path.mkdir(parents=True)
-            f.savefig(path / name, bbox_inches="tight")
+            self._plot_halo(**halo_data)
