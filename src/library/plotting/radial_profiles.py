@@ -3,6 +3,7 @@ Tools for plotting radial profiles.
 """
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Sequence
 
 import matplotlib.pyplot as plt
@@ -17,13 +18,13 @@ if TYPE_CHECKING:
 
 def plot_radial_temperature_profile(
     histogram2d: NDArray,
-    log_msg: str,
     ranges: Sequence[float, float, float, float],
     xlabel: str = r"Distance from halo center [$R_{200c}$]",
     ylabel: str = r"Temperature [$\log K$]",
     title: str | None = None,
     colormap: str = "inferno",
     cbar_label: str = "Count",
+    log_msg: str | None = None,
 ) -> tuple[Figure, Axes]:
     """
     Plot the given 2D histogram of temperature vs. halocentric distance.
@@ -51,8 +52,14 @@ def plot_radial_temperature_profile(
         "inferno".
     :param cbar_label: The label for the colorbar data. Defaults to
         "Count".
+    :param log_msg: The log message suffix to log when execution begins.
+        This message will be used to complete the log message "Plotting
+        radial temperature profile for >``log_msg``<". Set accordingly.
+        Defaults to None, which means no message is logged.
     :return: The figure and axes objects with the data drawn onto them.
     """
+    if log_msg is not None:
+        logging.info(f"Plotting radial temperature profile for {log_msg}.")
     # create and configure figure and axes
     fig, axes = plt.subplots(figsize=(6, 5))
     fig.set_tight_layout(True)
