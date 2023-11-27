@@ -336,7 +336,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
     ) -> None:
         title = (
             f"Temperature profile of halo {halo_id} "
-            f"(10^{np.log10(halo_mass):.2f} log M_sol)"
+            rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         f, _, h, xe, ye = ptr.generate_generic_radial_profile(
             distances,
