@@ -44,19 +44,23 @@ class Pipeline:
         pass
 
     def _create_directories(
-        self, subdirs: Sequence[str | Path] | None = None
+        self,
+        subdirs: Sequence[str | Path] | None = None,
+        force: bool = False,
     ) -> None:
         """
         Create data directories if required.
 
         :param subdirs: Additional dubdirectories of the data directory
             to check and create if non-existent.
+        :param force: Whether to force the creation of missing directories,
+            even if ``self.to_file`` is False.
         """
         if not hasattr(self, "to_file"):
             return
         if subdirs is None:
             subdirs = []
-        if self.to_file:
+        if self.to_file or force:
             data_path = Path(self.paths["data_dir"])
             if not data_path.exists():
                 logging.info(
