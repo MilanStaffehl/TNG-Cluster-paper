@@ -4,7 +4,7 @@ Tools for plotting radial profiles.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -24,6 +24,8 @@ def plot_radial_profile(
     title: str | None = None,
     colormap: str = "inferno",
     cbar_label: str | Colormap = "Count",
+    cbar_ticks: NDArray | None = None,
+    scale: Literal["linear", "log"] = "linear",
     log_msg: str | None = None,
 ) -> tuple[Figure, Axes]:
     """
@@ -57,6 +59,11 @@ def plot_radial_profile(
         "inferno".
     :param cbar_label: The label for the colorbar data. Defaults to
         "Count".
+    :param cbar_ticks: Sequence or array of the tick markers for the
+        colorbar. Optional, defaults to None (automatically chosen ticks).
+    :param scale: If the histogram data is not already given in log
+        scale, this parameter can be set to "log" to plot the log10 of
+        the given histogram data.
     :param log_msg: The log message suffix to log when execution begins.
         This message will be used to complete the log message "Plotting
         radial temperature profile for >``log_msg``<". Set accordingly.
@@ -75,6 +82,10 @@ def plot_radial_profile(
     axes.set_xlabel(xlabel, fontsize=labelsize)
     axes.set_ylabel(ylabel, fontsize=labelsize)
 
+    # scaling
+    if scale == "log":
+        histogram2d = np.log10(histogram2d)
+
     # plot the 2D hist
     hist_config = {
         "cmap": colormap,
@@ -84,8 +95,15 @@ def plot_radial_profile(
         "extent": ranges,
     }
     profile = axes.imshow(histogram2d, **hist_config)
+
     # add colorbar
-    fig.colorbar(profile, ax=axes, location="right", label=cbar_label)
+    cbar_config = {
+        "location": "right",
+        "label": cbar_label,
+    }
+    if cbar_ticks is not None:
+        cbar_config.update({"ticks": cbar_ticks})
+    fig.colorbar(profile, ax=axes, **cbar_config)
 
     return fig, axes
 
