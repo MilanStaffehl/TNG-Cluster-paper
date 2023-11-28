@@ -45,6 +45,7 @@ def main(args: argparse.Namespace) -> None:
         "no_plots": args.no_plots,
         "radial_bins": args.rbins,
         "temperature_bins": args.tbins,
+        "log": args.log,
     }
     if args.from_file:
         pipeline = ITProfilesFromFilePipeline(**pipeline_config)
@@ -76,11 +77,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "-p",
         "--processes",
-        help=("Use multiprocessing, with the specified number of processes."),
+        help=(
+            "Use multiple workers when querying KDTree, with the number of workers specified after this flag. Has no effect when associated particle ID data files exist."
+        ),
         type=int,
         default=0,
         dest="processes",
         metavar="NUMBER",
+    )
+    parser.add_argument(
+        "--log",
+        help=("Plot the figures in log scale instead of linear scale."),
+        action="store_true",
+        dest="log",
     )
     parser.add_argument(
         "-f",

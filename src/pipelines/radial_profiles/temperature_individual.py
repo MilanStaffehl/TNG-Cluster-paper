@@ -43,6 +43,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
 
     radial_bins: int
     temperature_bins: int
+    log: bool
 
     def __post_init__(self):
         super().__post_init__()
@@ -72,7 +73,9 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         :return: Exit code.
         """
         # Step 0: create directories, start memory monitoring, timing
-        self._create_directories(["particle_ids", "temperature_profiles"])
+        self._create_directories(
+            subdirs=["particle_ids", "temperature_profiles"], force=True
+        )
         tracemalloc.start()
         begin = time.time()
 
@@ -220,11 +223,18 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             weights = gas_data["Masses"][neighbors]
             weights /= np.sum(gas_data["Masses"][neighbors])
             # create histogram
-            h, xe, ye = np.histogram2d(
+            h, _, _, = np.histogram2d(
                 part_distances,
-                part_temperatures,
+                np.log10(part_temperatures),
                 bins=(self.radial_bins, self.temperature_bins),
                 weights=weights,
+            )
+            hn, xe, ye = prc.statistics.column_normalized_hist2d(
+                part_distances,
+                np.log10(part_temperatures),
+                bins=(self.radial_bins, self.temperature_bins),
+                values=weights,
+                normalization="density",
             )
             # save data
             if self.to_file:
@@ -239,7 +249,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 )
                 np.savez(
                     filepath / filename,
-                    hist=h,
+                    histogram=hn,
+                    original_histogram=h,
                     xedges=xe,
                     yedges=ye,
                     halo_id=halo_id,
@@ -247,15 +258,15 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 )
             # plot and save data
             self._plot_halo(
-                halo_id,
-                selected_halos["masses"][i],
-                part_distances,
-                part_temperatures,
-                weights,
+                halo_id=halo_id,
+                halo_mass=selected_halos["masses"][i],
+                histogram=hn,
+                xedges=xe,
+                yedges=ye,
             )
             # cleanup
             del part_positions, part_distances, part_temperatures, weights
-            del h, xe, ye
+            del hn, h, xe, ye
 
         timepoint = self._diagnostics(
             timepoint, "plotting individual profiles"
@@ -287,9 +298,19 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-        f, _ = ptr.plot_radial_profile(
-            histogram, ranges, title=title, cbar_label="Gas fraction"
-        )
+        if self.log:
+            f = ptr.plot_radial_profile(
+                histogram,
+                ranges,
+                title=title,
+                cbar_label="FIX ME!",
+                scale="log",
+                cbar_ticks=[0, -1, -2, -3, -4, -5],
+            )
+        else:
+            f = ptr.plot_radial_profile(
+                histogram, ranges, title=title, cbar_label="FIX ME!"
+            )
 
         # save figure
         if self.no_plots:
@@ -302,8 +323,8 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 f"{halo_id}."
             )
             path.mkdir(parents=True)
-        f.savefig(path / name, bbox_inches="tight")
-        plt.close(f)
+        f[0].savefig(path / name, bbox_inches="tight")
+        plt.close(f[0])
 
     def _diagnostics(
         self,
