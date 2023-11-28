@@ -133,3 +133,31 @@ def test_mask_quantity_uncompressed_dimensions():
     # assert dimensions
     assert ma.isMaskedArray(output)
     assert output.shape == (3, 2)
+
+
+def test_column_normalized_hist2d_density():
+    """
+    Test that the function can return a simple count-based hist2d.
+    """
+    x_data = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3])
+    y_data = np.array([1, 2, 2, 2, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 2, 3])
+    output = statistics.column_normalized_hist2d(x_data, y_data, (3, 3))
+    assert output[0].shape == (3, 3)
+    expected = np.array(
+        [[1 / 6, 3 / 4, 0], [1 / 2, 0, 1 / 2], [1 / 3, 1 / 4, 1 / 2]]
+    )
+    np.testing.assert_almost_equal(output[0], expected, decimal=2)
+
+
+def test_column_normalized_hist2d_range():
+    """
+    Test the function using the range normalization.
+    """
+    x_data = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3])
+    y_data = np.array([1, 2, 2, 2, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 2, 3])
+    output = statistics.column_normalized_hist2d(
+        x_data, y_data, (3, 3), normalization="range"
+    )
+    assert output[0].shape == (3, 3)
+    expected = np.array([[1 / 3, 1, 0], [1, 0, 1], [2 / 3, 1 / 3, 1]])
+    np.testing.assert_almost_equal(output[0], expected, decimal=2)

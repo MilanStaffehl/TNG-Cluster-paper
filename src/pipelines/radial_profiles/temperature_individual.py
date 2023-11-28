@@ -207,7 +207,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 part_positions - selected_halos["positions"][i], axis=1
             ) / selected_halos["radii"][i]
             # save data to file
-            if self.to_file:
+            if self.to_file and use_tree:
                 logging.debug(
                     f"Saving particle indices and distances of halo {halo_id} "
                     "to file."

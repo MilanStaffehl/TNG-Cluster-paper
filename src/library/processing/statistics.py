@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Iterator, Sequence, TypeVar
+from typing import Iterator, Literal, Sequence, TypeVar
 
 import numpy as np
 import numpy.ma as ma
+import scipy.stats
 from numpy.typing import NDArray
 
 Hist2D = TypeVar("Hist2D", bound=NDArray)
@@ -355,3 +356,111 @@ def get_binned_medians(
     lerr = np.abs(np.array(med) - np.array(lper))  # error below median
     uerr = np.abs(np.array(med) - np.array(uper))  # error above median
     return np.array([np.array(med), lerr, uerr])
+
+
+def column_normalized_hist2d(
+    x: NDArray,
+    y: NDArray,
+    bins: int | tuple[int, int] | NDArray | tuple[NDArray, NDArray],
+    values: NDArray | None = None,
+    ranges: NDArray | None = None,
+    statistic: str = "sum",
+    normalization: Literal["density", "range"] = "density",
+) -> tuple[Hist2D, NDArray, NDArray] | None:
+    """
+    Return a 2D histogram normalized column-wise.
+
+    Function takes a set of data points with positions given by ``x``
+    and ``y`` and corresponding values and creates a 2D histogram of
+    these values, which is normalized at every x bin, meaning that for
+    a fixed x value, the values in the y bins along the y-axis are
+    normalized. The exact type of normaliation depends on the choice of
+    ``normalization``:
+
+    - ``density``: The histogram will be normalized such that the values
+      of every column will add up to one, i.e. for a fixed x, all bin
+      values summed up along the y-axis will be equal to one.
+    - ``range``: The histogram will be normalized such that in every
+      column, the maximum value is normalized to one, i.e. for fixed x
+      every bin value along the x-axis will lie between 0 and 1 with
+      the largest value at this x being equal to 1. Not that this does
+      not assign the smallest value in the column to zero; it merely
+      normalizes every value to the largest one in the column.
+
+    The function also supports different types of bin statistics. The
+    options are identical to those of ``scipy.stats.binned_statistics_2d``,
+    see the`scipy documentation`_ for details. In order to get a normal
+    weighted histogram, use the weights as values and set "statistics"
+    to ``"sum"``. In order to get a count histogram, leave both the
+    values and the statistics arguments at their default values.
+
+    .. attention:: The histogram will have shape (ny, nx) - contrary to
+        the standard order of most histogram generating functions! This
+        is done to ensure that the array will have the more intuitive,
+        readily understandable form wherein the first index selects a
+        row, and the second index selects a column (i.e. an entry of the
+        selected row). This shape is also expected for plotting functions
+        such as ``mtplotlib.pyplot.imshow``. To return to the original
+        shape, simply transpose the histogram array: ``hist.transpose()``.
+
+    :param x: The array of shape (N, ) of x-positions of the data points.
+    :param y: The array of shape (N, ) of y-positions of the data points.
+    :param bins: The bins for the histogram. Can be one of the following:
+        - int: In this case, both dimensions will be split into this
+          number of bins.
+        - tuple[int, int]: The histogram will be split into bins according
+          to the two numbers given with (nx, ny) bins.
+        - NDArray: The array will determine the bin edges in both
+          dimensions.
+        - tuple[NDArray, NDArray]: First array will specify the bin edges
+          along the x-axis, the second the bin edges along the y-axis.
+    :param values: The values belonging to each data point. Must be of
+        shape (N, ). Optional, leave empty for a simple count statistic.
+        Defaults to None, which means it will automatically be replaced
+        by an array of ones of shape (N, ).
+    :param ranges: The ranges along the x- and y-axis. Values outside of
+        these ranges are ignored. Defaults to None, which means the
+        ranges are automatically determined and will include all points.
+    :param statistic: The bin statistic to use. See the
+        `scipy documentation`_ for details. Defaults to "sum".
+    :param normalization: The normalization to use along the columns.
+        Choices are "density" or "range". Density normalzation will
+        normalize every column such that its values add up to one, while
+        schoosing range will normalize every column to its maximum value,
+        such that every column will have 1 as its maximum value. Defaults
+        to "density".
+    :raises RuntimeError: If an unsupported normalization is given.
+    :return: The tuple of the histogram, the x-edges and the y-edges.
+        The histogram is column-wise normalized according to the chosen
+        method.
+
+    .. _scipy documentation: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binned_statistic_2d.html
+    """  # noqa: B950
+    if x.shape != y.shape:
+        logging.error(
+            f"Received x and y data arrays of different shape: shape of x is "
+            f"{x.shape} but y has shape {y.shape}."
+        )
+        return
+    # if no values are given, assume a normal count/sum is desired
+    if values is None:
+        values = np.ones_like(x)
+
+    # calculate histogram
+    hist, xedges, yedges, _ = scipy.stats.binned_statistic_2d(
+        x, y, values, statistic, bins, ranges
+    )
+
+    # normalize every column according to chosen normalization
+    if normalization == "density":
+        column_sums = np.sum(hist, axis=1)
+        # broadcast column sum array to appropriate shape
+        hist = np.divide(hist, column_sums[:, np.newaxis])
+    elif normalization == "range":
+        column_max = np.max(hist, axis=1)
+        # broadcast column max to appropriate shape
+        hist = np.divide(hist, column_max[:, np.newaxis])
+    else:
+        raise RuntimeError(f"Unsupported normalization {normalization}.")
+
+    return hist.transpose(), xedges, yedges

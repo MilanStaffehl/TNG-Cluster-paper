@@ -36,9 +36,14 @@ def plot_radial_profile(
     Function returns figure and axis objects, and does NOT save the plot
     to file or displays it. Returned figure must be saved separately.
 
-    :param histogram2d: Array of 2D histograms of shape (N, R, T) where
-        N is the total number of halos, R the number of radial bins of
-        the histogram and T the number of temperature bins.
+    .. attention:: The expected histogram array is ordered (y, x), as
+        opposed to the order of the return value of many histogram-
+        generating functions such as ``numpy.histogram2d``, which will
+        give an array of shape (x, y).
+
+    :param histogram2d: Array of 2D histograms of shape (Y, R) where
+        R is the number of radial bins of the histogram and Y the number
+        of y-bins, for example temperature bins.
     :param log_msg: The log message suffix to log when execution begins.
         This message will be used to complete the log message "Plotting
         radial temperature profile for >``log_msg``<". Set accordingly.
@@ -82,7 +87,6 @@ def plot_radial_profile(
     # add colorbar
     fig.colorbar(profile, ax=axes, location="right", label=cbar_label)
 
-    axes.legend()
     return fig, axes
 
 
@@ -118,4 +122,5 @@ def overplot_running_average(
         "label": "Running average"
     }
     axes.step(xs, averages, **avg_config)
+    axes.legend()
     return figure, axes
