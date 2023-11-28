@@ -155,7 +155,8 @@ def load_individuals(
         if not filename.is_file():
             logging.warning(f"Skipping non-file entry {filename}.")
         with np.load(filename) as data_file:
-            histogram = data_file["hist"]
+            histogram = data_file["histogram"]
+            # original_histogram = data_file["original_histogram"]  # unused
             xedges = data_file["xedges"]
             yedges = data_file["yedges"]
             halo_id = data_file["halo_id"]
