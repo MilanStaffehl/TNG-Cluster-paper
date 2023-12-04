@@ -488,7 +488,10 @@ def volume_normalized_radial_profile(
     where R_r and R_l are the right and left edge of the radial bin
     respectively. If the edges are given in units of the virial radius,
     specifying the virial radius will return them into a physical unit
-    (namely the unit in which the virial radius is given).
+    (namely the unit in which the virial radius is given). The unit of
+    the x-axis however is always kept as it is given (i.e. even if a
+    virial radius is specified, the x-axis will be normalized to units
+    of the virial radius again).
 
     Function returns both the normalized histogram as well as the array
     of its bin edges.
@@ -516,5 +519,9 @@ def volume_normalized_radial_profile(
     )
     # normalize every column by the shell volume
     shell_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+
+    # return x-axis to units of virial radii
+    if virial_radius:
+        edges = edges / virial_radius
 
     return hist / shell_volumes, edges
