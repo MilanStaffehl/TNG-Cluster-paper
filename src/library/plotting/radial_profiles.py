@@ -16,7 +16,53 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-def plot_radial_profile(
+def plot_1d_radial_profile(
+    histogram: NDArray,
+    edges: NDArray,
+    xlabel: str = r"Distance from halo center [$R_{200c}$]",
+    ylabel: str = r"Density in radial shell [$M_\odot / kpc^3$]",
+    title: str | None = None,
+    log: bool = True,
+) -> tuple[Figure, Axes]:
+    """
+    Plot and return a radial profile given as a histogram.
+
+    The function requires a radial profile to be given as an array of
+    values for a set of radial bins specified by ``histogram`` and
+    ``edges`` respectively. The radial profile is then plotted as a
+    step histogram.
+
+    :param histogram: The array of the values for every radial bin.
+        Shape (N, ).
+    :param edges: The array of the radial bin edges, must be of shape
+        (N + 1, ).
+    :param xlabel: The label for the x-axis.
+    :param ylabel: The label for the y-axis.
+    :param title: Optional title for the figure.
+    :param log: Whether to plot the profile in log scale. Defaults to
+        True.
+    :return: A tuple of the figure and axes object with the plot on them.
+    """
+    fig, axes = plt.subplots(figsize=(6, 5))
+    fig.set_tight_layout(True)
+
+    axes.set_xlabel(xlabel)
+    axes.set_ylabel(ylabel)
+    if title:
+        axes.set_title(title)
+
+    # plot histogram
+    bin_centers = (edges[:-1] + edges[1:]) / 2
+    plot_config = {
+        "histtype": "step",
+        "color": "black",
+        "log": log,
+    }
+    axes.hist(bin_centers, bins=edges, weights=histogram, **plot_config)
+    return fig, axes
+
+
+def plot_2d_radial_profile(
     histogram2d: NDArray,
     ranges: Sequence[float, float, float, float],
     xlabel: str = r"Distance from halo center [$R_{200c}$]",

@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
-import illustris_python as il
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import KDTree
@@ -19,7 +18,6 @@ import library.data_acquisition as daq
 import library.loading.radial_profiles as ld
 import library.plotting.radial_profiles as ptr
 import library.processing as prc
-from library import compute
 from library.config import logging_config
 from pipelines.base import Pipeline
 
@@ -199,7 +197,7 @@ class IndividualDensityProfilePipeline(Pipeline):
             weights = gas_data["Masses"][neighbors]
             # create histogram
             hist, edges = prc.statistics.volume_normalized_radial_profile(
-                part_distances, weights, self.radial_bins
+                part_distances, weights, self.radial_bins, selected_halos["radii"][i],
             )
             # save data
             if self.to_file:
@@ -213,7 +211,7 @@ class IndividualDensityProfilePipeline(Pipeline):
                 np.savez(
                     filepath / filename,
                     histogram=hist,
-                    edges=xe,
+                    edges=edges,
                     halo_id=halo_id,
                     halo_mass=selected_halos["masses"][i],
                 )
@@ -225,8 +223,7 @@ class IndividualDensityProfilePipeline(Pipeline):
                 edges=edges,
             )
             # cleanup
-            del part_positions, part_distances, part_temperatures, weights
-            del hn, h, xe, ye
+            del part_positions, part_distances, weights, hist, edges
 
         timepoint = self._diagnostics(
             timepoint, "plotting individual profiles"
@@ -252,16 +249,15 @@ class IndividualDensityProfilePipeline(Pipeline):
         :param edges: The edges of the radial bins.
         """
         title = (
-            f"Temperature profile of halo {halo_id} "
+            f"Density profile of halo {halo_id} "
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
-        ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
-        f, a = None, None
+        f, _ = ptr.plot_1d_radial_profile(histogram, edges, log=self.log, title=title)
 
         # save figure
         if self.no_plots:
             return
-        name = (f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf")
+        name = f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf"
         path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
         if not path.exists():
             logging.debug(
@@ -269,15 +265,15 @@ class IndividualDensityProfilePipeline(Pipeline):
                 f"{halo_id}."
             )
             path.mkdir(parents=True)
-        f[0].savefig(path / name, bbox_inches="tight")
-        plt.close(f[0])
+        f.savefig(path / name, bbox_inches="tight")
+        plt.close(f)
 
     def _diagnostics(
         self,
-        start_time: int,
+        start_time: float,
         step_description: str,
         reset_peak: bool = True,
-    ) -> int:
+    ) -> float:
         """
         Log diagnostic data.
 
@@ -331,7 +327,7 @@ class IndividualDensityProfilePipeline(Pipeline):
         logging.log(18, f"{message}: {memory:,.4} {unit}.")
 
 
-class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
+class ITProfilesFromFilePipeline(IndividualDensityProfilePipeline):
     """
     Pipeline to recreate the temp profiles of individual halos from file.
     """
@@ -341,7 +337,7 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
 
     def run(self) -> int:
         """
-        Recreate radial temperature profiles from file.
+        Recreate radial density profiles from file.
 
         Steps for every halo:
 
@@ -362,8 +358,8 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
             return 1
 
         # Step 1: load data
-        load_generator = ld.load_individuals(
-            self.paths["data_dir"], (self.radial_bins, self.temperature_bins)
+        load_generator = ld.load_individuals_1d_profile(
+            self.paths["data_dir"], self.radial_bins
         )
         for halo_data in load_generator:
             self._plot_halo(**halo_data)

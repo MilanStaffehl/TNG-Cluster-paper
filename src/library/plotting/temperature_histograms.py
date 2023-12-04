@@ -156,7 +156,7 @@ def get_errorbar_lengths(median: NDArray, percentiles: NDArray) -> NDArray:
     """
     Return the error bar lengths as (2, N) shape array.
 
-    The percentles must have shape (2, N) where N is the length of the
+    The percentiles must have shape (2, N) where N is the length of the
     median array. The first entry on axis zero must be the position of
     the lower percentiles, the second the positions of the upper
     percentiles. The returned array has the same shape, but as values

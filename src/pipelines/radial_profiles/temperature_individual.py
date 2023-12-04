@@ -309,7 +309,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
         if self.log:
-            f = ptr.plot_radial_profile(
+            f = ptr.plot_2d_radial_profile(
                 histogram,
                 ranges,
                 title=title,
@@ -318,7 +318,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
                 cbar_ticks=[0, -1, -2, -3, -4, -5],
             )
         else:
-            f = ptr.plot_radial_profile(
+            f = ptr.plot_2d_radial_profile(
                 histogram, ranges, title=title, cbar_label="FIX ME!"
             )
 
@@ -426,7 +426,7 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
             return 1
 
         # Step 1: load data
-        load_generator = ld.load_individuals(
+        load_generator = ld.load_individuals_2d_profile(
             self.paths["data_dir"], (self.radial_bins, self.temperature_bins)
         )
         for halo_data in load_generator:

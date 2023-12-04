@@ -470,6 +470,7 @@ def volume_normalized_radial_profile(
     radial_distances: NDArray,
     weight: NDArray,
     bins: int | NDArray,
+    virial_radius: float | None = None
 ) -> tuple[NDArray, NDArray]:
     """
     Generate a radial profile, normalized by shell volume.
@@ -485,7 +486,9 @@ def volume_normalized_radial_profile(
         z = w / (\\frac{4}{3} \\pi (R_r^3 - R_l^3))
 
     where R_r and R_l are the right and left edge of the radial bin
-    respectively.
+    respectively. If the edges are given in units of the virial radius,
+    specifying the virial radius will return them into a physical unit
+    (namely the unit in which the virial radius is given).
 
     Function returns both the normalized histogram as well as the array
     of its bin edges.
@@ -494,9 +497,17 @@ def volume_normalized_radial_profile(
     :param weight: The array of weights to sum per bin. Must have the
         same shape as ``radial_distances``.
     :param bins: The number of radial bins or the array of bin edges.
+    :param virial_radius: If the radial distances are given in units of
+        the virial radius, specifying the virial radius will return them
+        to physical units by multiplying the radial distances with it.
+        Subsequently, the quantity in the histogram will also be in
+        physical units then.
     :return: The tuple of the shell volume normalized histogram and the
         array of bin edges.
     """
+    # check if radial distances need to be unit adjusted
+    if virial_radius is not None:
+        radial_distances *= virial_radius
     # bin quantity into distance bins
     hist, edges = np.histogram(
         radial_distances,
