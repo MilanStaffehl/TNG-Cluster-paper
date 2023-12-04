@@ -464,3 +464,47 @@ def column_normalized_hist2d(
         raise RuntimeError(f"Unsupported normalization {normalization}.")
 
     return hist.transpose(), xedges, yedges
+
+
+def volume_normalized_radial_profile(
+    radial_distances: NDArray,
+    weight: NDArray,
+    bins: int | NDArray,
+) -> tuple[NDArray, NDArray]:
+    """
+    Generate a radial profile, normalized by shell volume.
+
+    The function generates a radial profile histogram of the quantity
+    ``weight`` by binning it into radial bins and summing the weights
+    per bin. The value of this sum is then normalized by the shell
+    volume of the corresponding radial bin. This means that if the
+    weighted sum in a bin is w, the function will calculate
+
+    .. math::
+
+        z = w / (\\frac{4}{3} \\pi (R_r^3 - R_l^3))
+
+    where R_r and R_l are the right and left edge of the radial bin
+    respectively.
+
+    Function returns both the normalized histogram as well as the array
+    of its bin edges.
+
+    :param radial_distances: The array of radial distances.
+    :param weight: The array of weights to sum per bin. Must have the
+        same shape as ``radial_distances``.
+    :param bins: The number of radial bins or the array of bin edges.
+    :return: The tuple of the shell volume normalized histogram and the
+        array of bin edges.
+    """
+    # bin quantity into distance bins
+    hist, edges = np.histogram(
+        radial_distances,
+        bins=bins,
+        weights=weight,
+    )
+    # normalize every column by the shell volume
+    shell_cubed = (radial_distances[1:]**3 - radial_distances[:-1]**3)
+    shell_volumes = 4 / 3 * np.pi * shell_cubed
+
+    return hist / shell_volumes, edges
