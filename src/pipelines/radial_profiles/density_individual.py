@@ -323,11 +323,12 @@ class IndividualDensityProfilePipeline(Pipeline):
             case "GB":
                 memory = memory_used / 1024. / 1024. / 1024.
             case _:
+                memory = memory_used
                 unit = "Bytes"  # assume the unit is bytes
         logging.log(18, f"{message}: {memory:,.4} {unit}.")
 
 
-class ITProfilesFromFilePipeline(IndividualDensityProfilePipeline):
+class IDProfilesFromFilePipeline(IndividualDensityProfilePipeline):
     """
     Pipeline to recreate the temp profiles of individual halos from file.
     """

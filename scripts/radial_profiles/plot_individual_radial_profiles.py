@@ -7,6 +7,10 @@ sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
 from library.config import config
+from pipelines.radial_profiles.density_individual import (
+    IDProfilesFromFilePipeline,
+    IndividualDensityProfilePipeline,
+)
 from pipelines.radial_profiles.temperature_individual import (
     IndividualTemperatureProfilePipeline,
     ITProfilesFromFilePipeline,
@@ -48,10 +52,18 @@ def main(args: argparse.Namespace) -> None:
         "log": args.log,
         "forbid_tree": args.forbid_tree,
     }
-    if args.from_file:
-        pipeline = ITProfilesFromFilePipeline(**pipeline_config)
+    if args.what == "temperature":
+        if args.from_file:
+            pipeline = ITProfilesFromFilePipeline(**pipeline_config)
+        else:
+            pipeline = IndividualTemperatureProfilePipeline(**pipeline_config)
     else:
-        pipeline = IndividualTemperatureProfilePipeline(**pipeline_config)
+        # remove temperature bins argument
+        pipeline_config.pop("temperature_bins")
+        if args.from_file:
+            pipeline = IDProfilesFromFilePipeline(**pipeline_config)
+        else:
+            pipeline = IndividualDensityProfilePipeline(**pipeline_config)
     pipeline.run()
 
 
@@ -74,6 +86,15 @@ if __name__ == "__main__":
         type=str,
         default="MAIN_SIM",
         choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
+    )
+    parser.add_argument(
+        "-w",
+        "--what",
+        help=("What type of radial profile to plot: temperature, density."),
+        dest="what",
+        type=str,
+        default="temperature",
+        choices=["temperature", "density"],
     )
     parser.add_argument(
         "-p",
@@ -101,14 +122,14 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--log",
-        help=("Plot the figures in log scale instead of linear scale."),
+        help="Plot the figures in log scale instead of linear scale.",
         action="store_true",
         dest="log",
     )
     parser.add_argument(
         "-f",
         "--to-file",
-        help="Whether to write the histogram data calclated to file",
+        help="Whether to write the histogram data calclated to file.",
         dest="to_file",
         action="store_true",
     )
