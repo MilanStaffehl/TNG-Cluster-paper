@@ -515,7 +515,6 @@ def volume_normalized_radial_profile(
         weights=weight,
     )
     # normalize every column by the shell volume
-    shell_cubed = (radial_distances[1:]**3 - radial_distances[:-1]**3)
-    shell_volumes = 4 / 3 * np.pi * shell_cubed
+    shell_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
 
     return hist / shell_volumes, edges
