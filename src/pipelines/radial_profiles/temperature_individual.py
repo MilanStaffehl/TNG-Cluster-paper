@@ -44,6 +44,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
     radial_bins: int
     temperature_bins: int
     log: bool
+    forbid_tree: bool = True  # whether KDTree construction is allowed
 
     def __post_init__(self):
         super().__post_init__()
@@ -173,6 +174,15 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             )
             use_tree = False
         else:
+            # if the user explicitly forbade tree creation, cancel execution
+            if self.forbid_tree:
+                logging.fatal(
+                    "Not all selected halos have associated particle IDs on "
+                    "file, but tree creation was forbidden. Cannot continue "
+                    "with the job at hand, canceling execution."
+                )
+                return 2
+            # otherwise, create the tree
             logging.info(
                 "Not all selected halos have particle IDs of associated "
                 "particles saved. Continuing with KDTree construction."

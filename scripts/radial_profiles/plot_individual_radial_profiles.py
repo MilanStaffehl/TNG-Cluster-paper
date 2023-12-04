@@ -46,6 +46,7 @@ def main(args: argparse.Namespace) -> None:
         "radial_bins": args.rbins,
         "temperature_bins": args.tbins,
         "log": args.log,
+        "forbid_tree": args.forbid_tree,
     }
     if args.from_file:
         pipeline = ITProfilesFromFilePipeline(**pipeline_config)
@@ -78,12 +79,25 @@ if __name__ == "__main__":
         "-p",
         "--processes",
         help=(
-            "Use multiple workers when querying KDTree, with the number of workers specified after this flag. Has no effect when associated particle ID data files exist."
+            "Use multiple workers when querying KDTree, with the number of "
+            "workers specified after this flag. Has no effect when associated "
+            "particle ID data files exist."
         ),
         type=int,
         default=0,
         dest="processes",
         metavar="NUMBER",
+    )
+    parser.add_argument(
+        "-t",
+        "--forbid-tree",
+        help=(
+            "Forbid the construction of a KDTree. Will cause the job to fail "
+            "if construction of a KDTree is required in order to find the "
+            "neighboring particles of all halos above the mass threshhold."
+        ),
+        dest="forbid_tree",
+        action="store_true",
     )
     parser.add_argument(
         "--log",
