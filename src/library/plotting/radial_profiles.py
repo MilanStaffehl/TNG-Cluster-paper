@@ -20,7 +20,7 @@ def plot_1d_radial_profile(
     histogram: NDArray,
     edges: NDArray,
     xlabel: str = r"Distance from halo center [$R_{200c}$]",
-    ylabel: str = r"Density in radial shell [$M_\odot / kpc^3$]",
+    ylabel: str = r"Average density in radial shell [$M_\odot / kpc^3$]",
     title: str | None = None,
     log: bool = True,
 ) -> tuple[Figure, Axes]:
