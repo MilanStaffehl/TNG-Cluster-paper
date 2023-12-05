@@ -4,7 +4,7 @@ Unit tests for the statistics module.
 import numpy as np
 import numpy.ma as ma
 
-from library.processing import statistics
+from library.processing import selection, statistics
 
 
 def test_stack_2d_histograms_per_mass_bin():
@@ -45,7 +45,7 @@ def test_get_2d_histogram_running_average():
     np.testing.assert_array_almost_equal_nulp(test_data, expected)
 
 
-def test_mask_quantity_1D():
+def test_mask_quantity_1d():
     """
     Test the masking function for a simple 1D array.
     """
@@ -53,14 +53,12 @@ def test_mask_quantity_1D():
     mask = np.array([0, 0, 1, 1, 0, 0, 1, 1, 0, 0])
     expected_output = np.array([2, 3, 6, 7])
     # test function
-    output = statistics.mask_quantity(
-        input_array, mask, index=1, compress=True
-    )
+    output = selection.mask_quantity(input_array, mask, index=1, compress=True)
     np.testing.assert_equal(expected_output, output)
     assert not isinstance(output, ma.MaskedArray)
 
 
-def test_mask_quantity_2D():
+def test_mask_quantity_2d():
     """
     Test the masking function for a 2D matrix.
     """
@@ -68,14 +66,12 @@ def test_mask_quantity_2D():
     mask = np.array([1, 0, 1, 0, 1])
     expected_output = np.array([[0, 1], [4, 5], [8, 9]])
     # test function
-    output = statistics.mask_quantity(
-        input_array, mask, index=1, compress=True
-    )
+    output = selection.mask_quantity(input_array, mask, index=1, compress=True)
     np.testing.assert_equal(expected_output, output)
     assert not isinstance(output, ma.MaskedArray)
 
 
-def test_mask_quantity_3D():
+def test_mask_quantity_3d():
     """
     Test the masking function for an 3D matrix.
     """
@@ -99,9 +95,7 @@ def test_mask_quantity_3D():
         ]
     )
     # test function
-    output = statistics.mask_quantity(
-        input_array, mask, index=1, compress=True
-    )
+    output = selection.mask_quantity(input_array, mask, index=1, compress=True)
     np.testing.assert_equal(expected_output, output)
     assert not isinstance(output, ma.MaskedArray)
 
@@ -114,7 +108,7 @@ def test_mask_quantity_uncompressed():
     mask = np.array([0, 0, 1, 1, 0, 0, 1, 1, 0, 0])
     expected_output = np.array([2, 3, 6, 7])
     # test function
-    output = statistics.mask_quantity(
+    output = selection.mask_quantity(
         input_array, mask, index=1, compress=False
     )
     np.testing.assert_equal(expected_output, output.data)
@@ -127,7 +121,7 @@ def test_mask_quantity_uncompressed_dimensions():
     """
     input_array = np.array([[0, 1], [2, 3], [4, 5], [6, 7], [8, 9]])
     mask = np.array([1, 0, 1, 0, 1])
-    output = statistics.mask_quantity(
+    output = selection.mask_quantity(
         input_array, mask, index=1, compress=False
     )
     # assert dimensions

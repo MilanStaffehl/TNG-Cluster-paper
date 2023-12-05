@@ -15,8 +15,8 @@ if TYPE_CHECKING:
 
 def load_histogram_data(
     filepath: str | Path,
-    expected_shape: tuple[int] | None = None
-) -> tuple[NDArray, NDArray, NDArray]:
+    expected_shape: tuple[int, int] | None = None
+) -> tuple[NDArray, NDArray, NDArray] | None:
     """
     Load stacked (averaged) histogram data from file.
 
@@ -31,7 +31,7 @@ def load_histogram_data(
     ``histograms_median`` and ``histograms_percentiles`` attributes
     respectively.
 
-    :param file: file name of the numpy data file.
+    :param filepath: file name of the numpy data file.
     :param expected_shape: The shape that the mean and median arrays
         are expected to have. If given, the function will verify that
         the loaded data has this shape, otherwise the loaded data will

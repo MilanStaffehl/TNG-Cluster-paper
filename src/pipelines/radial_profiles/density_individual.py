@@ -89,22 +89,22 @@ class IndividualDensityProfilePipeline(Pipeline):
         mask = np.digitize(halo_data[self.config.mass_field], [0, 1e14, 1e25])
         selected_halos = {
             "ids":
-                prc.statistics.mask_quantity(
+                prc.selection.mask_quantity(
                     halo_data["IDs"], mask, index=2, compress=True
                 ),
             "masses":
-                prc.statistics.mask_quantity(
+                prc.selection.mask_quantity(
                     halo_data[self.config.mass_field],
                     mask,
                     index=2,
                     compress=True
                 ),
             "positions":
-                prc.statistics.mask_quantity(
+                prc.selection.mask_quantity(
                     halo_data["GroupPos"], mask, index=2, compress=True
                 ),
             "radii":
-                prc.statistics.mask_quantity(
+                prc.selection.mask_quantity(
                     halo_data[self.config.radius_field],
                     mask,
                     index=2,

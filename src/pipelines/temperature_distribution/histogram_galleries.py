@@ -57,7 +57,7 @@ class GalleriesPipeline(base.Pipeline):
             self.config.base_path, self.config.snap_num, fields=fields
         )
         # Step 2: select halos from every mass bin
-        mass_bin_mask = prc.statistics.sort_masses_into_bins(
+        mass_bin_mask = prc.selection.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
         # for every mass bin, select twice as many halos as needed (to

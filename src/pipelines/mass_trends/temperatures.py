@@ -75,7 +75,7 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         )
 
         # Step 2: get bin mask
-        mass_bin_mask = prc.statistics.sort_masses_into_bins(
+        mass_bin_mask = prc.selection.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
 

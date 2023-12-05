@@ -11,7 +11,7 @@ import numpy as np
 import numpy.ma as ma
 
 from library import units
-from library.processing import statistics
+from library.processing import selection
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -114,7 +114,7 @@ def select_halo_data_subset(
         number of mass bins: ``M = len(mass_bins) - 1``.
     """
     halo_data = get_halo_properties(base_path, snap_num, fields)
-    mass_bin_mask = statistics.sort_masses_into_bins(
+    mass_bin_mask = selection.sort_masses_into_bins(
         halo_data[mass_field], mass_bins
     )
 
