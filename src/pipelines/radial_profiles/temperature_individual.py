@@ -8,7 +8,7 @@ import time
 import tracemalloc
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import illustris_python as il
 import matplotlib.pyplot as plt
@@ -44,6 +44,8 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
     temperature_bins: int
     log: bool
     forbid_tree: bool = True  # whether KDTree construction is allowed
+
+    ranges: ClassVar[NDArray] = np.array([[0, 2], [3, 8.5]])  # hist ranges
 
     def run(self) -> int:
         """
@@ -228,12 +230,14 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
             h, _, _, = np.histogram2d(
                 part_distances,
                 np.log10(part_temperatures),
+                range=self.ranges,
                 bins=(self.radial_bins, self.temperature_bins),
                 weights=weights,
             )
             hn, xe, ye = prc.statistics.column_normalized_hist2d(
                 part_distances,
                 np.log10(part_temperatures),
+                ranges=self.ranges,
                 bins=(self.radial_bins, self.temperature_bins),
                 values=weights,
                 normalization="density",

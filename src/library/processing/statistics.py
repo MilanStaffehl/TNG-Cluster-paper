@@ -264,7 +264,7 @@ def column_normalized_hist2d(
     and ``y`` and corresponding values and creates a 2D histogram of
     these values, which is normalized at every x bin, meaning that for
     a fixed x value, the values in the y bins along the y-axis are
-    normalized. The exact type of normaliation depends on the choice of
+    normalized. The exact type of normalization depends on the choice of
     ``normalization``:
 
     - ``density``: The histogram will be normalized such that the values
@@ -314,7 +314,7 @@ def column_normalized_hist2d(
     :param statistic: The bin statistic to use. See the
         `scipy documentation`_ for details. Defaults to "sum".
     :param normalization: The normalization to use along the columns.
-        Choices are "density" or "range". Density normalzation will
+        Choices are "density" or "range". Density normalization will
         normalize every column such that its values add up to one, while
         schoosing range will normalize every column to its maximum value,
         such that every column will have 1 as its maximum value. Defaults
