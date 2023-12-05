@@ -12,11 +12,17 @@ from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 
-import library.data_acquisition as daq
-import library.loading.radial_profiles as ldr
-import library.plotting.radial_profiles as ptr
-import library.processing as prc
 from library import constants
+from library.data_acquisition import gas_daq, halos_daq
+from library.loading import load_radial_profiles
+from library.plotting import plot_radial_profiles
+from library.processing import (
+    gas_temperatures,
+    parallelization,
+    selection,
+    sequential,
+    statistics,
+)
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -68,12 +74,12 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
 
         # Step 2: Get bin mask
-        mass_bin_mask = prc.selection.sort_masses_into_bins(
+        mass_bin_mask = selection.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
 
@@ -86,13 +92,13 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
             halo_data[self.config.radius_field],
         )
         if self.processes > 0:
-            hists = prc.parallelization.process_data_parallelized(
+            hists = parallelization.process_data_parallelized(
                 callback,
                 halo_data["IDs"],
                 self.processes,
             )
         else:
-            hists = prc.sequential.process_data_sequentially(
+            hists = sequential.process_data_sequentially(
                 callback,
                 halo_data["IDs"],
                 (self.n_radial_bins, self.n_temperature_bins),
@@ -101,12 +107,12 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
 
         # Step 4: Stack histograms per mass bin, get average
         n_mass_bins = len(self.mass_bin_edges) - 1
-        histograms = prc.statistics.stack_2d_histograms_per_mass_bin(
+        histograms = statistics.stack_2d_histograms_per_mass_bin(
             hists, n_mass_bins, mass_bin_mask
         )
         averages = np.zeros((n_mass_bins, self.n_radial_bins))
         for i, hist in enumerate(histograms):
-            averages[i] = prc.statistics.get_2d_histogram_running_average(
+            averages[i] = statistics.get_2d_histogram_running_average(
                 hist, self.temperature_range
             )
         # save data to file
@@ -160,7 +166,7 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
 
         # the actual callback
         def callback_func(halo_id: int) -> NDArray:
-            gas_data = daq.gas.get_halo_temperatures(
+            gas_data = gas_daq.get_halo_temperatures(
                 halo_id,
                 self.config.base_path,
                 self.config.snap_num,
@@ -179,7 +185,7 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
             distances = np.linalg.norm(distance_vec, axis=1)
             # append to gas_data
             gas_data["Distances"] = distances
-            hist = prc.gas_temperatures.get_temperature_2d_histogram(
+            hist = gas_temperatures.get_temperature_2d_histogram(
                 gas_data,
                 "Distances",
                 np.array((self.radial_range, self.temperature_range)),
@@ -210,14 +216,14 @@ class BinnedTemperatureProfilePipeline(base.Pipeline):
                 rf"${np.log10(self.mass_bin_edges[i]):.1f} < \log \ M_\odot < "
                 rf"{np.log10(self.mass_bin_edges[i + 1]):.1f}$"
             )
-            f, a = ptr.plot_2d_radial_profile(
+            f, a = plot_radial_profiles.plot_2d_radial_profile(
                 histograms[i],
                 running_averages[i],
                 msg,
                 self.radial_range + self.temperature_range,
                 title=title,
             )
-            f, a = ptr.overplot_running_average(
+            f, a = plot_radial_profiles.overplot_running_average(
                 f, a, running_averages, self.radial_range + self.temperature_range
             )
             # save figure
@@ -259,7 +265,7 @@ class FromFilePipeline(BinnedTemperatureProfilePipeline):
                 f"Data file {str(data_path)} does not exist."
             )
         # Step 1: load the data
-        histograms, averages = ldr.load_radial_profile_data(
+        histograms, averages = load_radial_profiles.load_radial_profile_data(
             data_path,
             len(self.mass_bin_edges) - 1,
             self.n_radial_bins,

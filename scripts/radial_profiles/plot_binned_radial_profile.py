@@ -8,8 +8,8 @@ sys.path.insert(0, str(root_dir / "src"))
 import glob_util
 from library.config import config
 from pipelines.radial_profiles.temperature_binned import (
+    BinnedTemperatureProfilePipeline,
     FromFilePipeline,
-    RadialProfilePipeline,
 )
 
 
@@ -50,7 +50,7 @@ def main(args: argparse.Namespace) -> None:
     if args.from_file:
         hist_plotter = FromFilePipeline(**pipeline_config)
     else:
-        hist_plotter = RadialProfilePipeline(**pipeline_config)
+        hist_plotter = BinnedTemperatureProfilePipeline(**pipeline_config)
     hist_plotter.run()
 
 

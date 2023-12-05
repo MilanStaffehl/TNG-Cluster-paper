@@ -3,7 +3,7 @@ Test the DAQ module for gas cells.
 """
 import numpy as np
 
-import library.data_acquisition as daq
+from library.data_acquisition import gas_daq
 
 fields = ["InternalEnergy", "ElectronAbundance", "Masses", "StarFormationRate"]
 
@@ -48,7 +48,7 @@ def test_get_halo_temperatures(mocker):
     mock_temps = mocker.patch("library.compute.get_temperature")
     mock_temps.return_value = mock_temperatures()
     # call the function
-    test_data = daq.gas.get_halo_temperatures(174, "base/path", 99)
+    test_data = gas_daq.get_halo_temperatures(174, "base/path", 99)
     # assert results
     expected_data = mock_data()
     expected_data.update({"Temperature": mock_temperatures()})
@@ -80,7 +80,7 @@ def test_get_halo_temperatures_additional_fields(mocker):
     mock_temps = mocker.patch("library.compute.get_temperature")
     mock_temps.return_value = mock_temperatures()
     # call the function
-    test_data = daq.gas.get_halo_temperatures(
+    test_data = gas_daq.get_halo_temperatures(
         174, "base/path", 99, additional_fields=["AdditionalField"]
     )
     # assert result
@@ -106,7 +106,7 @@ def test_get_halo_temperatures_skip_condition():
     """
     Test the functionality wherein a skip condition is triggered.
     """
-    test_data = daq.gas.get_halo_temperatures(
+    test_data = gas_daq.get_halo_temperatures(
         174,
         "base/path",
         99,
@@ -125,7 +125,7 @@ def test_get_halo_temperatures_skip_condition_untriggered(mocker):
     mock_temps = mocker.patch("library.compute.get_temperature")
     mock_temps.return_value = mock_temperatures()
     # call the function with a skip condition
-    test_data = daq.gas.get_halo_temperatures(
+    test_data = gas_daq.get_halo_temperatures(
         174,
         "base/path",
         99,
@@ -148,7 +148,7 @@ def test_get_halo_temperature_skip_condition_additional_args():
         return str(id_ - arg2) == arg1
 
     # test function call
-    test_data = daq.gas.get_halo_temperatures(
+    test_data = gas_daq.get_halo_temperatures(
         174,
         "base/path",
         99,

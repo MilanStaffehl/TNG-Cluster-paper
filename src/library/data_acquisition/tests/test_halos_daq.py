@@ -4,8 +4,8 @@ Test the DAQ module for halos.
 import numpy as np
 import pytest
 
-import library.data_acquisition as daq
 from library import constants, units
+from library.data_acquisition import halos_daq
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def test_get_halo_properties(mock_halo_data, mocker):
     mock_loader.return_value = mock_halo_data
     # test function
     fields = ["Group_M_Crit200", "Group_R_Crit200"]
-    test_data = daq.halos.get_halo_properties("base/path", 99, fields)
+    test_data = halos_daq.get_halo_properties("base/path", 99, fields)
     # assert mock calls
     mock_loader.assert_called_with("base/path", 99, fields=fields)
     # verify data structure
@@ -54,4 +54,4 @@ def test_get_halo_properties_unsupported_unit():
     # provoke an UnsupportedUnitError
     with pytest.raises(units.UnsupportedUnitError):
         fields = ["Group_M_Crit200", "Group_R_Crit200", "Unsupported"]
-        daq.halos.get_halo_properties("base/path", 99, fields)
+        halos_daq.get_halo_properties("base/path", 99, fields)

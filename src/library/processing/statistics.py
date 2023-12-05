@@ -4,14 +4,16 @@ Tools for statistics with temperature and gas cell data.
 from __future__ import annotations
 
 import logging
-from typing import Literal, Sequence, TypeVar
+from typing import TYPE_CHECKING, Literal, Sequence, TypeVar
 
 import numpy as np
 import numpy.ma as ma
 import scipy.stats
-from numpy.typing import NDArray
 
-from library.processing.selection import bin_quantity
+from library.processing import selection
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 Hist2D = TypeVar("Hist2D", bound=NDArray)
 
@@ -199,7 +201,7 @@ def get_binned_averages(
         return
     avg = []
     std = []
-    for binned_values in bin_quantity(values, bin_mask, n_bins):
+    for binned_values in selection.bin_quantity(values, bin_mask, n_bins):
         avg.append(np.nanmean(binned_values))
         std.append(np.nanstd(binned_values))
     return np.array([np.array(avg), np.array(std), np.array(std)])
@@ -239,7 +241,7 @@ def get_binned_medians(
     med = []
     lper = []  # lower percentiles
     uper = []  # upper percentiles
-    for binned_values in bin_quantity(values, bin_mask, n_bins):
+    for binned_values in selection.bin_quantity(values, bin_mask, n_bins):
         med.append(np.nanmedian(binned_values))
         lper.append(np.nanpercentile(binned_values, 16))
         uper.append(np.nanpercentile(binned_values, 84))

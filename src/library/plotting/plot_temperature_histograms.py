@@ -271,7 +271,7 @@ def overplot_temperature_divisions(
     return fig, axes
 
 
-def plot_temperature_distribution_gallery(
+def plot_td_gallery(
     n_plots: int,
     halo_ids: NDArray,
     histograms: NDArray,
@@ -367,7 +367,7 @@ def plot_temperature_distribution_gallery(
     return fig, axes
 
 
-def plot_temperature_distributions_in_one(
+def plot_tds_in_one(
     means: NDArray,
     temperature_range: tuple[float, float],
     mass_bin_edges: NDArray,
@@ -444,7 +444,7 @@ def plot_temperature_distributions_in_one(
     return fig, axes
 
 
-def plot_temperature_distribution_in_grid(
+def plot_td_in_grid(
     mean: NDArray,
     median: NDArray,
     errors: NDArray,
@@ -468,7 +468,7 @@ def plot_temperature_distribution_in_grid(
     :param median: An array of shape (M, T) containing the histogram
         median values. M is the number of mass bins, T the number of
         temperature bins.
-    :param means: An array of shape (M, 2, T) containing the 16th and 84th
+    :param errors: An array of shape (M, 2, T) containing the 16th and 84th
         percentiles of every temperature bin. M is the number of mass
         bins, T the number of temperature bins.
     :param temperature_range: The range of temperatures of the histograms

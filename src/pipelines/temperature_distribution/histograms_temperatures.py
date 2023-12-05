@@ -11,12 +11,17 @@ from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 
-import library.data_acquisition as daq
-import library.loading.temperature_histograms as ldt
-import library.plotting.temperature_histograms as ptt
-import library.processing as prc
 from library import compute
-from library.plotting import util
+from library.data_acquisition import gas_daq, halos_daq
+from library.loading import load_temperature_histograms
+from library.plotting import plot_temperature_histograms, util
+from library.processing import (
+    gas_temperatures,
+    parallelization,
+    selection,
+    sequential,
+    statistics,
+)
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -67,12 +72,12 @@ class TemperatureHistogramsPipeline(base.Pipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
 
         # Step 2: get bin mask
-        mass_bin_mask = prc.selection.sort_masses_into_bins(
+        mass_bin_mask = selection.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
 
@@ -88,13 +93,13 @@ class TemperatureHistogramsPipeline(base.Pipeline):
             norm = np.ones(len(halo_data["IDs"]))
         callback = self._get_callback(halo_data[self.config.mass_field], norm)
         if self.processes > 0:
-            hists = prc.parallelization.process_data_parallelized(
+            hists = parallelization.process_data_parallelized(
                 callback,
                 halo_data["IDs"],
                 self.processes,
             )
         else:
-            hists = prc.sequential.process_data_sequentially(
+            hists = sequential.process_data_sequentially(
                 callback,
                 halo_data["IDs"],
                 (self.n_temperature_bins, ),
@@ -102,7 +107,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
             )
 
         # Step 5: post-processing - stack histograms per mass bin
-        mean, median, perc = prc.statistics.stack_histograms_per_mass_bin(
+        mean, median, perc = statistics.stack_histograms_per_mass_bin(
             hists, len(self.mass_bin_edges) - 1, mass_bin_mask
         )
         if self.to_file:
@@ -155,7 +160,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
 
         # the actual callback
         def callback_func(halo_id: int) -> NDArray:
-            gas_data = daq.gas.get_halo_temperatures(
+            gas_data = gas_daq.get_halo_temperatures(
                 halo_id,
                 self.config.base_path,
                 self.config.snap_num,
@@ -166,7 +171,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 fallback = np.empty(self.n_temperature_bins)
                 fallback.fill(np.nan)
                 return fallback
-            hist = prc.gas_temperatures.get_temperature_distribution_histogram(
+            hist = gas_temperatures.get_temperature_distribution_histogram(
                 gas_data,
                 self.weights,
                 self.n_temperature_bins,
@@ -195,14 +200,14 @@ class TemperatureHistogramsPipeline(base.Pipeline):
             return None
         logging.info("Calculating virial temperatures.")
         if self.processes > 0:
-            virial_temperatures = prc.parallelization.process_data_starmap(
+            virial_temperatures = parallelization.process_data_starmap(
                 compute.get_virial_temperature,
                 self.processes,
                 halo_data[self.config.mass_field],
                 halo_data[self.config.radius_field],
             )
         else:
-            virial_temperatures = prc.sequential.process_data_multiargs(
+            virial_temperatures = sequential.process_data_multiargs(
                 compute.get_virial_temperature,
                 tuple(),
                 halo_data[self.config.mass_field],
@@ -260,8 +265,10 @@ class TemperatureHistogramsPipeline(base.Pipeline):
         facecolor = "lightblue" if self.weights == "frac" else "pink"
         # plot all mass bins
         for i in range(len(self.mass_bin_edges) - 1):
-            error_bars = ptt.get_errorbar_lengths(median[i], percentiles[i])
-            f, a = ptt.plot_temperature_distribution(
+            error_bars = plot_temperature_histograms.get_errorbar_lengths(
+                median[i], percentiles[i]
+            )
+            f, a = plot_temperature_histograms.plot_temperature_distribution(
                 mean[i],
                 median[i],
                 error_bars,
@@ -272,11 +279,11 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 ylabel,
             )
             if self.with_virial_temperatures:
-                ptt.overplot_virial_temperatures(
+                plot_temperature_histograms.overplot_virial_temperatures(
                     f, a, virial_temperatures, i, mass_bin_mask
                 )
             if self.temperature_divisions:
-                ptt.overplot_temperature_divisions(
+                plot_temperature_histograms.overplot_temperature_divisions(
                     f, a, self.temperature_divisions
                 )
             # save figure
@@ -320,23 +327,23 @@ class FromFilePipeline(TemperatureHistogramsPipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
         # Step 2: get bin mask
-        mass_bin_mask = prc.selection.sort_masses_into_bins(
+        mass_bin_mask = selection.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
         # Step 3: load virial temperatures
         if self.with_virial_temperatures:
-            virial_temperatures = ldt.load_virial_temperatures(
+            vts = load_temperature_histograms.load_virial_temperatures(
                 self.paths["data_dir"]
                 / f"{self.paths['virial_temp_file_stem']}.npy"
             )
         else:
-            virial_temperatures = None
+            vts = None
         # Step 4: get primary data - histograms for every halo
-        mean, median, perc = ldt.load_histogram_data(
+        mean, median, perc = load_temperature_histograms.load_histogram_data(
             hist_data_path,
             (len(self.mass_bin_edges) - 1, self.n_temperature_bins)
         )
@@ -347,7 +354,7 @@ class FromFilePipeline(TemperatureHistogramsPipeline):
                 "pointless and probably not what you wanted."
             )
             return 0
-        self._plot(mean, median, perc, virial_temperatures, mass_bin_mask)
+        self._plot(mean, median, perc, vts, mass_bin_mask)
         return 0
 
 
@@ -400,7 +407,7 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
         else:
             xlabel = "Gas temperature [log K]"
 
-        fig, axes = ptt.plot_temperature_distributions_in_one(
+        fig, axes = plot_temperature_histograms.plot_tds_in_one(
             mean,
             self.temperature_range,
             self.mass_bin_edges,
@@ -414,11 +421,11 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
             logging.info("Overplotting virial temperatures.")
             for mass_bin in range(len(self.mass_bin_edges) - 1):
                 c = util.sample_cmap(colormap, 1 / len(mean), mass_bin)
-                ptt.overplot_virial_temperatures(
+                plot_temperature_histograms.overplot_virial_temperatures(
                     fig, axes, virial_temperatures, mass_bin, mass_bin_mask, c
                 )
         if self.temperature_divisions:
-            ptt.overplot_temperature_divisions(
+            plot_temperature_histograms.overplot_temperature_divisions(
                 fig, axes, self.temperature_divisions
             )
 
@@ -480,7 +487,7 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
         else:
             xlabel = "Gas temperature [log K]"
 
-        fig, axes = ptt.plot_temperature_distributions_in_one(
+        fig, axes = plot_temperature_histograms.plot_tds_in_one(
             mean,
             self.temperature_range,
             self.mass_bin_edges,
@@ -494,7 +501,7 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
             logging.info("Overplotting virial temperatures.")
             for mass_bin in range(len(self.mass_bin_edges) - 1):
                 c = util.sample_cmap(colormap, len(mean), mass_bin)
-                ptt.overplot_virial_temperatures(
+                plot_temperature_histograms.overplot_virial_temperatures(
                     fig,
                     axes,
                     virial_temperatures,
@@ -504,7 +511,7 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
                     True
                 )
         if self.temperature_divisions:
-            ptt.overplot_temperature_divisions(
+            plot_temperature_histograms.overplot_temperature_divisions(
                 fig, axes, self.temperature_divisions
             )
 
@@ -567,7 +574,7 @@ class PlotGridPipeline(FromFilePipeline):
         facecolor = "lightblue" if self.weights == "frac" else "pink"
 
         # plot the actual figure
-        f, a = ptt.plot_temperature_distribution_in_grid(
+        f, a = plot_temperature_histograms.plot_td_in_grid(
             mean,
             median,
             percentiles,
@@ -582,7 +589,7 @@ class PlotGridPipeline(FromFilePipeline):
             for i, axes in enumerate(a.flatten()):
                 if i > len(self.mass_bin_edges) - 1:
                     break  # only plot mass bins that exist
-                ptt.overplot_virial_temperatures(
+                plot_temperature_histograms.overplot_virial_temperatures(
                     f, axes, virial_temperatures, i, mass_bin_mask
                 )
 

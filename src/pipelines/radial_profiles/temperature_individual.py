@@ -15,11 +15,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import KDTree
 
-import library.data_acquisition as daq
-import library.loading.radial_profiles as ld
-import library.plotting.radial_profiles as ptr
-import library.processing as prc
 from library import compute
+from library.data_acquisition import gas_daq, halos_daq
+from library.loading import load_radial_profiles
+from library.plotting import plot_radial_profiles
+from library.processing import selection, statistics
 from pipelines.base import DiagnosticsPipeline
 
 if TYPE_CHECKING:
@@ -76,33 +76,33 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
         mem = tracemalloc.get_traced_memory()
         self._memlog("Halo gas data memory usage", mem[0], "MB")
 
-        # Step 2: select only halos above threshhold mass
+        # Step 2: select only halos above threshold mass
         logging.info("Restricting halo data to log(M) > 14.")
         mask = np.digitize(halo_data[self.config.mass_field], [0, 1e14, 1e25])
         selected_halos = {
             "ids":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data["IDs"], mask, index=2, compress=True
                 ),
             "masses":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data[self.config.mass_field],
                     mask,
                     index=2,
                     compress=True
                 ),
             "positions":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data["GroupPos"], mask, index=2, compress=True
                 ),
             "radii":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data[self.config.radius_field],
                     mask,
                     index=2,
@@ -145,7 +145,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         )
 
         # Step 5: Load gas cell position data
-        gas_data = daq.gas.get_gas_properties(
+        gas_data = gas_daq.get_gas_properties(
             self.config.base_path,
             self.config.snap_num,
             fields=["Coordinates", "Masses"],
@@ -234,7 +234,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                 bins=(self.radial_bins, self.temperature_bins),
                 weights=weights,
             )
-            hn, xe, ye = prc.statistics.column_normalized_hist2d(
+            hn, xe, ye = statistics.column_normalized_hist2d(
                 part_distances,
                 np.log10(part_temperatures),
                 ranges=self.ranges,
@@ -305,7 +305,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
         if self.log:
-            f = ptr.plot_2d_radial_profile(
+            f = plot_radial_profiles.plot_2d_radial_profile(
                 histogram,
                 ranges,
                 title=title,
@@ -314,7 +314,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                 cbar_ticks=[0, -1, -2, -3, -4, -5],
             )
         else:
-            f = ptr.plot_2d_radial_profile(
+            f = plot_radial_profiles.plot_2d_radial_profile(
                 histogram, ranges, title=title, cbar_label="FIX ME!"
             )
 
@@ -364,7 +364,7 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
             return 1
 
         # Step 1: load data
-        load_generator = ld.load_individuals_2d_profile(
+        load_generator = load_radial_profiles.load_individuals_2d_profile(
             self.paths["data_dir"], (self.radial_bins, self.temperature_bins)
         )
         for halo_data in load_generator:

@@ -91,3 +91,4 @@ def overplot_running_median(
     axes.fill_between(
         x_data, y_data - y_err[0], y_data + y_err[1], **fill_config
     )
+    return axes

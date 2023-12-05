@@ -197,7 +197,7 @@ def load_individuals_1d_profile(
     fail_fast: bool = False,
 ) -> Iterator[dict[str, NDArray] | None]:
     """
-    Yield the histrogram data from file for every file in the directory.
+    Yield the histogram data from file for every file in the directory.
 
     Function goes through all files in the given directory ``filepath``
     and yields the halo histogram data for every such file. The yielded

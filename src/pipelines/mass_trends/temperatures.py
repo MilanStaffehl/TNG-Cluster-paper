@@ -11,12 +11,17 @@ from typing import TYPE_CHECKING, Callable, ClassVar, Literal, Sequence
 
 import numpy as np
 
-import library.data_acquisition as daq
-import library.loading.mass_trends as ldm
-import library.plotting.common as ptc
-import library.plotting.mass_trends as ptm
-import library.processing as prc
 from library import compute
+from library.data_acquisition import gas_daq, halos_daq
+from library.loading import load_mass_trends
+from library.plotting import common, plot_mass_trends
+from library.processing import (
+    gas_temperatures,
+    parallelization,
+    selection,
+    sequential,
+    statistics,
+)
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -70,12 +75,12 @@ class IndividualsMassTrendPipeline(base.Pipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
 
         # Step 2: get bin mask
-        mass_bin_mask = prc.selection.sort_masses_into_bins(
+        mass_bin_mask = selection.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
 
@@ -96,13 +101,13 @@ class IndividualsMassTrendPipeline(base.Pipeline):
             norm = np.ones(len(halo_data["IDs"]))
         callback = self._get_callback(halo_data[self.config.mass_field], norm)
         if self.processes > 0:
-            points = prc.parallelization.process_data_parallelized(
+            points = parallelization.process_data_parallelized(
                 callback,
                 halo_data["IDs"],
                 self.processes,
             )
         else:
-            points = prc.sequential.process_data_sequentially(
+            points = sequential.process_data_sequentially(
                 callback,
                 halo_data["IDs"],
                 (2, 3),
@@ -118,9 +123,9 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         else:
             n_mass_bins = len(self.mass_bin_edges) - 1
         if self.statistic_method == "mean":
-            getter = prc.statistics.get_binned_averages
+            getter = statistics.get_binned_averages
         elif self.statistic_method == "median":
-            getter = prc.statistics.get_binned_medians
+            getter = statistics.get_binned_medians
         else:
             logging.error(
                 f"Unrecognized request for statistics function: "
@@ -202,7 +207,7 @@ class IndividualsMassTrendPipeline(base.Pipeline):
 
         # the actual callback
         def callback_func(halo_id: int) -> NDArray:
-            gas_data = daq.gas.get_halo_temperatures(
+            gas_data = gas_daq.get_halo_temperatures(
                 halo_id,
                 self.config.base_path,
                 self.config.snap_num,
@@ -216,14 +221,14 @@ class IndividualsMassTrendPipeline(base.Pipeline):
             temperature_range = (
                 self.temperature_divisions[0], self.temperature_divisions[-1]
             )
-            frac = prc.gas_temperatures.get_temperature_distribution_histogram(
+            frac = gas_temperatures.get_temperature_distribution_histogram(
                 gas_data,
                 "frac",
                 self.temperature_divisions,
                 temperature_range,
                 normalization[halo_id],
             )
-            mass = prc.gas_temperatures.get_temperature_distribution_histogram(
+            mass = gas_temperatures.get_temperature_distribution_histogram(
                 gas_data,
                 "mass",
                 self.temperature_divisions,
@@ -248,14 +253,14 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         """
         logging.info("Calculating virial temperatures.")
         if self.processes > 0:
-            virial_temperatures = prc.parallelization.process_data_starmap(
+            virial_temperatures = parallelization.process_data_starmap(
                 compute.get_virial_temperature,
                 self.processes,
                 halo_data[self.config.mass_field],
                 halo_data[self.config.radius_field],
             )
         else:
-            virial_temperatures = prc.sequential.process_data_multiargs(
+            virial_temperatures = sequential.process_data_multiargs(
                 compute.get_virial_temperature,
                 tuple(),
                 halo_data[self.config.mass_field],
@@ -313,16 +318,16 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         binned_halo_masses_err = np.array([mass_err_left, mass_err_right])
 
         # Plot the individual halo dta points
-        f, a = ptm.plot_gas_mass_trends_individuals(
+        f, a = plot_mass_trends.plot_gas_mass_trends_individuals(
             halo_masses=np.log10(halo_masses),
             gas_data=gas_fraction_data,
         )
 
         # overplot the mean/median data points
         if self.running_median:
-            overplotter = ptc.overplot_running_median
+            overplotter = common.overplot_running_median
         else:
-            overplotter = ptc.overplot_datapoints
+            overplotter = common.overplot_datapoints
         overplotter(
             binned_halo_masses,
             cold_by_frac[0],
@@ -415,7 +420,7 @@ class FromFilePipeline(IndividualsMassTrendPipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
         # Step 2: load virial temperatures
@@ -426,7 +431,7 @@ class FromFilePipeline(IndividualsMassTrendPipeline):
         else:
             n_mass_bins = len(self.mass_bin_edges) - 1
         data_file = data_dir / f"{self.paths['data_file_stem']}.npz"
-        data = ldm.load_mass_trend_data(data_file, n_mass_bins)
+        data = load_mass_trends.load_mass_trend_data(data_file, n_mass_bins)
         if data is None:
             logging.error("Could not load mass trend data from file.")
             return 1

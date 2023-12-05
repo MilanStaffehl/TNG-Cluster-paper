@@ -5,18 +5,13 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
-
 
 def load_mass_trend_data(
-    filepath: Path | str,
-    n_mass_bins: int | None = None
-) -> tuple[NDArray] | None:
+    filepath: Path | str, n_mass_bins: int | None = None
+) -> tuple | None:
     """
     Load and verify the data from the mass trend plots.
 

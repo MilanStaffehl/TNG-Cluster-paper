@@ -8,7 +8,7 @@ import warnings
 from typing import TYPE_CHECKING, Iterator, Sequence
 
 import numpy as np
-from numpy import ma as ma
+import numpy.ma as ma
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray

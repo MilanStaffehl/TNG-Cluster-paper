@@ -1,3 +1,3 @@
-from library.loading import temperature_histograms
+from library.loading import load_temperature_histograms
 
-__all__ = ("temperature_histograms", )
+__all__ = ("load_temperature_histograms", )

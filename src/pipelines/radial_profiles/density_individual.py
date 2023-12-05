@@ -14,10 +14,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.spatial import KDTree
 
-import library.data_acquisition as daq
-import library.loading.radial_profiles as ld
-import library.plotting.radial_profiles as ptr
-import library.processing as prc
+from library.data_acquisition import gas_daq, halos_daq
+from library.loading import load_radial_profiles
+from library.plotting import plot_radial_profiles
+from library.processing import selection, statistics
 from pipelines.base import DiagnosticsPipeline
 
 if TYPE_CHECKING:
@@ -73,7 +73,7 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
         mem = tracemalloc.get_traced_memory()
@@ -84,22 +84,22 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
         mask = np.digitize(halo_data[self.config.mass_field], [0, 1e14, 1e25])
         selected_halos = {
             "ids":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data["IDs"], mask, index=2, compress=True
                 ),
             "masses":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data[self.config.mass_field],
                     mask,
                     index=2,
                     compress=True
                 ),
             "positions":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data["GroupPos"], mask, index=2, compress=True
                 ),
             "radii":
-                prc.selection.mask_quantity(
+                selection.mask_quantity(
                     halo_data[self.config.radius_field],
                     mask,
                     index=2,
@@ -112,7 +112,7 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
         timepoint = self._timeit(begin, "loading and selecting halo data")
 
         # Step 3: Load gas cell position and mass data
-        gas_data = daq.gas.get_gas_properties(
+        gas_data = gas_daq.get_gas_properties(
             self.config.base_path,
             self.config.snap_num,
             fields=["Coordinates", "Masses"],
@@ -191,7 +191,7 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
             # weight by gas mass
             weights = gas_data["Masses"][neighbors]
             # create histogram
-            hist, edges = prc.statistics.volume_normalized_radial_profile(
+            hist, edges = statistics.volume_normalized_radial_profile(
                 part_distances, weights, self.radial_bins, selected_halos["radii"][i],
             )
             # save data
@@ -247,7 +247,7 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
             f"Density profile of halo {halo_id} "
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
-        f, _ = ptr.plot_1d_radial_profile(histogram, edges, log=self.log, title=title)
+        f, _ = plot_radial_profiles.plot_1d_radial_profile(histogram, edges, log=self.log, title=title)
 
         # save figure
         if self.no_plots:
@@ -295,7 +295,7 @@ class IDProfilesFromFilePipeline(IndividualDensityProfilePipeline):
             return 1
 
         # Step 1: load data
-        load_generator = ld.load_individuals_1d_profile(
+        load_generator = load_radial_profiles.load_individuals_1d_profile(
             self.paths["data_dir"], self.radial_bins
         )
         for halo_data in load_generator:

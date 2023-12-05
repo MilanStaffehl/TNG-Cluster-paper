@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
 
-import library.data_acquisition as daq
-import library.loading.temperature_histograms as ldt
-import library.plotting.temperature_histograms as ptt
-import library.processing as prc
 from library import compute
+from library.data_acquisition import gas_daq, halos_daq
+from library.loading import load_temperature_histograms
+from library.plotting import plot_temperature_histograms
+from library.processing import gas_temperatures, selection, sequential
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -53,17 +53,17 @@ class GalleriesPipeline(base.Pipeline):
 
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field]
-        halo_data = daq.halos.get_halo_properties(
+        halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
         # Step 2: select halos from every mass bin
-        mass_bin_mask = prc.selection.sort_masses_into_bins(
+        mass_bin_mask = selection.sort_masses_into_bins(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
         # for every mass bin, select twice as many halos as needed (to
         # have a backup when empty halos are selected by accident)
         n_mass_bins = len(self.mass_bin_edges) - 1
-        selected_halo_ids = prc.selection.select_halos_from_mass_bins(
+        selected_halo_ids = selection.select_halos_from_mass_bins(
             2 * self.plots_per_bin,
             halo_data["IDs"],
             n_mass_bins,
@@ -74,7 +74,7 @@ class GalleriesPipeline(base.Pipeline):
         selected_radii = halo_data[self.config.radius_field][selected_halo_ids]
         logging.info("Finished loading and selecting halo masses & radii.")
         # Step 3: acquire virial temperatures
-        virial_temperatures = prc.sequential.process_data_multiargs(
+        virial_temperatures = sequential.process_data_multiargs(
             compute.get_virial_temperature,
             tuple(),
             selected_masses,
@@ -135,7 +135,7 @@ class GalleriesPipeline(base.Pipeline):
         :return: The histogram of the temperature distribution as an
             array of length ``self.n_temperature_bins``.
         """
-        gas_data = daq.gas.get_halo_temperatures(
+        gas_data = gas_daq.get_halo_temperatures(
             halo_id,
             self.config.base_path,
             self.config.snap_num,
@@ -145,7 +145,7 @@ class GalleriesPipeline(base.Pipeline):
             fallback = np.empty(self.n_temperature_bins)
             fallback.fill(np.nan)
             return fallback
-        hist = prc.gas_temperatures.get_temperature_distribution_histogram(
+        hist = gas_temperatures.get_temperature_distribution_histogram(
             gas_data,
             "frac",
             self.n_temperature_bins,
@@ -183,7 +183,7 @@ class GalleriesPipeline(base.Pipeline):
             xlabel = "Gas temperature [log K]"
         # plot all mass bins
         for i in range(len(self.mass_bin_edges) - 1):
-            f, _ = ptt.plot_temperature_distribution_gallery(
+            f, _ = plot_temperature_histograms.plot_td_gallery(
                 self.plots_per_bin,
                 halo_ids[i],
                 histograms[i],
@@ -233,7 +233,7 @@ class FromFilePipeline(GalleriesPipeline):
                 f"Data file {str(gallery_data_path)} does not exist."
             )
         # Step 1: Load data from file
-        _m, _r, ids, vt, histograms = ldt.load_gallery_plot_data(
+        d = load_temperature_histograms.load_gallery_plot_data(
             gallery_data_path,
             (len(self.mass_bin_edges) - 1, 2 * self.plots_per_bin),
         )
@@ -244,5 +244,5 @@ class FromFilePipeline(GalleriesPipeline):
                 "pointless and probably not what you wanted."
             )
             return 0
-        self._plot(ids, histograms, vt)
+        self._plot(d[2], d[4], d[3])
         return 0

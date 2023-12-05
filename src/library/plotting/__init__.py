@@ -1,3 +1,3 @@
-from library.plotting import radial_profiles, temperature_histograms, util
+from library.plotting import plot_radial_profiles, plot_temperature_histograms, util
 
-__all__ = ("temperature_histograms", "radial_profiles", "util")
+__all__ = ("plot_temperature_histograms", "plot_radial_profiles", "util")

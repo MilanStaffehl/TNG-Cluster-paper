@@ -7,7 +7,10 @@ sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
 from library.config import config
-from pipelines.temperature_distribution import histogram_galleries
+from pipelines.temperature_distribution.histogram_galleries import (
+    FromFilePipeline,
+    GalleriesPipeline,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -48,13 +51,9 @@ def main(args: argparse.Namespace) -> None:
         "to_file": args.to_file,
     }
     if args.load_data:
-        gallery_plotter = histogram_galleries.FromFilePipeline(
-            **pipeline_config
-        )
+        gallery_plotter = FromFilePipeline(**pipeline_config)
     else:
-        gallery_plotter = histogram_galleries.GalleriesPipeline(
-            **pipeline_config
-        )
+        gallery_plotter = GalleriesPipeline(**pipeline_config)
     gallery_plotter.run()
 
 

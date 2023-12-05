@@ -8,7 +8,13 @@ sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
 from library.config import config
-from pipelines.temperature_distribution import histograms_temperatures as ht
+from pipelines.temperature_distribution.histograms_temperatures import (
+    CombinedPlotsFromFilePipeline,
+    CombinedPlotsPipeline,
+    FromFilePipeline,
+    PlotGridPipeline,
+    TemperatureHistogramsPipeline,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -72,15 +78,15 @@ def main(args: argparse.Namespace) -> None:
         "no_plots": args.no_plots,
     }
     if args.from_file and not args.combine:
-        hist_plotter = ht.FromFilePipeline(**pipeline_config)
+        hist_plotter = FromFilePipeline(**pipeline_config)
     elif args.from_file and args.combine:
-        hist_plotter = ht.CombinedPlotsFromFilePipeline(**pipeline_config)
+        hist_plotter = CombinedPlotsFromFilePipeline(**pipeline_config)
     elif not args.from_file and args.combine:
-        hist_plotter = ht.CombinedPlotsPipeline(**pipeline_config)
+        hist_plotter = CombinedPlotsPipeline(**pipeline_config)
     elif args.grid:
-        hist_plotter = ht.PlotGridPipeline(**pipeline_config)
+        hist_plotter = PlotGridPipeline(**pipeline_config)
     else:
-        hist_plotter = ht.TemperatureHistogramsPipeline(**pipeline_config)
+        hist_plotter = TemperatureHistogramsPipeline(**pipeline_config)
     hist_plotter.run()
 
 
