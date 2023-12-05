@@ -8,7 +8,7 @@ import time
 import tracemalloc
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import illustris_python as il
 import matplotlib.pyplot as plt
@@ -20,15 +20,14 @@ import library.loading.radial_profiles as ld
 import library.plotting.radial_profiles as ptr
 import library.processing as prc
 from library import compute
-from library.config import logging_config
-from pipelines.base import Pipeline
+from pipelines.base import DiagnosticsPipeline
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
 @dataclass
-class IndividualTemperatureProfilePipeline(Pipeline):
+class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
     """
     Pipeline to create plots of radial temperature distribution.
 
@@ -45,13 +44,6 @@ class IndividualTemperatureProfilePipeline(Pipeline):
     temperature_bins: int
     log: bool
     forbid_tree: bool = True  # whether KDTree construction is allowed
-
-    def __post_init__(self):
-        super().__post_init__()
-        # define cutom logging level for memory infos
-        logging.addLevelName(18, "MEMLOG")
-        if not self.quiet:
-            logging_config.change_level(18)
 
     def run(self) -> int:
         """
@@ -325,7 +317,7 @@ class IndividualTemperatureProfilePipeline(Pipeline):
         # save figure
         if self.no_plots:
             return
-        name = (f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf")
+        name = f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf"
         path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
         if not path.exists():
             logging.debug(
@@ -335,65 +327,6 @@ class IndividualTemperatureProfilePipeline(Pipeline):
             path.mkdir(parents=True)
         f[0].savefig(path / name, bbox_inches="tight")
         plt.close(f[0])
-
-    def _diagnostics(
-        self,
-        start_time: int,
-        step_description: str,
-        reset_peak: bool = True,
-    ) -> int:
-        """
-        Log diagnostic data.
-
-        :param start_time: The start time of the step to diagnose in
-            seconds since the epoch.
-        :param step_description: A description of the step for which the
-            diagnostics are logged.
-        :param reset_peak: Whether to reset the peak of the traced
-            memory (so that in the next step, the peak can be determined
-            independently of the previous steps).
-        :return: The time point of the diagnostic in seconds since the
-            epoch.
-        """
-        # memory diagnostics
-        mem = tracemalloc.get_traced_memory()
-        self._memlog(f"Peak memory usage during {step_description}", mem[1])
-        self._memlog(f"Current memory usage after {step_description}", mem[0])
-        if reset_peak:
-            tracemalloc.reset_peak()
-        # runtime diagnostics
-        return self._timeit(start_time, step_description)
-
-    def _memlog(
-        self,
-        message: str,
-        memory_used: float,
-        unit: Literal["kB", "MB", "GB"] = "GB"
-    ) -> None:
-        """
-        Helper function; logs memory usage message if set to verbose.
-
-        The function will print the given message, followed by a colon
-        and the given memory used, converted into the given unit.
-
-        :param message: The message to log before the converted memory.
-        :param memory_used: The memory currently used in units of bytes.
-        :param unit: The unit to convert the memory into. Can be one of
-            the following: kB, MB, GB. If omitted, the memory is given
-            in bytes. Defaults to display in gigabytes.
-        :return: None
-        """
-        match unit:
-            case "kB":
-                memory = memory_used / 1024.
-            case "MB":
-                memory = memory_used / 1024. / 1024.
-            case "GB":
-                memory = memory_used / 1024. / 1024. / 1024.
-            case _:
-                memory = memory_used
-                unit = "Bytes"  # assume the unit is bytes
-        logging.log(18, f"{message}: {memory:,.4} {unit}.")
 
 
 class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
