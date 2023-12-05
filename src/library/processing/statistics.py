@@ -4,16 +4,14 @@ Tools for statistics with temperature and gas cell data.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Literal, Sequence, TypeVar
+from typing import Literal, Sequence, TypeVar
 
 import numpy as np
 import numpy.ma as ma
 import scipy.stats
+from numpy.typing import NDArray  # MUST be imported for type definition!
 
 from library.processing import selection
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
 
 Hist2D = TypeVar("Hist2D", bound=NDArray)
 
