@@ -220,9 +220,7 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
             # cleanup
             del part_positions, part_distances, weights, hist, edges
 
-        timepoint = self._diagnostics(
-            timepoint, "plotting individual profiles"
-        )
+        self._diagnostics(timepoint, "plotting individual profiles")
 
         self._timeit(begin, "total execution")
         tracemalloc.stop()

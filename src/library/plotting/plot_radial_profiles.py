@@ -23,6 +23,7 @@ def plot_1d_radial_profile(
     ylabel: str = r"Average density in radial shell [$M_\odot / kpc^3$]",
     title: str | None = None,
     log: bool = True,
+    xlims: tuple[float, float] = (0, 2),
 ) -> tuple[Figure, Axes]:
     """
     Plot and return a radial profile given as a histogram.
@@ -41,12 +42,16 @@ def plot_1d_radial_profile(
     :param title: Optional title for the figure.
     :param log: Whether to plot the profile in log scale. Defaults to
         True.
+    :param xlims: The limits of the x-axis values. This is useful to
+        prevent matplotlib from adding a margin left and right of the
+        limiting values.
     :return: A tuple of the figure and axes object with the plot on them.
     """
-    fig, axes = plt.subplots(figsize=(6, 5))
+    fig, axes = plt.subplots(figsize=(5, 4))
     fig.set_tight_layout(True)
 
     axes.set_xlabel(xlabel)
+    axes.set_xlim(xlims)
     axes.set_ylabel(ylabel)
     if title:
         axes.set_title(title)
@@ -119,7 +124,7 @@ def plot_2d_radial_profile(
     if log_msg is not None:
         logging.info(f"Plotting radial temperature profile for {log_msg}.")
     # create and configure figure and axes
-    fig, axes = plt.subplots(figsize=(6, 5))
+    fig, axes = plt.subplots(figsize=(5, 4))
     fig.set_tight_layout(True)
     if title:
         axes.set_title(title)

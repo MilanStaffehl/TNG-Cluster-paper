@@ -25,14 +25,11 @@ def main(args: argparse.Namespace) -> None:
     # config
     cfg = config.get_default_config(sim)
 
-    # type flag
-    type_flag = "temperature"
-
     # paths
     file_data = glob_util.assemble_path_dict(
         "radial_profiles",
         cfg,
-        type_flag,
+        args.what,
         False,
         args.figurespath,
         args.datapath,
@@ -90,7 +87,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-w",
         "--what",
-        help=("What type of radial profile to plot: temperature, density."),
+        help=(
+            "What type of radial profile to plot: temperature or density. Defaults "
+            "to temperature."
+        ),
         dest="what",
         type=str,
         default="temperature",
