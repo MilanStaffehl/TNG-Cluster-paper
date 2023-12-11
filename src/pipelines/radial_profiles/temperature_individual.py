@@ -299,13 +299,17 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         :param xedges: The edges of the x bins.
         :param yedges: The edges of the y bins.
         """
+        fig, axes = plt.subplots(figsize=(5, 4))
+        fig.set_tight_layout(True)
         title = (
             f"Temperature profile of halo {halo_id} "
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
         if self.log:
-            f = plot_radial_profiles.plot_2d_radial_profile(
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                axes,
                 histogram,
                 ranges,
                 title=title,
@@ -314,8 +318,13 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                 cbar_ticks=[0, -1, -2, -3, -4, -5],
             )
         else:
-            f = plot_radial_profiles.plot_2d_radial_profile(
-                histogram, ranges, title=title, cbar_label="FIX ME!"
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                axes,
+                histogram,
+                ranges,
+                title=title,
+                cbar_label="FIX ME!"
             )
 
         # save figure
@@ -329,8 +338,8 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                 f"{halo_id}."
             )
             path.mkdir(parents=True)
-        f[0].savefig(path / name, bbox_inches="tight")
-        plt.close(f[0])
+        fig.savefig(path / name, bbox_inches="tight")
+        plt.close(fig)
 
 
 class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):

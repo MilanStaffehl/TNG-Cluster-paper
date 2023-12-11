@@ -115,7 +115,7 @@ if __name__ == "__main__":
         help=(
             "Forbid the construction of a KDTree. Will cause the job to fail "
             "if construction of a KDTree is required in order to find the "
-            "neighboring particles of all halos above the mass threshhold."
+            "neighboring particles of all halos above the mass threshold."
         ),
         dest="forbid_tree",
         action="store_true",
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-f",
         "--to-file",
-        help="Whether to write the histogram data calclated to file.",
+        help="Whether to write the histogram data calculated to file.",
         dest="to_file",
         action="store_true",
     )
@@ -157,7 +157,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-q",
         "--quiet",
-        help=("Prevent progress and memory usage information to be emitted."),
+        help="Prevent progress and memory usage information to be emitted.",
         dest="quiet",
         action="store_true",
     )

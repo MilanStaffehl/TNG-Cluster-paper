@@ -193,7 +193,7 @@ def load_individuals_2d_profile(
 
 def load_individuals_1d_profile(
     filepath: str | Path,
-    expected_shape: int | None = None,
+    expected_shape: int | tuple[int] | None = None,
     fail_fast: bool = False,
 ) -> Iterator[dict[str, NDArray] | None]:
     """
@@ -264,7 +264,9 @@ def load_individuals_1d_profile(
             continue  # skip over all data verification code below
 
         # verify the data shape (is skipped for expected_shape = None)
-        if histogram.shape != (expected_shape, ):
+        if isinstance(expected_shape, int):
+            expected_shape = (expected_shape, )
+        if histogram.shape != expected_shape:
             logging.error(
                 f"Halo {halo_id} has histogram data not matching the expected "
                 f"shape: Expected shape {expected_shape} but got "

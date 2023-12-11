@@ -241,11 +241,15 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
         :param histogram: The (N,) shape array of the histogram data.
         :param edges: The edges of the radial bins.
         """
+        fig, axes = plt.subplots(figsize=(5, 4))
+        fig.set_tight_layout(True)
         title = (
             f"Density profile of halo {halo_id} "
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
-        f, _ = plot_radial_profiles.plot_1d_radial_profile(histogram, edges, log=self.log, title=title)
+        plot_radial_profiles.plot_1d_radial_profile(
+            axes, histogram, edges, log=self.log, title=title
+        )
 
         # save figure
         if self.no_plots:
@@ -258,8 +262,8 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
                 f"{halo_id}."
             )
             path.mkdir(parents=True)
-        f.savefig(path / name, bbox_inches="tight")
-        plt.close(f)
+        fig.savefig(path / name, bbox_inches="tight")
+        plt.close(fig)
 
 
 class IDProfilesFromFilePipeline(IndividualDensityProfilePipeline):

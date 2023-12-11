@@ -16,6 +16,77 @@ from library.processing import selection
 Hist2D = TypeVar("Hist2D", bound=NDArray)
 
 
+def nanpercentiles(a: NDArray, axis: int):
+    """
+    Wrapper around numpys ``nanpercentile`` function with fixed percentiles.
+
+    Function returns the 16th and 84th percentiles of the given set of
+    values ``a``. The shape of the output array is dependent on the
+    shape of ``a`` and the choice of ``axis``. See the numpy documentation
+    for details.
+
+    This function is useful as it has the same signature as the other
+    common numpy error function ``np.nanstd`` and can therefore be
+    used almost interchangeably with it, notwithstanding the different
+    return shape.
+
+    :param a: Array of values.
+    :param axis: The axis along which to compute the percentiles.
+    :return: Array of shape (2, ...) containing the 16th and 84th
+        percentile respectively.
+    """
+    return np.nanpercentile(a, np.array([16, 84]), axis=axis)
+
+
+def stack_histograms(
+    histograms: NDArray | Sequence[NDArray],
+    method: Literal["median", "mean"],
+) -> tuple[NDArray, NDArray, NDArray]:
+    """
+    Stack a set of histograms with the given method, including errors.
+
+    The function takes a sequence of arrays, all representing ND
+    histograms and computes either the mean or the median of these
+    histograms bin-wise. It additionally provides error estimates for
+    both cases. In the case of the mean, the error is simply the
+    standard deviation; in the case of the median it is the 16th and 84th
+    percentile, taken per bin.
+
+    The function returns the stack as well as an estimate for the lower
+    and upper error of every bin in the form of a tuple of arrays.
+
+    The histograms may be of arbitrary dimensionality; the stack is
+    always performed along the first axis of ``histograms``.
+
+    :param histograms: A sequence or array of arrays of the same shape,
+        representing histograms.
+    :param method: The method to stack the histograms, can only be
+        'mean' or 'median'.
+    :return: Tuple of three arrays. First is the stack of the histograms,
+        second the lower error, third the upper error. For method 'mean',
+        the two error arrays are identical and represent the standard
+        deviation. For 'median', the represent the 16th and 84th
+        percentile respectively.
+    """
+    # stack histograms according to chosen method
+    if method == "mean":
+        stack_func = np.nanmean
+        err_func = np.nanstd
+    elif method == "median":
+        stack_func = np.nanmedian
+        err_func = nanpercentiles
+    else:
+        raise KeyError(f"Unknown stacking method: {method}.")
+    # stack histograms
+    stack = stack_func(histograms, axis=0)
+    error = err_func(histograms, axis=0)
+    # return the ordered results
+    if method == "mean":
+        return stack, error, error
+    else:
+        return stack, error[0], error[1]
+
+
 def stack_histograms_per_mass_bin(
     histograms: NDArray,
     n_mass_bins: int,

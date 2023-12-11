@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Literal, Sequence
 
-import matplotlib.pyplot as plt
 import numpy as np
 
 if TYPE_CHECKING:
@@ -17,14 +16,16 @@ if TYPE_CHECKING:
 
 
 def plot_1d_radial_profile(
+    axes: Axes,
     histogram: NDArray,
     edges: NDArray,
     xlabel: str = r"Distance from halo center [$R_{200c}$]",
-    ylabel: str = r"Average density in radial shell [$M_\odot / kpc^3$]",
+    ylabel: str = r"Density in radial shell [$M_\odot / kpc^3$]",
     title: str | None = None,
     log: bool = True,
     xlims: tuple[float, float] = (0, 2),
-) -> tuple[Figure, Axes]:
+    color: str = "black",
+) -> Axes:
     """
     Plot and return a radial profile given as a histogram.
 
@@ -33,6 +34,7 @@ def plot_1d_radial_profile(
     ``edges`` respectively. The radial profile is then plotted as a
     step histogram.
 
+    :param axes: The axes onto which to plot the histogram.
     :param histogram: The array of the values for every radial bin.
         Shape (N, ).
     :param edges: The array of the radial bin edges, must be of shape
@@ -45,13 +47,13 @@ def plot_1d_radial_profile(
     :param xlims: The limits of the x-axis values. This is useful to
         prevent matplotlib from adding a margin left and right of the
         limiting values.
-    :return: A tuple of the figure and axes object with the plot on them.
+    :param color: The color of the histogram in the plot. Defaults to
+        black.
+    :return: The axes with the histogrm added to it; returned for
+        convenience, axes is altered in place.
     """
-    fig, axes = plt.subplots(figsize=(5, 4))
-    fig.set_tight_layout(True)
-
     axes.set_xlabel(xlabel)
-    axes.set_xlim(xlims)
+    axes.set_xlim(*xlims)
     axes.set_ylabel(ylabel)
     if title:
         axes.set_title(title)
@@ -60,24 +62,27 @@ def plot_1d_radial_profile(
     bin_centers = (edges[:-1] + edges[1:]) / 2
     plot_config = {
         "histtype": "step",
-        "color": "black",
+        "color": color,
         "log": log,
     }
     axes.hist(bin_centers, bins=edges, weights=histogram, **plot_config)
-    return fig, axes
+    return axes
 
 
 def plot_2d_radial_profile(
+    fig: Figure,
+    axes: Axes,
     histogram2d: NDArray,
     ranges: Sequence[float, float, float, float],
-    xlabel: str = r"Distance from halo center [$R_{200c}$]",
-    ylabel: str = r"Temperature [$\log K$]",
+    xlabel: str | None = r"Distance from halo center [$R_{200c}$]",
+    ylabel: str | None = r"Temperature [$\log K$]",
     title: str | None = None,
     colormap: str = "inferno",
     cbar_label: str | Colormap = "Count",
     cbar_ticks: NDArray | None = None,
     scale: Literal["linear", "log"] = "linear",
     log_msg: str | None = None,
+    labelsize: int = 12,
 ) -> tuple[Figure, Axes]:
     """
     Plot the given 2D histogram of temperature vs. halocentric distance.
@@ -94,6 +99,10 @@ def plot_2d_radial_profile(
         generating functions such as ``numpy.histogram2d``, which will
         give an array of shape (x, y).
 
+    :param fig: The figure object onto whose axes the histogram will be
+        plotted.
+    :param axes: The axes unto which to plot the histogram and the
+        colorbar.
     :param histogram2d: Array of 2D histograms of shape (Y, R) where
         R is the number of radial bins of the histogram and Y the number
         of y-bins, for example temperature bins.
@@ -102,8 +111,10 @@ def plot_2d_radial_profile(
         radial temperature profile for >``log_msg``<". Set accordingly.
     :param ranges: The min and max value for every axis in the format
         [xmin, xmax, ymin, ymax].
-    :param xlabel: The label for the x-axis; can be a raw string.
-    :param ylabel:The label for the y-axis; can be a raw string.
+    :param xlabel: The label for the x-axis; can be a raw string. Can be
+        set to None, to not set an axes label.
+    :param ylabel: The label for the y-axis; can be a raw string. Can be
+        set to None, to not set an axes label.
     :param title: Title of the figure. Set to None to leave the figure
         without a title. Can be a raw string to use formulas.
     :param colormap: A matplotlib colormap for the plot. Defaults to
@@ -119,19 +130,22 @@ def plot_2d_radial_profile(
         This message will be used to complete the log message "Plotting
         radial temperature profile for >``log_msg``<". Set accordingly.
         Defaults to None, which means no message is logged.
-    :return: The figure and axes objects with the data drawn onto them.
+    :param labelsize: Size of the axes labels in points. Optional,
+        defaults to 12 pt.
+    :return: The figure and axes objects as tuple with the histogram
+        added to them; returned for convenience, axes object is altered
+        in place.
     """
     if log_msg is not None:
-        logging.info(f"Plotting radial temperature profile for {log_msg}.")
-    # create and configure figure and axes
-    fig, axes = plt.subplots(figsize=(5, 4))
-    fig.set_tight_layout(True)
+        logging.info(f"Plotting radial profile for {log_msg}.")
+
+    # axes config
     if title:
         axes.set_title(title)
-
-    labelsize = 12
-    axes.set_xlabel(xlabel, fontsize=labelsize)
-    axes.set_ylabel(ylabel, fontsize=labelsize)
+    if xlabel:
+        axes.set_xlabel(xlabel, fontsize=labelsize)
+    if ylabel:
+        axes.set_ylabel(ylabel, fontsize=labelsize)
 
     # scaling
     if scale == "log":
