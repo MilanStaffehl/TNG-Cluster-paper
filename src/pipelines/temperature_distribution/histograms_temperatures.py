@@ -585,12 +585,17 @@ class PlotGridPipeline(FromFilePipeline):
             ylabel,
             facecolor,
         )
-        if self.with_virial_temperatures:
-            for i, axes in enumerate(a.flatten()):
-                if i > len(self.mass_bin_edges) - 1:
-                    break  # only plot mass bins that exist
+
+        for i, axes in enumerate(a.flatten()):
+            if i >= len(self.mass_bin_edges) - 1:
+                break  # only plot mass bins that exist
+            if self.with_virial_temperatures:
                 plot_temperature_histograms.overplot_virial_temperatures(
                     f, axes, virial_temperatures, i, mass_bin_mask
+                )
+            if self.temperature_divisions:
+                plot_temperature_histograms.overplot_temperature_divisions(
+                    f, axes, self.temperature_divisions
                 )
 
         # save figure

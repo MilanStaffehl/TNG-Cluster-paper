@@ -4,7 +4,7 @@ Plotting tools for histograms of temperature distribution.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -455,7 +455,7 @@ def plot_td_in_grid(
     ylabel: str,
     facecolor: str,
     log: bool = True,
-) -> tuple[Figure, Axes]:
+) -> tuple[Figure, Sequence[Axes]]:
     """
     Plot the temperature distribution histograms into a single grid plot.
 
@@ -477,8 +477,8 @@ def plot_td_in_grid(
         is not very good at automatically deciding on good ranges here).
     :param mass_bin_edges: The edges of the mass bins in units of solar
         masses.
-    :param xlabel: Label for the x axis.
-    :param ylabel: Label for the y axis.
+    :param xlabel: Label for the x-axis.
+    :param ylabel: Label for the y-axis.
     :param facecolor: Color for the histogram bars.
     :param log: Whether to plot the y-axis in log scale. Defaults to True.
     :return: A tuple of the matplotlib figure and axes objects, with the

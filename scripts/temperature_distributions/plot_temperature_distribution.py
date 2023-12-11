@@ -77,7 +77,7 @@ def main(args: argparse.Namespace) -> None:
         "to_file": args.to_file,
         "no_plots": args.no_plots,
     }
-    if args.from_file and not args.combine:
+    if args.from_file and not args.combine and not args.grid:
         hist_plotter = FromFilePipeline(**pipeline_config)
     elif args.from_file and args.combine:
         hist_plotter = CombinedPlotsFromFilePipeline(**pipeline_config)
