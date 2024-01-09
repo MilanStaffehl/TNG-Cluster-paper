@@ -314,8 +314,9 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                 ranges,
                 title=title,
                 cbar_label="Normalized gas mass fraction (log10)",
+                cbar_limits=[-4.2, None],
                 scale="log",
-                cbar_ticks=[0, -1, -2, -3, -4, -5],
+                cbar_ticks=[0, -1, -2, -3, -4],
             )
         else:
             plot_radial_profiles.plot_2d_radial_profile(
@@ -329,7 +330,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
 
         # save figure
         if self.no_plots:
-            return
+            return 0
         name = f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf"
         path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
         if not path.exists():

@@ -80,6 +80,7 @@ def plot_2d_radial_profile(
     colormap: str = "inferno",
     cbar_label: str | Colormap = "Count",
     cbar_ticks: NDArray | None = None,
+    cbar_limits: Sequence[float | None] | None = None,
     scale: Literal["linear", "log"] = "linear",
     log_msg: str | None = None,
     labelsize: int = 12,
@@ -123,6 +124,15 @@ def plot_2d_radial_profile(
         "Count".
     :param cbar_ticks: Sequence or array of the tick markers for the
         colorbar. Optional, defaults to None (automatically chosen ticks).
+    :param cbar_limits: The lower and upper limit of the colorbars as a
+        sequence [lower, upper]. All values above and below will be
+        clipped. Setting these values will assume that the colorbar is
+        not showing the full range of values, so the ends of the colorbar
+        will be turned into open ends (with an arrow-end instead of a
+        flat cap). To only limit the colorbar in one direction, set the
+        other to None: ``cbar_limits=(-1, None)``. Set to None to show
+        the full range of values in the colorbar. If ``log`` is set to
+        True, the limits must be given in logarithmic values.
     :param scale: If the histogram data is not already given in log
         scale, this parameter can be set to "log" to plot the log10 of
         the given histogram data.
@@ -151,6 +161,28 @@ def plot_2d_radial_profile(
     if scale == "log":
         histogram2d = np.log10(histogram2d)
 
+    # clipping (clip values and determine open ends of colorbar)
+    if cbar_limits is not None:
+        if len(cbar_limits) != 2:
+            logging.warning(
+                "The sequence of limits for the colorbar does not have length "
+                "2. Only first two values will be used for limits. This might "
+                "cause unexpected behavior!"
+            )
+        lower_limit, upper_limit = -np.inf, np.inf
+        cbar_extend = "neither"
+        if cbar_limits[0] is not None:
+            lower_limit = cbar_limits[0]
+            cbar_extend = "min"
+        if cbar_limits[1] is not None:
+            upper_limit = cbar_limits[1]
+            cbar_extend = "max"
+        # clip histogram
+        histogram2d = np.clip(histogram2d, lower_limit, upper_limit)
+        # determine correct colorbar extent
+        if all(cbar_limits):
+            cbar_extend = "both"
+
     # plot the 2D hist
     hist_config = {
         "cmap": colormap,
@@ -168,6 +200,8 @@ def plot_2d_radial_profile(
     }
     if cbar_ticks is not None:
         cbar_config.update({"ticks": cbar_ticks})
+    if cbar_limits is not None:
+        cbar_config.update({"extend": cbar_extend})
     fig.colorbar(profile, ax=axes, **cbar_config)
 
     return fig, axes
@@ -182,7 +216,7 @@ def overplot_running_average(
     """
     Overplot a running average onto a 2D histogram.
 
-    Function requires the running averages to be calclated separately and
+    Function requires the running averages to be calculated separately and
     passed to this function as an array of exactly as many values as the
     histogram has x-bins.
 

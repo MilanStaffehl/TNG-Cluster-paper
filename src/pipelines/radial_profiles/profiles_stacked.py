@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from library.loading import load_radial_profiles
-from library.plotting import plot_radial_profiles
+from library.plotting import common, plot_radial_profiles, pltutil
 from library.processing import statistics
 from pipelines.base import Pipeline
 
@@ -97,10 +97,8 @@ class StackProfilesPipeline(Pipeline):
             f, a = self._plot_2d_mean(stack, edges)
         elif self.what == "temperature" and self.method == "median":
             f, a = self._plot_2d_median(stack, edges)
-        elif self.what == "density" and self.method == "mean":
-            f, a = self._plot_1d_mean(stack, edges)
-        elif self.what == "density" and self.method == "median":
-            f, a = self._plot_1d_median(stack, edges)
+        elif self.what == "density":
+            f, a = self._plot_1d(stack, self.method)
         else:
             logging.error(
                 f"Unrecognized combination of method {self.method} and plot "
@@ -111,7 +109,7 @@ class StackProfilesPipeline(Pipeline):
         # save plot to file
         if self.no_plots:
             return 0
-        name = f"{self.paths['figures_file_stem']}_{self.method}.png"
+        name = f"{self.paths['figures_file_stem']}_{self.method}.pdf"
         path = Path(self.paths["figures_dir"])
         if not path.exists():
             logging.info("Creating missing figures directory for stacks.")
@@ -135,13 +133,18 @@ class StackProfilesPipeline(Pipeline):
         fig.set_tight_layout(True)
 
         # plot the mean/median
+        if self.log:
+            clabel = r"Normalized mean gas fraction ($\log_{10}$)"
+        else:
+            clabel = "Normalized mean gas fraction"
         plot_radial_profiles.plot_2d_radial_profile(
             fig,
             axes[0],
             stack_data[0],
             edges,
             title="Mean temperature profile",
-            cbar_label="Normalized gas mass fraction",
+            cbar_label=clabel,
+            cbar_limits=[-4, None] if self.log else None,
             scale="log" if self.log else "linear",
             log_msg="all halos above 10^14 M_sol",
         )
@@ -153,7 +156,7 @@ class StackProfilesPipeline(Pipeline):
             edges,
             title="Standard deviation",
             colormap="gist_rainbow",
-            cbar_label="Standard deviation of gas fraction per shell",
+            cbar_label="Standard deviation of gas fraction (not normalized)",
             scale="log" if self.log else "linear",
         )
         return fig, axes
@@ -181,9 +184,9 @@ class StackProfilesPipeline(Pipeline):
 
         # plot the data
         if self.log:
-            clabel = r"Median gas fraction per radial shell ($\log_{10}$)"
+            clabel = r"Normalized median gas fraction ($\log_{10}$)"
         else:
-            clabel = "Median gas fraction per radial shell"
+            clabel = "Normalized median gas fraction"
         plot_radial_profiles.plot_2d_radial_profile(
             fig,
             ax1,
@@ -191,6 +194,7 @@ class StackProfilesPipeline(Pipeline):
             edges,
             title="Median temperature profile",
             cbar_label=clabel,
+            cbar_limits=[-4, None] if self.log else None,
             scale="log" if self.log else "linear",
             log_msg="all halos above 10^14 M_sol",
         )
@@ -200,93 +204,64 @@ class StackProfilesPipeline(Pipeline):
             stack_data[0] - stack_data[1],
             edges,
             xlabel=None,
-            cbar_label="Lower error",
+            cbar_label="Lower error (16th percentile to median)",
+            colormap="gist_rainbow",
             labelsize=10,
         )
         plot_radial_profiles.plot_2d_radial_profile(
             fig,
             ax3,
-            stack_data[2] - stack_data[0],
+            stack_data[0] - stack_data[2],
             edges,
-            cbar_label="Upper error",
+            cbar_label="Upper error (84th percentile to median)",
+            colormap="gist_rainbow",
             labelsize=10,
         )
         return fig, (ax1, ax2, ax3)
 
-    def _plot_1d_mean(
-        self, stack_data: tuple[NDArray, NDArray, NDArray], edges: NDArray
+    def _plot_1d(
+        self,
+        stack_data: tuple[NDArray, NDArray, NDArray],
+        type_: Literal["mean", "median"],
     ) -> tuple[Figure, Axes]:
         """
         Plot the mean density histogram.
 
         :param stack_data: The tuple of the mean histogram, and the
             stadard deviation.
-        :param edges: The edges of the x-bins.
+        :param type_: The type of plot, can either be 'mean' or 'median'.
         :return: Tuple of figure and axes objects with the plots.
         """
+        logging.info(f"Plotting {type_} density profile.")
         fig, axes = plt.subplots(figsize=(5, 4))
-        plot_radial_profiles.plot_1d_radial_profile(
-            axes,
-            stack_data[0],
-            edges,
-            ylabel=r"Mean density in radial shell [$M_\odot / kpc^3$]",
-            title="Mean density",
-            log=self.log,
+        axes.set_title(f"{type_.capitalize()} density")
+        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        axes.set_xlim([0, 2])
+        axes.set_ylabel(
+            fr"{type_.capitalize()} density in radial shell "
+            r"[$M_\odot / kpc^3$]"
         )
-        # plot lower and upper error
-        plot_radial_profiles.plot_1d_radial_profile(
-            axes,
-            stack_data[0] - stack_data[1],
-            edges,
-            ylabel=r"Mean density in radial shell [$M_\odot / kpc^3$]",
-            log=self.log,
-            color="grey",
-        )
-        plot_radial_profiles.plot_1d_radial_profile(
-            axes,
-            stack_data[0] + stack_data[2],
-            edges,
-            ylabel=r"Mean density in radial shell [$M_\odot / kpc^3$]",
-            log=self.log,
-            color="grey",
-        )
-        return fig, axes
+        if self.log:
+            axes.set_yscale("log")
 
-    def _plot_1d_median(
-        self, stack_data: tuple[NDArray, NDArray, NDArray], edges: NDArray
-    ) -> tuple[Figure, Axes]:
-        """
-        Plot the median density histogram.
+        # generate x-values in the middle of the radial bins
+        xs = np.linspace(0, 2, len(stack_data[0]), endpoint=False)
+        xs += (1 / len(stack_data[0]))
 
-        :param stack_data: The tuple of the mean histogram, and the
-            stadard deviation.
-        :param edges: The edges of the x-bins.
-        :return: Tuple of figure and axes objects with the plots.
-        """
-        fig, axes = plt.subplots(figsize=(5, 4))
-        plot_radial_profiles.plot_1d_radial_profile(
-            axes,
+        # generate an aray of errors
+        if type_ == "mean":
+            errors = np.array([stack_data[1], stack_data[2]])
+        elif type_ == "median":
+            errors = pltutil.get_errorbar_lengths(
+                stack_data[0], [stack_data[1], stack_data[2]]
+            )
+
+        # plot
+        common.plot_curve_with_error_region(
+            xs,
             stack_data[0],
-            edges,
-            ylabel=r"Median density in radial shell [$M_\odot / kpc^3$]",
-            title="Median density",
-            log=self.log,
-        )
-        # plot lower and upper error
-        plot_radial_profiles.plot_1d_radial_profile(
+            None,
+            errors,
             axes,
-            stack_data[1],
-            edges,
-            ylabel=r"Median density in radial shell [$M_\odot / kpc^3$]",
-            log=self.log,
-            color="grey",
-        )
-        plot_radial_profiles.plot_1d_radial_profile(
-            axes,
-            stack_data[2],
-            edges,
-            ylabel=r"Median density in radial shell [$M_\odot / kpc^3$]",
-            log=self.log,
-            color="grey",
         )
         return fig, axes

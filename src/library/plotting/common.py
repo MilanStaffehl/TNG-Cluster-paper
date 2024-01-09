@@ -3,7 +3,7 @@ Common plotting utilities.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -47,21 +47,22 @@ def overplot_datapoints(
     return axes
 
 
-def overplot_running_median(
+def plot_curve_with_error_region(
     x_data: NDArray,
     y_data: NDArray,
-    x_err: NDArray,
+    x_err: Any,
     y_err: NDArray,
     axes: Axes,
 ) -> Axes:
     """
-    Overplot the given median curve onto the given axes.
+    Overplot the given values with a shaded error region onto the axes.
 
     :param x_data: x-values, shape (N, ).
     :param y_data: y-values, shape (N, ).
     :param x_err: Error on the x values, shape (2, N). Dummy argument,
         only used to for signature compliance.
-    :param y_err: Error on the y values, shape (2, N).
+    :param y_err: Error on the y values, as an array [lower, upper] of
+        shape (2, N).
     :param axes: The axes object onto which to plot the data.
     :return: The updated axes object. Axes is altered in place, so this
         is merely a convenience. The original axes does not need to be

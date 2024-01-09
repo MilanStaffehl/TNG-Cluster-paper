@@ -325,7 +325,7 @@ class IndividualsMassTrendPipeline(base.Pipeline):
 
         # overplot the mean/median data points
         if self.running_median:
-            overplotter = common.overplot_running_median
+            overplotter = common.plot_curve_with_error_region
         else:
             overplotter = common.overplot_datapoints
         overplotter(

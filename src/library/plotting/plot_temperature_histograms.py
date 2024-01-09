@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
 
-from library.plotting import util
+from library.plotting import pltutil
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -150,29 +150,6 @@ def overplot_histogram(
     }
     axes.errorbar(centers, median, yerr=errors, **error_config)
     return axes
-
-
-def get_errorbar_lengths(median: NDArray, percentiles: NDArray) -> NDArray:
-    """
-    Return the error bar lengths as (2, N) shape array.
-
-    The percentiles must have shape (2, N) where N is the length of the
-    median array. The first entry on axis zero must be the position of
-    the lower percentiles, the second the positions of the upper
-    percentiles. The returned array has the same shape, but as values
-    it holds the length of the respective error bar.
-
-
-    :param median: Array of median values of length N.
-    :param percentiles: Array of lower and upper percentiles. Must be of
-        shape (2, N). First entry of first axis must be the position of
-        the lower percentiles, second entry that of the upper percentiles.
-    :return: Array of shape (2, N) giving the length of the lower and
-        upper error bar respectively.
-    """
-    lower_ebars = median - percentiles[0]
-    upper_ebars = percentiles[1] - median
-    return np.array([lower_ebars, upper_ebars])
 
 
 def overplot_virial_temperatures(
@@ -416,7 +393,7 @@ def plot_tds_in_one(
 
     for idx, hist in enumerate(means):
         # get the color
-        color = util.sample_cmap(colormap, len(means), idx)
+        color = pltutil.sample_cmap(colormap, len(means), idx)
 
         # plot data
         plot_config = {
