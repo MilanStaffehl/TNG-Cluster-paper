@@ -168,11 +168,11 @@ def test_column_normalized_hist2d_existing_histogram():
     """
     Test the function using an existing histogram to normalize.
     """
-    # histogram is in shape (ny, nx) - this should be reproduced in result!
+    # histogram is in shape (nx, ny) - this should be respected by func!
     histogram = np.array(
-        [[1, 6, 0],
-         [3, 0, 1],
-         [2, 2, 1]]
+        [[1, 3, 2],
+         [6, 0, 2],
+         [0, 1, 1]]
     )  # yapf: disable
 
     # density

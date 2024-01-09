@@ -348,14 +348,6 @@ def column_normalized_hist2d(
       not assign the smallest value in the column to zero; it merely
       normalizes every value to the largest one in the column.
 
-    Alternatively, it is possible to give this function an existing 2D
-    histogram in the ``x`` parameter. In such a case, the ``y`` and
-    ``bins`` parameters **must** be set to None. If an existing 2D
-    histogram is supplied this way, it will be column normalized directly
-    instead of being created first. In this case, the parameters
-    ``values``, ``ranges``, and ``statistics`` have no effect and are
-    ignored.
-
     The function also supports different types of bin statistics for new
     histograms (i.e. when given sets of x- and y-values). The options are
     identical to those of ``scipy.stats.binned_statistics_2d``, see the
@@ -375,12 +367,24 @@ def column_normalized_hist2d(
         simply transpose the histogram array:
         ``column_normalized_hist2d(...).transpose()``.
 
+    Alternatively, it is possible to give this function an existing 2D
+    histogram in the ``x`` parameter. In such a case, the ``y`` and
+    ``bins`` parameters **must** be set to None. If an existing 2D
+    histogram is supplied this way, it will be column normalized directly
+    instead of being created first. In this case, the parameters
+    ``values``, ``ranges``, and ``statistics`` have no effect and are
+    ignored. Note that while the return value of this function will be
+    a 2D histogram of shape (ny, nx), the input histogram must be of
+    shape (nx, ny). This is done out of convenience, as numpy and by
+    extension also matplotlibs ``hist2d`` return the histogram in this
+    shape.
+
     :param x: The array of shape (N, ) of x-positions of the data points.
         Alternatively, this may be an existing 2D histogram which is to
         be column-wise normalized. In such a case, x must be a 2D array
         and y must be None. The histogram is expected to be of shape
         (nx, ny). This is the order that numpy automatically produces in
-        ``np.histogram2d``.
+        ``numpy.histogram2d``.
     :param y: The array of shape (N, ) of y-positions of the data points.
         Must be set to None if an existing 2D histogram is passed to the
         x parameter, otherwise an exception will be raised.
@@ -394,7 +398,9 @@ def column_normalized_hist2d(
         - tuple[NDArray, NDArray]: First array will specify the bin edges
           along the x-axis, the second the bin edges along the y-axis.
         - None: Use this only when supplying an existing histogram to the
-          ``x`` parameter of this function.
+          ``x`` parameter of this function. Setting this to None when
+          ``x`` and ``y`` are normal 1D arrays of values will cause a
+          RuntimeError to be raised.
     :param values: The values belonging to each data point. Must be of
         shape (N, ). Optional, leave empty for a simple count statistic.
         Defaults to None, which means it will automatically be replaced
