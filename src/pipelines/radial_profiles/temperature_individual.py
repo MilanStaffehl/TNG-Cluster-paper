@@ -55,10 +55,11 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
 
         1. Load halo data.
         2. Restrict halo data to halos above mass threshold.
-        3. Load gas cell data required for temperature calculation.
-        4. Calculate gas cell temperature, discard obsolete data.
-        5. Load gas cell position data.
-        6. For every selected halo:
+        3. Calculate virial temperature for selected halos
+        4. Load gas cell data required for temperature calculation.
+        5. Calculate gas cell temperature, discard obsolete data.
+        6. Load gas cell position data.
+        7. For every selected halo:
            i. Query gas cells for neighbors (either using KDTree or pre-
               saved particle IDs)
            ii. Create a 2D histogram of temperature vs. distance.
@@ -114,7 +115,18 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         self._memlog("Memory usage after restricting halos", mem[0], "kB")
         timepoint = self._timeit(begin, "loading and selecting halo data")
 
-        # Step 3: Load gas cell data for temperature
+        # Step 3: calculate virial temperature for halos
+        logging.info("Calculating virial temperature for selected halos.")
+        selected_halos["virial_temperatures"] = compute.get_virial_temperature(
+            selected_halos["masses"], selected_halos["radii"]
+        )
+        mem = tracemalloc.get_traced_memory()
+        self._memlog(
+            "Memory used after calculating virial temperatures", mem[0], "kB"
+        )
+        timepoint = self._timeit(timepoint, "calculating virial temperatures")
+
+        # Step 4: Load gas cell data for temperature
         logging.info("Loading gas cell data for all gas particles.")
         fields = ["InternalEnergy", "ElectronAbundance", "StarFormationRate"]
         gas_data = il.snapshot.loadSubset(
@@ -127,7 +139,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         self._memlog("Memory used after loading particles", mem[0])
         timepoint = self._timeit(timepoint, "loading gas cell data")
 
-        # Step 4: Calculate temperature of every gas cell
+        # Step 5: Calculate temperature of every gas cell
         part_shape = gas_data["InternalEnergy"].shape
         logging.info(
             f"Calculating temperature for {part_shape[0]:,} gas cells."
@@ -144,7 +156,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
             timepoint, "calculating gas temperatures"
         )
 
-        # Step 5: Load gas cell position data
+        # Step 6: Load gas cell position data
         gas_data = gas_daq.get_gas_properties(
             self.config.base_path,
             self.config.snap_num,
@@ -154,7 +166,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         # diagnostics
         timepoint = self._diagnostics(timepoint, "loading gas cell positions")
 
-        # Step 6: check if KDTree construction is required
+        # Step 7: check if KDTree construction is required
         part_id_directory = Path(self.paths["data_dir"]) / "particle_ids"
         available_ids = set([f.stem for f in part_id_directory.iterdir()])
         required_ids = set(
@@ -193,7 +205,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         # prepare variables for querying
         workers = self.processes if self.processes else 1
 
-        # Step 7: Create the radial profiles
+        # Step 8: Create the radial profiles
         logging.info("Begin processing halos.")
         for i in range(len(selected_halos["ids"])):
             halo_id = selected_halos["ids"][i]
@@ -261,11 +273,14 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                     yedges=ye,
                     halo_id=halo_id,
                     halo_mass=selected_halos["masses"][i],
+                    virial_temperature=selected_halos["virial_temperatures"]
+                    [i],
                 )
             # plot and save data
             self._plot_halo(
                 halo_id=halo_id,
                 halo_mass=selected_halos["masses"][i],
+                virial_temperature=selected_halos["virial_temperatures"][i],
                 histogram=hn,
                 xedges=xe,
                 yedges=ye,
@@ -274,9 +289,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
             del part_positions, part_distances, part_temperatures, weights
             del hn, h, xe, ye
 
-        timepoint = self._diagnostics(
-            timepoint, "plotting individual profiles"
-        )
+        self._diagnostics(timepoint, "plotting individual profiles")
 
         self._timeit(begin, "total execution")
         tracemalloc.stop()
@@ -286,6 +299,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         self,
         halo_id: int,
         halo_mass: float,
+        virial_temperature: float,
         histogram: NDArray,
         xedges: NDArray,
         yedges: NDArray,
@@ -295,6 +309,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
 
         :param halo_id: The halo ID.
         :param halo_mass: The mass of the halo in units of solar masses.
+        :param virial_temperature: Virial temperature of the halo in Kelvin.
         :param histogram: The (N, N) shape array of the histogram data.
         :param xedges: The edges of the x bins.
         :param yedges: The edges of the y bins.
@@ -306,27 +321,33 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+        with np.errstate(invalid="ignore", divide="ignore"):
+            if self.log:
+                plot_radial_profiles.plot_2d_radial_profile(
+                    fig,
+                    axes,
+                    histogram,
+                    ranges,
+                    title=title,
+                    cbar_label="Normalized gas mass fraction (log10)",
+                    cbar_limits=[-4.2, None],
+                    scale="log",
+                    cbar_ticks=[0, -1, -2, -3, -4],
+                )
+            else:
+                plot_radial_profiles.plot_2d_radial_profile(
+                    fig,
+                    axes,
+                    histogram,
+                    ranges,
+                    title=title,
+                    cbar_label="Normalized gas mass fraction"
+                )
+        # virial temperature
         if self.log:
-            plot_radial_profiles.plot_2d_radial_profile(
-                fig,
-                axes,
-                histogram,
-                ranges,
-                title=title,
-                cbar_label="Normalized gas mass fraction (log10)",
-                cbar_limits=[-4.2, None],
-                scale="log",
-                cbar_ticks=[0, -1, -2, -3, -4],
-            )
+            axes.hlines(np.log10(virial_temperature), 0, 2, colors="blue")
         else:
-            plot_radial_profiles.plot_2d_radial_profile(
-                fig,
-                axes,
-                histogram,
-                ranges,
-                title=title,
-                cbar_label="Normalized gas mass fraction"
-            )
+            axes.hlines(virial_temperature, 0, 2, colors="blue")
 
         # save figure
         if self.no_plots:
@@ -378,5 +399,7 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
             self.paths["data_dir"] / "temperature_profiles",
             (self.radial_bins, self.temperature_bins)
         )
+        logging.info("Plotting individual halo profiles.")
         for halo_data in load_generator:
+            halo_data.pop("original_histogram")
             self._plot_halo(**halo_data)

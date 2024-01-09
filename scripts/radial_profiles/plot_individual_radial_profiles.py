@@ -139,7 +139,7 @@ if __name__ == "__main__":
         help=(
             "When given, data is loaded from data files rather than newly "
             "acquired. This only works if data files of the expected name are "
-            "present. When used, the flags -p, -f, -q have no effect."
+            "present. When used, the flags -p, -f, -t, -q have no effect."
         ),
         dest="from_file",
         action="store_true",

@@ -160,6 +160,7 @@ def load_individuals_2d_profile(
             yedges = data_file["yedges"]
             halo_id = data_file["halo_id"]
             halo_mass = data_file["halo_mass"]
+            virial_temperature = data_file["virial_temperature"]
 
         # construct dictionary
         halo_data = {
@@ -169,6 +170,7 @@ def load_individuals_2d_profile(
             "yedges": yedges,
             "halo_id": halo_id,
             "halo_mass": halo_mass,
+            "virial_temperature": virial_temperature,
         }
 
         # if data verification is undesired, yield data right away
