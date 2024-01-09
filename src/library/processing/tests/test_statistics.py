@@ -3,6 +3,7 @@ Unit tests for the statistics module.
 """
 import numpy as np
 import numpy.ma as ma
+import pytest
 
 from library.processing import selection, statistics
 
@@ -129,12 +130,19 @@ def test_mask_quantity_uncompressed_dimensions():
     assert output.shape == (3, 2)
 
 
-def test_column_normalized_hist2d_density():
+@pytest.fixture
+def hist_data():
+    """Yield x- and y-data for a simple 2D histogram."""
+    x_data = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3])
+    y_data = np.array([1, 2, 2, 2, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 2, 3])
+    yield x_data, y_data
+
+
+def test_column_normalized_hist2d_density(hist_data):
     """
     Test that the function can return a simple count-based hist2d.
     """
-    x_data = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3])
-    y_data = np.array([1, 2, 2, 2, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 2, 3])
+    x_data, y_data = hist_data
     output = statistics.column_normalized_hist2d(x_data, y_data, (3, 3))
     assert output[0].shape == (3, 3)
     expected = np.array(
@@ -143,15 +151,44 @@ def test_column_normalized_hist2d_density():
     np.testing.assert_almost_equal(output[0], expected, decimal=2)
 
 
-def test_column_normalized_hist2d_range():
+def test_column_normalized_hist2d_range(hist_data):
     """
     Test the function using the range normalization.
     """
-    x_data = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3])
-    y_data = np.array([1, 2, 2, 2, 3, 3, 1, 1, 1, 1, 1, 1, 3, 3, 2, 3])
+    x_data, y_data = hist_data
     output = statistics.column_normalized_hist2d(
         x_data, y_data, (3, 3), normalization="range"
     )
     assert output[0].shape == (3, 3)
+    expected = np.array([[1 / 3, 1, 0], [1, 0, 1], [2 / 3, 1 / 3, 1]])
+    np.testing.assert_almost_equal(output[0], expected, decimal=2)
+
+
+def test_column_normalized_hist2d_existing_histogram():
+    """
+    Test the function using an existing histogram to normalize.
+    """
+    # histogram is in shape (ny, nx) - this should be reproduced in result!
+    histogram = np.array(
+        [[1, 6, 0],
+         [3, 0, 1],
+         [2, 2, 1]]
+    )  # yapf: disable
+
+    # density
+    output = statistics.column_normalized_hist2d(histogram, None, None)
+    assert output[0].shape == (3, 3)
+    assert output[1] is None and output[2] is None
+    expected = np.array(
+        [[1 / 6, 3 / 4, 0], [1 / 2, 0, 1 / 2], [1 / 3, 1 / 4, 1 / 2]]
+    )
+    np.testing.assert_almost_equal(output[0], expected, decimal=2)
+
+    # range
+    output = statistics.column_normalized_hist2d(
+        histogram, None, None, normalization="range"
+    )
+    assert output[0].shape == (3, 3)
+    assert output[1] is None and output[2] is None
     expected = np.array([[1 / 3, 1, 0], [1, 0, 1], [2 / 3, 1 / 3, 1]])
     np.testing.assert_almost_equal(output[0], expected, decimal=2)

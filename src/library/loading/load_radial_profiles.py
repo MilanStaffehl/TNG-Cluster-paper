@@ -155,7 +155,7 @@ def load_individuals_2d_profile(
             logging.warning(f"Skipping non-file entry {filename}.")
         with np.load(filename) as data_file:
             histogram = data_file["histogram"]
-            # original_histogram = data_file["original_histogram"]  # unused
+            original_histogram = data_file["original_histogram"]
             xedges = data_file["xedges"]
             yedges = data_file["yedges"]
             halo_id = data_file["halo_id"]
@@ -164,6 +164,7 @@ def load_individuals_2d_profile(
         # construct dictionary
         halo_data = {
             "histogram": histogram,
+            "original_histogram": original_histogram,
             "xedges": xedges,
             "yedges": yedges,
             "halo_id": halo_id,

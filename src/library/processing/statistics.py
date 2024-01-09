@@ -321,8 +321,8 @@ def get_binned_medians(
 
 def column_normalized_hist2d(
     x: NDArray,
-    y: NDArray,
-    bins: int | tuple[int, int] | NDArray | tuple[NDArray, NDArray],
+    y: NDArray | None,
+    bins: int | tuple[int, int] | NDArray | tuple[NDArray, NDArray] | None,
     values: NDArray | None = None,
     ranges: NDArray | None = None,
     statistic: str = "sum",
@@ -348,24 +348,42 @@ def column_normalized_hist2d(
       not assign the smallest value in the column to zero; it merely
       normalizes every value to the largest one in the column.
 
-    The function also supports different types of bin statistics. The
-    options are identical to those of ``scipy.stats.binned_statistics_2d``,
-    see the`scipy documentation`_ for details. In order to get a normal
-    weighted histogram, use the weights as values and set "statistics"
-    to ``"sum"``. In order to get a count histogram, leave both the
-    values and the statistics arguments at their default values.
+    Alternatively, it is possible to give this function an existing 2D
+    histogram in the ``x`` parameter. In such a case, the ``y`` and
+    ``bins`` parameters **must** be set to None. If an existing 2D
+    histogram is supplied this way, it will be column normalized directly
+    instead of being created first. In this case, the parameters
+    ``values``, ``ranges``, and ``statistics`` have no effect and are
+    ignored.
 
-    .. attention:: The histogram will have shape (ny, nx) - contrary to
-        the standard order of most histogram generating functions! This
-        is done to ensure that the array will have the more intuitive,
-        readily understandable form wherein the first index selects a
-        row, and the second index selects a column (i.e. an entry of the
-        selected row). This shape is also expected for plotting functions
-        such as ``mtplotlib.pyplot.imshow``. To return to the original
-        shape, simply transpose the histogram array: ``hist.transpose()``.
+    The function also supports different types of bin statistics for new
+    histograms (i.e. when given sets of x- and y-values). The options are
+    identical to those of ``scipy.stats.binned_statistics_2d``, see the
+    `scipy documentation`_ for details. In order to get a normal weighted
+    histogram, use the weights as values and set "statistics" to
+    ``"sum"``. In order to get a count histogram, leave both the values
+    and the statistics arguments at their default values.
+
+    .. attention:: The returned histogram will have shape (ny, nx) --
+        contrary to the standard order of most histogram generating
+        functions! This is done to ensure that the array will have the
+        more intuitive, readily understandable form wherein the first
+        index selects a row, and the second index selects a column (i.e.
+        an entry of the selected row). This shape is also expected for
+        plotting functions such as ``matplotlib.pyplot.imshow``. To
+        return to the original shape as ``np.histogram2d`` would return,
+        simply transpose the histogram array:
+        ``column_normalized_hist2d(...).transpose()``.
 
     :param x: The array of shape (N, ) of x-positions of the data points.
+        Alternatively, this may be an existing 2D histogram which is to
+        be column-wise normalized. In such a case, x must be a 2D array
+        and y must be None. The histogram is expected to be of shape
+        (nx, ny). This is the order that numpy automatically produces in
+        ``np.histogram2d``.
     :param y: The array of shape (N, ) of y-positions of the data points.
+        Must be set to None if an existing 2D histogram is passed to the
+        x parameter, otherwise an exception will be raised.
     :param bins: The bins for the histogram. Can be one of the following:
         - int: In this case, both dimensions will be split into this
           number of bins.
@@ -375,6 +393,8 @@ def column_normalized_hist2d(
           dimensions.
         - tuple[NDArray, NDArray]: First array will specify the bin edges
           along the x-axis, the second the bin edges along the y-axis.
+        - None: Use this only when supplying an existing histogram to the
+          ``x`` parameter of this function.
     :param values: The values belonging to each data point. Must be of
         shape (N, ). Optional, leave empty for a simple count statistic.
         Defaults to None, which means it will automatically be replaced
@@ -387,30 +407,52 @@ def column_normalized_hist2d(
     :param normalization: The normalization to use along the columns.
         Choices are "density" or "range". Density normalization will
         normalize every column such that its values add up to one, while
-        schoosing range will normalize every column to its maximum value,
+        choosing range will normalize every column to its maximum value,
         such that every column will have 1 as its maximum value. Defaults
         to "density".
-    :raises RuntimeError: If an unsupported normalization is given.
-    :return: The tuple of the histogram, the x-edges and the y-edges.
-        The histogram is column-wise normalized according to the chosen
-        method.
+    :raises RuntimeError: If an unsupported normalization is given; or
+        if the supplied arguments for x, y and bins cannot be properly
+        parsed (i.e. if either y or bins is None, but the other is not
+        or when x has the wrong shape to be an existing 2D histogram).
+    :return: The tuple of the histogram of shape (ny, nx) (careful: this
+        is different from what you might expect; see not above), the
+        x-edges and the y-edges. The histogram is column-wise normalized
+        according to the chosen method.
+        If ``x`` was an existing 2D histogram, the x- and y-edges are
+        None instead as they cannot be inferred from only an existing
+        2D histogram alone. In such a case, the edges should already be
+        available from the generating function of the existing histogram
+        anyway.
 
     .. _scipy documentation: https://docs.scipy.org/doc/scipy/reference/generated/scipy.stats.binned_statistic_2d.html
     """  # noqa: B950
-    if x.shape != y.shape:
+    if y is None and bins is None and len(x.shape) == 2:
+        logging.debug(
+            "Received an existing histogram, will normalize it directly."
+        )
+        # expects hist as shape (nx, ny), so transposition is necessary
+        hist = x
+        xedges, yedges = None, None
+    elif x.shape != y.shape:
         logging.error(
             f"Received x and y data arrays of different shape: shape of x is "
             f"{x.shape} but y has shape {y.shape}."
         )
         return
-    # if no values are given, assume a normal count/sum is desired
-    if values is None:
-        values = np.ones_like(x)
+    else:
+        if bins is None or y is None:
+            raise RuntimeError(
+                "Input parameters for x, y and bins cannot be parsed:\n"
+                f"x: {x}\ny: {y}\nbins: {bins}\n"
+            )
+        # if no values are given, assume a normal count/sum is desired
+        if values is None:
+            values = np.ones_like(x)
 
-    # calculate histogram
-    hist, xedges, yedges, _ = scipy.stats.binned_statistic_2d(
-        x, y, values, statistic, bins, ranges
-    )
+        # calculate histogram
+        hist, xedges, yedges, _ = scipy.stats.binned_statistic_2d(
+            x, y, values, statistic, bins, ranges
+        )
 
     # normalize every column according to chosen normalization
     if normalization == "density":

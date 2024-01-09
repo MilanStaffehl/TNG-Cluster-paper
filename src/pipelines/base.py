@@ -103,19 +103,6 @@ class Pipeline:
                 f"specified!\n{self.paths}"
             )
             return 2
-        # files
-        if "data_file_stem" in self.paths.keys():
-            data_dir = self.paths["data_dir"]
-            data_file = data_dir / f"{self.paths['data_file_stem']}.npz"
-            if not data_file.exists() or not data_file.is_file():
-                logging.error(f"Data file under {data_dir} does not exist.")
-                return 3
-        else:
-            logging.error(
-                f"The FileDict received does not have a data file stem "
-                f"specified!\n{self.paths}"
-            )
-            return 2
         # virial temperature file
         if "virial_temp_file_stem" in self.paths.keys():
             data_dir = self.paths["data_dir"]
@@ -125,7 +112,7 @@ class Pipeline:
                     f"Data file for virial temperature under {data_dir} does "
                     "not exist."
                 )
-                return 3
+                return 2
         return 0
 
     @staticmethod

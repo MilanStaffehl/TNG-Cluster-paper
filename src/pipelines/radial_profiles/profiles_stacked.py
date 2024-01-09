@@ -53,8 +53,8 @@ class StackProfilesPipeline(Pipeline):
         n_halos = len(files)
         # test-load first halo
         with np.load(files[0].resolve()) as data_file:
-            hist_shape = data_file["histogram"].shape
             if self.what == "temperature":
+                hist_attr = "original_histogram"
                 edges = [
                     data_file["xedges"][0],
                     data_file["xedges"][-1],
@@ -62,7 +62,9 @@ class StackProfilesPipeline(Pipeline):
                     data_file["yedges"][-1],
                 ]
             else:
+                hist_attr = "histogram"
                 edges = data_file["edges"]
+            hist_shape = data_file[hist_attr].shape
 
         # allocate memory
         histograms = np.zeros((n_halos, ) + hist_shape)
@@ -74,12 +76,23 @@ class StackProfilesPipeline(Pipeline):
             loader = load_radial_profiles.load_individuals_1d_profile
         # iterate through directory
         for i, halo_data in enumerate(loader(self.paths["data_dir"], hist_shape)):
-            histograms[i] = halo_data["histogram"]
+            histograms[i] = halo_data[hist_attr]
 
         # Step 3: stack the histograms
         stack = statistics.stack_histograms(histograms, method=self.method)
+        if self.what == "temperature":
+            # 2D histograms need to be normalized column-wise
+            normalized_histograms, _, _ = statistics.column_normalized_hist2d(
+                stack[0], None, None, normalization="density"
+            )
+            # re-assign to variable
+            stack = (
+                normalized_histograms,
+                stack[1].transpose(),
+                stack[2].transpose()
+            )
 
-        # Step 4: plot the results
+        # Step 5: plot the results
         if self.what == "temperature" and self.method == "mean":
             f, a = self._plot_2d_mean(stack, edges)
         elif self.what == "temperature" and self.method == "median":
@@ -98,7 +111,7 @@ class StackProfilesPipeline(Pipeline):
         # save plot to file
         if self.no_plots:
             return 0
-        name = f"{self.paths['figures_file_stem']}_{self.method}.pdf"
+        name = f"{self.paths['figures_file_stem']}_{self.method}.png"
         path = Path(self.paths["figures_dir"])
         if not path.exists():
             logging.info("Creating missing figures directory for stacks.")
@@ -118,7 +131,7 @@ class StackProfilesPipeline(Pipeline):
         :return: Tuple of figure and axes objects with the plots.
         """
         # create and configure figure and axes
-        fig, axes = plt.subplots(ncols=2, figsize=(10, 4), sharey=True)
+        fig, axes = plt.subplots(ncols=2, figsize=(9, 4), sharey=True)
         fig.set_tight_layout(True)
 
         # plot the mean/median
@@ -128,7 +141,7 @@ class StackProfilesPipeline(Pipeline):
             stack_data[0],
             edges,
             title="Mean temperature profile",
-            cbar_label="Mean gas fraction per radial shell",
+            cbar_label="Normalized gas mass fraction",
             scale="log" if self.log else "linear",
             log_msg="all halos above 10^14 M_sol",
         )

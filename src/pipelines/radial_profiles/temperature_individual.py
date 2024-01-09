@@ -54,7 +54,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
         Steps:
 
         1. Load halo data.
-        2. Restrict halo data to halos above mass threshhold.
+        2. Restrict halo data to halos above mass threshold.
         3. Load gas cell data required for temperature calculation.
         4. Calculate gas cell temperature, discard obsolete data.
         5. Load gas cell position data.
@@ -313,7 +313,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                 histogram,
                 ranges,
                 title=title,
-                cbar_label="FIX ME!",
+                cbar_label="Normalized gas mass fraction (log10)",
                 scale="log",
                 cbar_ticks=[0, -1, -2, -3, -4, -5],
             )
@@ -324,7 +324,7 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                 histogram,
                 ranges,
                 title=title,
-                cbar_label="FIX ME!"
+                cbar_label="Normalized gas mass fraction"
             )
 
         # save figure
@@ -374,7 +374,8 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
 
         # Step 1: load data
         load_generator = load_radial_profiles.load_individuals_2d_profile(
-            self.paths["data_dir"], (self.radial_bins, self.temperature_bins)
+            self.paths["data_dir"] / "temperature_profiles",
+            (self.radial_bins, self.temperature_bins)
         )
         for halo_data in load_generator:
             self._plot_halo(**halo_data)
