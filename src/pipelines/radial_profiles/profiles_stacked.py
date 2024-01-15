@@ -92,11 +92,17 @@ class StackProfilesPipeline(Pipeline):
                 stack[2].transpose()
             )
 
+        # Step 4: get running average
+        if self.what == "temperature":
+            running_avg = statistics.get_2d_histogram_running_average(
+                stack[0], edges[-2:]
+            )
+
         # Step 5: plot the results
         if self.what == "temperature" and self.method == "mean":
-            f, a = self._plot_2d_mean(stack, edges)
+            f, a = self._plot_2d_mean(stack, edges, running_avg)
         elif self.what == "temperature" and self.method == "median":
-            f, a = self._plot_2d_median(stack, edges)
+            f, a = self._plot_2d_median(stack, edges, running_avg)
         elif self.what == "density":
             f, a = self._plot_1d(stack, self.method)
         else:
@@ -118,7 +124,10 @@ class StackProfilesPipeline(Pipeline):
         plt.close(f)
 
     def _plot_2d_mean(
-        self, stack_data: tuple[NDArray, NDArray, NDArray], edges: NDArray
+        self,
+        stack_data: tuple[NDArray, NDArray, NDArray],
+        edges: NDArray,
+        running_average: NDArray,
     ) -> tuple[Figure, tuple[Axes, Axes]]:
         """
         Plot the mean histogram plus the standard deviation.
@@ -126,6 +135,8 @@ class StackProfilesPipeline(Pipeline):
         :param stack_data: The tuple of the mean histogram, and the
             standard deviation.
         :param edges: The edges of the x- and y-axes: [xmin, xmax, ymin, ymax].
+        :param running_average: The array of temperature averages in
+            every radial column.
         :return: Tuple of figure and axes objects with the plots.
         """
         # create and configure figure and axes
@@ -159,10 +170,20 @@ class StackProfilesPipeline(Pipeline):
             cbar_label="Standard deviation of gas fraction (not normalized)",
             scale="log" if self.log else "linear",
         )
+        # plot the running average
+        plot_radial_profiles.overplot_running_average(
+            fig,
+            axes[0],
+            running_average,
+            edges,
+        )
         return fig, axes
 
     def _plot_2d_median(
-        self, stack_data: tuple[NDArray, NDArray, NDArray], edges: NDArray
+        self,
+        stack_data: tuple[NDArray, NDArray, NDArray],
+        edges: NDArray,
+        running_average: NDArray,
     ) -> tuple[Figure, tuple[Axes, Axes, Axes]]:
         """
         Plot the median histogram plus the 16th and 84th percentiles.
@@ -170,6 +191,8 @@ class StackProfilesPipeline(Pipeline):
         :param stack_data: The tuple of the median histogram, and the
             16th and 84th percentiles.
         :param edges: The edges of the x- and y-axes: [xmin, xmax, ymin, ymax].
+        :param running_average: The array of average temperature in
+            every radial column.
         :return: Tuple of figure and axes objects with the plots.
         """
         fig = plt.figure(layout="constrained", figsize=(7.5, 4))
@@ -216,6 +239,10 @@ class StackProfilesPipeline(Pipeline):
             cbar_label="Upper error (84th percentile to median)",
             colormap="gist_rainbow",
             labelsize=10,
+        )
+        # overplot running average
+        plot_radial_profiles.overplot_running_average(
+            fig, ax1, running_average, edges
         )
         return fig, (ax1, ax2, ax3)
 

@@ -73,7 +73,7 @@ def plot_2d_radial_profile(
     fig: Figure,
     axes: Axes,
     histogram2d: NDArray,
-    ranges: Sequence[float, float, float, float],
+    ranges: Sequence[float, float, float, float] | NDArray,
     xlabel: str | None = r"Distance from halo center [$R_{200c}$]",
     ylabel: str | None = r"Temperature [$\log K$]",
     title: str | None = None,
@@ -211,7 +211,7 @@ def overplot_running_average(
     figure: Figure,
     axes: Axes,
     averages: NDArray,
-    ranges: tuple[float, float, float, float],
+    ranges: tuple[float, float, float, float] | NDArray,
 ) -> tuple[Figure, Axes]:
     """
     Overplot a running average onto a 2D histogram.
@@ -231,13 +231,18 @@ def overplot_running_average(
     """
     # plot the running average
     xbin_width = (ranges[1] - ranges[0]) / len(averages)
-    xs = np.arange(ranges[0], ranges[1], xbin_width)
+    xs = np.arange(ranges[0], ranges[1] + xbin_width, xbin_width)
     avg_config = {
         "where": "post",
         "color": "white",
         "linewidth": 1,
         "label": "Running average"
     }
-    axes.step(xs, averages, **avg_config)
+    # Matplotlib is at it again with its bullshit: last step does not show
+    # up without this workaround: duplicate last entry of averages (so that
+    # the previous one will show up, and this duplicated last one is
+    # discarded instead)
+    extended_averages = np.append(averages, averages[-1])
+    axes.step(xs, extended_averages, **avg_config)
     axes.legend()
     return figure, axes
