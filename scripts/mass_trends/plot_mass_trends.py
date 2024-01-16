@@ -23,7 +23,7 @@ def main(args: argparse.Namespace) -> None:
 
     # temperature divisions
     if args.normalize:
-        temperature_divs = [-100.0, -3.5, -1.0, 100.0]
+        temperature_divs = [-100.0, -2.0, -1.0, 100.0]
     else:
         temperature_divs = [0.0, 4.5, 5.5, 10.0]
 

@@ -27,7 +27,7 @@ def main(args: argparse.Namespace) -> None:
 
     # warn of impossible combinations
     if args.grid and args.combine:
-        logging.warn("Combining the -g and -c flags is not possible.")
+        logging.fatal("Combining the -g and -c flags is not possible.")
         sys.exit(1)
 
     # histogram weights
@@ -35,6 +35,15 @@ def main(args: argparse.Namespace) -> None:
         weight_type = "mass"
     else:
         weight_type = "frac"
+
+    # temperature divisions
+    if args.divisions:
+        if args.normalize:
+            temperature_division = (-2, -1)
+        else:
+            temperature_division = (4.5, 5.5)
+    else:
+        temperature_division = None
 
     # subdirectory
     if args.combine:
@@ -56,7 +65,7 @@ def main(args: argparse.Namespace) -> None:
         "temperature_distribution",
         cfg,
         type_flag,
-        not args.normalize and args.overplot,
+        True,
         args.figurespath,
         args.datapath,
         subdirectory,
@@ -72,7 +81,7 @@ def main(args: argparse.Namespace) -> None:
         "weights": weight_type,
         "normalize": args.normalize,
         "with_virial_temperatures": not args.normalize and args.overplot,
-        "temperature_divisions": (4.5, 5.5) if args.divisions else None,
+        "temperature_divisions": temperature_division,
         "quiet": args.quiet,
         "to_file": args.to_file,
         "no_plots": args.no_plots,

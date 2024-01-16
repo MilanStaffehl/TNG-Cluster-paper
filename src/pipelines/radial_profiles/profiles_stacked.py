@@ -227,7 +227,7 @@ class StackProfilesPipeline(Pipeline):
             stack_data[0] - stack_data[1],
             edges,
             xlabel=None,
-            cbar_label="Lower error (16th percentile to median)",
+            cbar_label="Lower error",
             colormap="gist_rainbow",
             labelsize=10,
         )
@@ -236,7 +236,7 @@ class StackProfilesPipeline(Pipeline):
             ax3,
             stack_data[0] - stack_data[2],
             edges,
-            cbar_label="Upper error (84th percentile to median)",
+            cbar_label="Upper error",
             colormap="gist_rainbow",
             labelsize=10,
         )
