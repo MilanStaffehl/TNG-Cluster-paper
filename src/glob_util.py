@@ -123,5 +123,7 @@ def translate_sim_name(name: str) -> str:
         return "TNG50-3"
     elif name == "MAIN_SIM":
         return "TNG300-1"
+    elif name == "CLUSTER":
+        return "TNG-Cluster"
     else:
         raise ValueError(f"Unknown simulation type {name}.")

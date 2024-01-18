@@ -40,19 +40,19 @@ def get_halo_properties(
         a list of halo IDs.
     """
     # verify and correct input types
-    if not isinstance(fields, list):
-        logging.warning(
-            "Received a string instead of a list of fields for halo data "
-            "acquistion. Please use a list of fields."
-        )
+    if isinstance(fields, str):
         fields = [fields]
+    elif not isinstance(fields, list):
+        # attempt cast
+        fields = list(fields)
 
-    logging.info("Loading halo properties.")
+    logging.info(f"Loading halo properties {fields}.")
     # verify units can be converted (done first to avoid loading data
     # that cannot be converted later anyway)
     supported = units.UnitConverter.supported_fields()
     for field in fields:
         if field not in supported:
+            logging.fatal(f"No unit conversion fo field {field} available.")
             raise units.UnsupportedUnitError(field)
 
     # load halo properties

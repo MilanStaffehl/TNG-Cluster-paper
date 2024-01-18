@@ -86,7 +86,11 @@ def get_default_config(
     # set paths
     figures_home = Path(config["paths"]["figures_home"]).expanduser()
     data_home = Path(config["paths"]["data_home"]).expanduser()
-    simulation_home = Path(config["paths"]["simulation_home"]).expanduser()
+    if sim == "TNG-Cluster":
+        sim_home = "cluster_home"
+    else:
+        sim_home = "simulation_home"
+    simulation_home = Path(config["paths"][sim_home]).expanduser()
 
     # verify paths
     for path in [figures_home, data_home, simulation_home]:
