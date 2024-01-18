@@ -13,6 +13,7 @@ from pipelines.radial_profiles.density_individual import (
 )
 from pipelines.radial_profiles.temperature_individual import (
     IndividualTemperatureProfilePipeline,
+    IndivTemperatureTNGClusterPipeline,
     ITProfilesFromFilePipeline,
 )
 
@@ -52,6 +53,8 @@ def main(args: argparse.Namespace) -> None:
     if args.what == "temperature":
         if args.from_file:
             pipeline = ITProfilesFromFilePipeline(**pipeline_config)
+        elif sim == "TNG-Cluster":
+            pipeline = IndivTemperatureTNGClusterPipeline(**pipeline_config)
         else:
             pipeline = IndividualTemperatureProfilePipeline(**pipeline_config)
     else:
@@ -59,6 +62,10 @@ def main(args: argparse.Namespace) -> None:
         pipeline_config.pop("temperature_bins")
         if args.from_file:
             pipeline = IDProfilesFromFilePipeline(**pipeline_config)
+        elif sim == "TNG-Cluster":
+            raise NotImplementedError(
+                "Radial density profiles for TNG Cluster pending."
+            )
         else:
             pipeline = IndividualDensityProfilePipeline(**pipeline_config)
     pipeline.run()
@@ -77,12 +84,13 @@ if __name__ == "__main__":
         "--sim",
         help=(
             "Type of the simulation to use; main sim is TNG300-1, dev sim "
-            "is TNG50-3 and test sim is TNG50-4"
+            "is TNG50-3, test sim is TNG50-4, and CLUSTER is TNG-Cluster. "
+            "Defaults to TNG300-1."
         ),
         dest="sim",
         type=str,
         default="MAIN_SIM",
-        choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
+        choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM", "CLUSTER"],
     )
     parser.add_argument(
         "-w",

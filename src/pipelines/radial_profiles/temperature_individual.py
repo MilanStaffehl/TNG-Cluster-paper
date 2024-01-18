@@ -273,9 +273,8 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
                     yedges=ye,
                     halo_id=halo_id,
                     halo_mass=selected_halos["masses"][i],
-                    virial_temperature=selected_halos["virial_temperatures"]
-                    [i],
-                )
+                    virial_temperature=selected_halos["virial_temperatures"][i],
+                )  # yapf: disable
             # plot and save data
             self._plot_halo(
                 halo_id=halo_id,
@@ -351,9 +350,13 @@ class IndividualTemperatureProfilePipeline(DiagnosticsPipeline):
 
         # save figure
         if self.no_plots:
-            return 0
-        name = f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf"
-        path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
+            return
+        if self.config.sim_name == "TNG-Cluster":
+            htype = "cluster"
+        else:
+            htype = "halo"
+        name = f"{self.paths['figures_file_stem']}_{htype}_{halo_id}.pdf"
+        path = Path(self.paths["figures_dir"]) / f"{htype}_{halo_id}"
         if not path.exists():
             logging.debug(
                 f"Creating missing figures directory for halo "
@@ -397,9 +400,141 @@ class ITProfilesFromFilePipeline(IndividualTemperatureProfilePipeline):
         # Step 1: load data
         load_generator = load_radial_profiles.load_individuals_2d_profile(
             self.paths["data_dir"] / "temperature_profiles",
-            (self.radial_bins, self.temperature_bins)
+            (self.radial_bins, self.temperature_bins),
         )
         logging.info("Plotting individual halo profiles.")
         for halo_data in load_generator:
             halo_data.pop("original_histogram")
             self._plot_halo(**halo_data)
+
+
+class IndivTemperatureTNGClusterPipeline(IndividualTemperatureProfilePipeline):
+    """
+    Pipeline to create radial temperature profiles for TNG Cluster.
+
+    Pipeline creates 2D histograms of the temperature distribution with
+    radial distance to the center of the halo, including particles not
+    bound to the halo. It does this for every halo above 10^14 solar
+    masses in virial mass.
+
+    This Pipeline is specific to the TNG Cluster simulation and utilizes
+    some of the simulations properties to be more efficient than its
+    parent class at handling particles.
+    """
+
+    def run(self) -> int:
+        """
+        Create radial temperature profiles for zoom-in cluster of TNG Cluster.
+
+        Steps:
+
+        1. Load halo data, restricted to zoom-ins.
+        2. Calculate virial temperatures.
+        3. For every cluster:
+           1. Load gas cell data for temperature (only loading particles
+              from the zoom).
+           2. Calculate gas cell temperature, discard obsolete data.
+           3. Load gas cell position data, calculate halocentric distance.
+           4. Create a 2D histogram of temperature vs. distance. Let
+              the histogram function handle particles beyond 2 R_200
+              automatically.
+           5. Save data and figure to file.
+           6. Clean-up: discard all data for the current halo.
+
+        :return: Exit code.
+        """
+        # Step 0: create directories, start monitoring, timing
+        self._create_directories(subdirs=["temperature_profiles"], force=True)
+        tracemalloc.start()
+        begin = time.time()
+
+        # Step 1: Load and restrict halo data from TNG Cluster
+        fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
+        halo_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=fields,
+            cluster_restrict=True
+        )
+        timepoint = self._diagnostics(begin, "loading halo data", unit="kB")
+
+        # Step 2: calculate virial temperatures
+        halo_data["VirialTemperature"] = compute.get_virial_temperature(
+            halo_data[self.config.mass_field],
+            halo_data[self.config.radius_field],
+        )
+        timepoint = self._diagnostics(
+            timepoint, "calculating virial temperature", unit="kB"
+        )
+
+        # Step 3: Loop through halos
+        logging.info("Start processing individual halos.")
+        for i, halo_id in enumerate(halo_data["IDs"]):
+            if not self.quiet:
+                logging.info(f"Processing halo {halo_id} ({i}/352).")
+            # Step 3.1: Load gas cell data for temperature
+            gas_temperatures = gas_daq.get_cluster_temperature(
+                halo_id,
+                self.config.base_path,
+                self.config.snap_num,
+            )
+
+            # Step 3.2: Load gas cell position data, calculate distance
+            gas_data = gas_daq.get_gas_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                fields=["Coordinates", "Masses"],
+                cluster=halo_id,
+            )
+            gas_distances = np.linalg.norm(
+                gas_data["Coordinates"] - halo_data["GroupPos"][i], axis=1
+            ) / halo_data[self.config.radius_field][i]
+
+            # Step 3.3: Create histogram
+            weights = gas_data["Masses"] / np.sum(gas_data["Masses"])
+            h, xe, ye = np.histogram2d(
+                gas_distances,
+                np.log10(gas_temperatures),
+                range=self.ranges,
+                bins=(self.radial_bins, self.temperature_bins),
+                weights=weights,
+            )
+            hn, _, _ = statistics.column_normalized_hist2d(
+                h, None, None, normalization="density"
+            )
+
+            # Step 3.4: Save data to file and plot it
+            if self.to_file:
+                logging.debug(f"Writing data for cluster {halo_id} to file.")
+                filepath = self.paths["data_dir"] / "temperature_profiles"
+                filename = (
+                    f"{self.paths['data_file_stem']}_cluster_{halo_id}.npz"
+                )
+                np.savez(
+                    filepath / filename,
+                    histogram=hn,
+                    original_histogram=h,
+                    xedges=xe,
+                    yedges=ye,
+                    halo_id=halo_id,
+                    halo_mass=halo_data[self.config.mass_field][i],
+                    virial_temperature=halo_data["VirialTemperature"],
+                )
+            self._plot_halo(
+                halo_id=halo_id,
+                halo_mass=halo_data[self.config.mass_field][i],
+                virial_temperature=halo_data["VirialTemperature"][i],
+                histogram=hn,
+                xedges=xe,
+                yedges=ye,
+            )
+
+            # Step 3.5: Cleanup
+            del gas_temperatures, gas_data, gas_distances, weights
+            del h, hn, xe, ye
+            timepoint = self._diagnostics(
+                timepoint, f"processing halo {halo_id} ({i}/352)"
+            )
+
+        self._diagnostics(begin, "total execution")
+        return 0

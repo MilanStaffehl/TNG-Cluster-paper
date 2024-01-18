@@ -152,7 +152,7 @@ def mask_quantity(
     :param mask: Masking array. Must be an array of integers. Must have
         the same shape as ``quantity``.
     :param index: The integers value for the index in the masking array
-        to keep unmasked. Defaults to 1.
+        to keep unmasked. Defaults to 0.
     :param compress: Whether to compress the masked array into a standard
         numpy array before returning. Defaults to True.
     :return: The masked quantity array.

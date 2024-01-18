@@ -149,7 +149,7 @@ class DiagnosticsPipeline(Pipeline):
     def __post_init__(self):
         super().__post_init__()
         # define custom logging level for memory infos
-        logging.addLevelName(18, "MEMLOG")
+        logging.addLevelName(18, "MEMORY")
         if not self.quiet:
             logging_config.change_level(18)
 
@@ -162,6 +162,7 @@ class DiagnosticsPipeline(Pipeline):
         start_time: float,
         step_description: str,
         reset_peak: bool = True,
+        unit: Literal["kB", "MB", "GB"] = "GB"
     ) -> float:
         """
         Log diagnostic data.
@@ -173,13 +174,20 @@ class DiagnosticsPipeline(Pipeline):
         :param reset_peak: Whether to reset the peak of the traced
             memory (so that in the next step, the peak can be determined
             independently of the previous steps).
+        :param unit: The unit to convert the memory into. Can be one of
+            the following: kB, MB, GB. If omitted, the memory is given
+            in bytes. Optional, defaults to display in gigabytes.
         :return: The time point of the diagnostic in seconds since the
             epoch.
         """
         # memory diagnostics
         mem = tracemalloc.get_traced_memory()
-        self._memlog(f"Peak memory usage during {step_description}", mem[1])
-        self._memlog(f"Current memory usage after {step_description}", mem[0])
+        self._memlog(
+            f"Peak memory usage during {step_description}", mem[1], unit
+        )
+        self._memlog(
+            f"Current memory usage after {step_description}", mem[0], unit
+        )
         if reset_peak:
             tracemalloc.reset_peak()
         # runtime diagnostics

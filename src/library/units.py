@@ -49,7 +49,7 @@ class UnitConverter:
                 "GroupPos",
                 "Coordinates",
             ],
-        "unitless": ["count", ]
+        "unitless": ["count", "IDs"]
     }
 
     @classmethod

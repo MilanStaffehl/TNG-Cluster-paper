@@ -21,7 +21,7 @@ def get_halo_temperatures(
     additional_fields: list[str] | None = None,
     skip_condition: Callable[..., bool] = lambda x: False,
     skip_args: Sequence[Any] = None,
-) -> dict[str, NDArray]:
+) -> dict[str, NDArray | int]:
     """
     Calculate temperatures for a single halo, return gas data.
 
@@ -45,8 +45,9 @@ def get_halo_temperatures(
     :param halo_id: The ID of the halo to process.
     :param base_path: Base path of the simulation.
     :param snap_num: Snapshot number at which to load the data.
-    :param fields: A list of gas data fields to load in addition to the
-        required fields. Leave empty if no further gas data is required.
+    :param additional_fields: A list of gas data fields to load in
+        addition to the required fields. Leave empty if no further gas
+        data is required.
     :param skip_condition: A callable that can take a halo ID plus any
         number of additional positional arguments and returns as bool
         whether the halo of that ID may be skipped. Defaults to an
@@ -101,10 +102,45 @@ def get_halo_temperatures(
     return gas_data
 
 
+def get_cluster_temperature(
+    halo_id: int,
+    base_path: str,
+    snap_num: int,
+) -> NDArray:
+    """
+    Get temperatures for a full TNG Cluster zoom.
+
+    Loads the particle data of a full original TNG Cluster zoom and
+    calculates the temperature for all particles. The array of these
+    temperatures is then returned, without any of the accompanying gas
+    data.
+
+    .. attention:: This function is named similar to
+        :func:`get_halo_temperatures`, but works fundamentally different:
+        This function loads all particles from an original TNG Cluster
+        zoom, including non-FoF particles, while the other only loads
+        particles associated with the FoF-group.
+
+    :return:
+    """
+    fields = ["InternalEnergy", "ElectronAbundance", "StarFormationRate"]
+    # acquire the necessary data from the zoom simulation
+    gas_data = il.snapshot.loadOriginalZoom(
+        base_path, snap_num, halo_id, partType=0, fields=fields
+    )
+    # calculate temperature
+    return compute.get_temperature(
+        gas_data["InternalEnergy"],
+        gas_data["ElectronAbundance"],
+        gas_data["StarFormationRate"],
+    )
+
+
 def get_gas_properties(
     base_path: str,
     snap_num: int,
-    fields: list[str],
+    fields: Sequence[str],
+    cluster: int | None = None,
 ) -> dict[str, NDArray]:
     """
     Load and return properties of all gas cells in the simulation.
@@ -121,19 +157,23 @@ def get_gas_properties(
     :param snap_num: The snapshot number from which to load the data.
     :param fields: The list of fields to load. Must match the name of
         the field in the simulation.
+    :param cluster: When loading data from TNG-Cluster, set this to the
+        ID of the halo of whose original zoom to load gas particles, to
+        avoid loading filler particles and particles from other zooms.
+        If not set, even when using TNG-Cluster, this function will load
+        all particles of the simulation. Setting this to anything other
+        than None for any simulation except TNG-cluster will cause an
+        error.
     :raises UnsupportedUnitError: If one of the fields has a unit that
         cannot be converted into physical units.
     :return: A dictionary of the field values for every gas cell,
         converted into physical units.
     """
-    if not isinstance(fields, list):
-        logging.warning(
-            "Received a string instead of a list of fields for particle data "
-            "acquistion. Please use a list of fields instead."
-        )
+    if not isinstance(fields, Sequence):
         fields = [fields]
 
-    logging.info(f"Loading gas particle properties: {', '.join(fields)}.")
+    if cluster is None:
+        logging.info(f"Loading gas particle properties: {', '.join(fields)}.")
     # verify units (done first to avoid loading time if conversion would fail)
     supported = units.UnitConverter.supported_fields()
     for field in fields:
@@ -141,9 +181,15 @@ def get_gas_properties(
             raise units.UnsupportedUnitError(field)
 
     # load gas particle data
-    gas_data = il.snapshot.loadSubset(
-        base_path, snap_num, partType=0, fields=fields, float32=True
-    )
+    if cluster is not None:
+        gas_data = il.snapshot.loadOriginalZoom(
+            base_path, snap_num, cluster, partType=0, fields=fields
+        )
+    else:
+        gas_data = il.snapshot.loadSubset(
+            base_path, snap_num, partType=0, fields=fields, float32=True
+        )
+
     # turn arrays into dictionaries to comply with expected return type
     if not isinstance(gas_data, dict):
         gas_data = {fields[0]: gas_data}  # only one field exists
@@ -153,5 +199,6 @@ def get_gas_properties(
     for field, data in gas_data.items():
         gas_data_physical[field] = units.UnitConverter.convert(data, field)
     del gas_data  # memory clean-up
-    logging.info("Finished loading gas particle properties.")
+    if cluster is None:
+        logging.info("Finished loading gas particle properties.")
     return gas_data_physical
