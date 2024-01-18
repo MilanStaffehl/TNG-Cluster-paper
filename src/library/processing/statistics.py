@@ -479,7 +479,8 @@ def volume_normalized_radial_profile(
     radial_distances: NDArray,
     weight: NDArray,
     bins: int | NDArray,
-    virial_radius: float | None = None
+    virial_radius: float | None = None,
+    radial_range: NDArray | None = None,
 ) -> tuple[NDArray, NDArray]:
     """
     Generate a radial profile, normalized by shell volume.
@@ -514,23 +515,32 @@ def volume_normalized_radial_profile(
         to physical units by multiplying the radial distances with it.
         Subsequently, the quantity in the histogram will also be in
         physical units then.
+    :param radial_range: A sequence of two floats which will be the
+        lower and upper edge of the bin range. Optional, leave this
+        unspecified to automatically infer range from data.  If the
+        virial radius is given, this must be given in units of the
+        virial radius, otherwise in physical units. Must be a numpy
+        array.
     :return: The tuple of the shell volume normalized histogram and the
         array of bin edges.
     """
     # check if radial distances need to be unit adjusted
     if virial_radius is not None:
         radial_distances *= virial_radius
+        if radial_range is not None:
+            radial_range *= virial_radius
     # bin quantity into distance bins
     hist, edges = np.histogram(
         radial_distances,
         bins=bins,
         weights=weight,
+        range=radial_range,
     )
     # normalize every column by the shell volume
     shell_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
 
     # return x-axis to units of virial radii
-    if virial_radius:
+    if virial_radius is not None:
         edges = edges / virial_radius
 
     return hist / shell_volumes, edges

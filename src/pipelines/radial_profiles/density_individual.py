@@ -192,7 +192,10 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
             weights = gas_data["Masses"][neighbors]
             # create histogram
             hist, edges = statistics.volume_normalized_radial_profile(
-                part_distances, weights, self.radial_bins, selected_halos["radii"][i],
+                part_distances,
+                weights,
+                self.radial_bins,
+                selected_halos["radii"][i],
             )
             # save data
             if self.to_file:
@@ -254,8 +257,12 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
         # save figure
         if self.no_plots:
             return
-        name = f"{self.paths['figures_file_stem']}_halo_{halo_id}.pdf"
-        path = Path(self.paths["figures_dir"]) / f"halo_{halo_id}"
+        if self.config.sim_name == "TNG-Cluster":
+            htype = "cluster"
+        else:
+            htype = "halo"
+        name = f"{self.paths['figures_file_stem']}_{htype}_{halo_id}.pdf"
+        path = Path(self.paths["figures_dir"]) / f"{htype}_{halo_id}"
         if not path.exists():
             logging.debug(
                 f"Creating missing figures directory for halo "
@@ -302,3 +309,104 @@ class IDProfilesFromFilePipeline(IndividualDensityProfilePipeline):
         )
         for halo_data in load_generator:
             self._plot_halo(**halo_data)
+
+
+class IndivDensityTNGClusterPipeline(IndividualDensityProfilePipeline):
+    """
+    Pipeline to create radial density profiles for TNG cluster halos.
+
+    Pipeline creates histograms of the density distribution with
+    radial distance to the center of the halo, including particles not
+    bound to the halo. It does this for every one of the 352 original
+    zoom-in clusters of TNG Cluster.
+
+    This pipeline is significantly less memory-intensive than the one
+    for the normal TNG simulations as it does not require loading all
+    particle data at once.
+    """
+
+    def run(self) -> int:
+        """
+        Create radial density profiles for zoom-in clusters of TNG Cluster.
+
+        Steps:
+
+        1. Load halo data.
+        2. For every halo:
+           1. Load gas cell data
+           2. Create histogram of density vs. distance
+           3. Save data and figures to file
+           4. Cleanup
+
+        :return: Exir code.
+        """
+        # Step 0: create directories, start monitoring
+        self._create_directories(subdirs=["density_profiles"], force=True)
+        tracemalloc.start()
+        begin = time.time()
+
+        # Step 1: Load halo data
+        fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
+        halo_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=fields,
+            cluster_restrict=True,
+        )
+        timepoint = self._diagnostics(begin, "loading halo data", unit="kB")
+
+        # Step 2: Loop over halos
+        logging.info("Start processing individual halos.")
+        for i, halo_id in enumerate(halo_data["IDs"]):
+            if not self.quiet:
+                logging.info(f"Processing halo {halo_id} ({i}/352).")
+            # Step 2.1: Load gas cell data
+            gas_data = gas_daq.get_gas_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                fields=["Coordinates", "Masses"],
+                cluster=halo_id,
+            )
+
+            # Step 2.2: Create histograms
+            gas_distances = np.linalg.norm(
+                gas_data["Coordinates"] - halo_data["GroupPos"][i], axis=1
+            ) / halo_data[self.config.radius_field][i]
+            hist, edges = statistics.volume_normalized_radial_profile(
+                gas_distances,
+                gas_data["Masses"],
+                self.radial_bins,
+                halo_data[self.config.radius_field][i],
+                np.array([0., 2.]),
+            )
+
+            # Step 2.3: Save data and figures to file
+            if self.to_file:
+                logging.debug(f"Writing data for cluster {halo_id} to file.")
+                filepath = Path(self.paths["data_dir"]) / "density_profiles"
+                filename = (
+                    f"{self.paths['data_file_stem']}_cluster_{halo_id}.npz"
+                )
+                np.savez(
+                    filepath / filename,
+                    histogram=hist,
+                    edges=edges,
+                    halo_id=halo_id,
+                    halo_mass=halo_data[self.config.mass_field][i],
+                )
+            self._plot_halo(
+                halo_id=halo_id,
+                halo_mass=halo_data[self.config.mass_field][i],
+                histogram=hist,
+                edges=edges,
+            )
+
+            # Step 2.4: cleanup and diagnostics
+            del gas_data, gas_distances, hist, edges
+            timepoint = self._diagnostics(
+                timepoint, f"procesing halo {halo_id} ({i}/352)"
+            )
+
+        self._diagnostics(begin, "total execution")
+        tracemalloc.stop()
+        return 0

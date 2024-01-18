@@ -454,7 +454,7 @@ class IndivTemperatureTNGClusterPipeline(IndividualTemperatureProfilePipeline):
             self.config.base_path,
             self.config.snap_num,
             fields=fields,
-            cluster_restrict=True
+            cluster_restrict=True,
         )
         timepoint = self._diagnostics(begin, "loading halo data", unit="kB")
 
@@ -537,4 +537,5 @@ class IndivTemperatureTNGClusterPipeline(IndividualTemperatureProfilePipeline):
             )
 
         self._diagnostics(begin, "total execution")
+        tracemalloc.stop()
         return 0

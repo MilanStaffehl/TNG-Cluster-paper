@@ -9,6 +9,7 @@ import glob_util
 from library.config import config
 from pipelines.radial_profiles.density_individual import (
     IDProfilesFromFilePipeline,
+    IndivDensityTNGClusterPipeline,
     IndividualDensityProfilePipeline,
 )
 from pipelines.radial_profiles.temperature_individual import (
@@ -63,9 +64,7 @@ def main(args: argparse.Namespace) -> None:
         if args.from_file:
             pipeline = IDProfilesFromFilePipeline(**pipeline_config)
         elif sim == "TNG-Cluster":
-            raise NotImplementedError(
-                "Radial density profiles for TNG Cluster pending."
-            )
+            pipeline = IndivDensityTNGClusterPipeline(**pipeline_config)
         else:
             pipeline = IndividualDensityProfilePipeline(**pipeline_config)
     pipeline.run()
