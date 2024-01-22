@@ -7,7 +7,9 @@ sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
 from library.config import config
-from pipelines.radial_profiles.profiles_stacked import StackProfilesPipeline
+from pipelines.radial_profiles.profiles_stacked_per_simulation import (
+    StackProfilesPipeline,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -57,12 +59,13 @@ if __name__ == "__main__":
         "--sim",
         help=(
             "Type of the simulation to use; main sim is TNG300-1, dev sim "
-            "is TNG50-3 and test sim is TNG50-4"
+            "is TNG50-3, test sim is TNG50-4, and CLUSTER is TNG-Cluster. "
+            "Defaults to TNG300-1."
         ),
         dest="sim",
         type=str,
         default="MAIN_SIM",
-        choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
+        choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM", "CLUSTER"],
     )
     parser.add_argument(
         "-w",

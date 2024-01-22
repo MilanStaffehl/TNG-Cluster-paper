@@ -115,7 +115,7 @@ class StackProfilesPipeline(Pipeline):
         # save plot to file
         if self.no_plots:
             return 0
-        name = f"{self.paths['figures_file_stem']}_{self.method}.pdf"
+        name = f"{self.paths['figures_file_stem']}_{self.method}.png"
         path = Path(self.paths["figures_dir"])
         if not path.exists():
             logging.info("Creating missing figures directory for stacks.")
@@ -148,28 +148,29 @@ class StackProfilesPipeline(Pipeline):
             clabel = r"Normalized mean gas fraction ($\log_{10}$)"
         else:
             clabel = "Normalized mean gas fraction"
-        plot_radial_profiles.plot_2d_radial_profile(
-            fig,
-            axes[0],
-            stack_data[0],
-            edges,
-            title="Mean temperature profile",
-            cbar_label=clabel,
-            cbar_limits=[-4, None] if self.log else None,
-            scale="log" if self.log else "linear",
-            log_msg="all halos above 10^14 M_sol",
-        )
-        # plot the error
-        plot_radial_profiles.plot_2d_radial_profile(
-            fig,
-            axes[1],
-            stack_data[1],
-            edges,
-            title="Standard deviation",
-            colormap="gist_rainbow",
-            cbar_label="Standard deviation of gas fraction (not normalized)",
-            scale="log" if self.log else "linear",
-        )
+        with np.errstate(invalid="ignore", divide="ignore"):
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                axes[0],
+                stack_data[0],
+                edges,
+                title="Mean temperature profile",
+                cbar_label=clabel,
+                cbar_limits=[-4, None] if self.log else None,
+                scale="log" if self.log else "linear",
+                log_msg="all halos above 10^14 M_sol",
+            )
+            # plot the error
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                axes[1],
+                stack_data[1],
+                edges,
+                title="Standard deviation",
+                colormap="gist_rainbow",
+                cbar_label="Standard deviation of gas fraction",
+                scale="log" if self.log else "linear",
+            )
         # plot the running average
         plot_radial_profiles.overplot_running_average(
             fig,
@@ -210,36 +211,37 @@ class StackProfilesPipeline(Pipeline):
             clabel = r"Normalized median gas fraction ($\log_{10}$)"
         else:
             clabel = "Normalized median gas fraction"
-        plot_radial_profiles.plot_2d_radial_profile(
-            fig,
-            ax1,
-            stack_data[0],
-            edges,
-            title="Median temperature profile",
-            cbar_label=clabel,
-            cbar_limits=[-4, None] if self.log else None,
-            scale="log" if self.log else "linear",
-            log_msg="all halos above 10^14 M_sol",
-        )
-        plot_radial_profiles.plot_2d_radial_profile(
-            fig,
-            ax2,
-            stack_data[0] - stack_data[1],
-            edges,
-            xlabel=None,
-            cbar_label="Lower error",
-            colormap="gist_rainbow",
-            labelsize=10,
-        )
-        plot_radial_profiles.plot_2d_radial_profile(
-            fig,
-            ax3,
-            stack_data[0] - stack_data[2],
-            edges,
-            cbar_label="Upper error",
-            colormap="gist_rainbow",
-            labelsize=10,
-        )
+        with np.errstate(invalid="ignore", divide="ignore"):
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                ax1,
+                stack_data[0],
+                edges,
+                title="Median temperature profile",
+                cbar_label=clabel,
+                cbar_limits=[-4, None] if self.log else None,
+                scale="log" if self.log else "linear",
+                log_msg="all halos above 10^14 M_sol",
+            )
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                ax2,
+                stack_data[0] - stack_data[1],
+                edges,
+                xlabel=None,
+                cbar_label="Lower error",
+                colormap="gist_rainbow",
+                labelsize=10,
+            )
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                ax3,
+                stack_data[0] - stack_data[2],
+                edges,
+                cbar_label="Upper error",
+                colormap="gist_rainbow",
+                labelsize=10,
+            )
         # overplot running average
         plot_radial_profiles.overplot_running_average(
             fig, ax1, running_average, edges
