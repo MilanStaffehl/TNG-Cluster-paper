@@ -526,9 +526,11 @@ def volume_normalized_radial_profile(
     """
     # check if radial distances need to be unit adjusted
     if virial_radius is not None:
-        radial_distances *= virial_radius
+        # To avoid altering array in place, use a copy
+        radial_distances = radial_distances.copy() * virial_radius
         if radial_range is not None:
-            radial_range *= virial_radius
+            # same here: avoid alteration through copying
+            radial_range = radial_range.copy() * virial_radius
     # bin quantity into distance bins
     hist, edges = np.histogram(
         radial_distances,

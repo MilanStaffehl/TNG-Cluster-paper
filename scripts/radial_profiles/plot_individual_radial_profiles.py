@@ -2,20 +2,17 @@ import argparse
 import sys
 from pathlib import Path
 
+import numpy as np
+
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
 from library.config import config
-from pipelines.radial_profiles.density_individual import (
-    IDProfilesFromFilePipeline,
-    IndivDensityTNGClusterPipeline,
-    IndividualDensityProfilePipeline,
-)
-from pipelines.radial_profiles.temperature_individual import (
-    IndividualTemperatureProfilePipeline,
+from pipelines.radial_profiles.individuals import (
+    IndividualProfilesFromFilePipeline,
+    IndividualRadialProfilePipeline,
     IndivTemperatureTNGClusterPipeline,
-    ITProfilesFromFilePipeline,
 )
 
 
@@ -39,6 +36,11 @@ def main(args: argparse.Namespace) -> None:
         data_subdirectory=f"./individuals/{cfg.sim_path}/",
     )
 
+    if args.what == "temperature":
+        tbins = args.tbins
+    else:
+        tbins = np.array([0, 4.5, 5.5, np.inf])
+
     pipeline_config = {
         "config": cfg,
         "paths": file_data,
@@ -46,27 +48,18 @@ def main(args: argparse.Namespace) -> None:
         "quiet": args.quiet,
         "to_file": args.to_file,
         "no_plots": args.no_plots,
+        "what": args.what,
         "radial_bins": args.rbins,
-        "temperature_bins": args.tbins,
+        "temperature_bins": tbins,
         "log": args.log,
         "forbid_tree": args.forbid_tree,
     }
-    if args.what == "temperature":
-        if args.from_file:
-            pipeline = ITProfilesFromFilePipeline(**pipeline_config)
-        elif sim == "TNG-Cluster":
-            pipeline = IndivTemperatureTNGClusterPipeline(**pipeline_config)
-        else:
-            pipeline = IndividualTemperatureProfilePipeline(**pipeline_config)
+    if args.from_file:
+        pipeline = IndividualProfilesFromFilePipeline(**pipeline_config)
+    elif sim == "TNG-Cluster":
+        pipeline = IndivTemperatureTNGClusterPipeline(**pipeline_config)
     else:
-        # remove temperature bins argument
-        pipeline_config.pop("temperature_bins")
-        if args.from_file:
-            pipeline = IDProfilesFromFilePipeline(**pipeline_config)
-        elif sim == "TNG-Cluster":
-            pipeline = IndivDensityTNGClusterPipeline(**pipeline_config)
-        else:
-            pipeline = IndividualDensityProfilePipeline(**pipeline_config)
+        pipeline = IndividualRadialProfilePipeline(**pipeline_config)
     pipeline.run()
 
 
@@ -171,7 +164,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "-tb",
         "--tbins",
-        help="The number of temperature bins, defaults to 50",
+        help=(
+            "The number of temperature bins, defaults to 50. Has no effect "
+            "when plotting density profiles."
+        ),
         dest="tbins",
         type=int,
         default=50,

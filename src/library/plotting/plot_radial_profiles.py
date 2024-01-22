@@ -25,6 +25,7 @@ def plot_1d_radial_profile(
     log: bool = True,
     xlims: tuple[float, float] = (0, 2),
     color: str = "black",
+    label: str | None = None,
 ) -> Axes:
     """
     Plot and return a radial profile given as a histogram.
@@ -49,6 +50,9 @@ def plot_1d_radial_profile(
         limiting values.
     :param color: The color of the histogram in the plot. Defaults to
         black.
+    :param label: A label for the plot. Not that the legend will not
+        be created by default and must be created on the axes by
+        calling ``axes.legend()``.
     :return: The axes with the histogrm added to it; returned for
         convenience, axes is altered in place.
     """
@@ -65,6 +69,8 @@ def plot_1d_radial_profile(
         "color": color,
         "log": log,
     }
+    if label:
+        plot_config.update({"label": label})
     axes.hist(bin_centers, bins=edges, weights=histogram, **plot_config)
     return axes
 

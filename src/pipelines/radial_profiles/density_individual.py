@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import time
 import tracemalloc
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -23,9 +24,17 @@ from pipelines.base import DiagnosticsPipeline
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+warnings.warn(
+    "This module is old and has been replaced by the newer module "
+    "'individuals' which includes density plots for cool, warm, and hot "
+    "gas. Use this instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 @dataclass
-class IndividualDensityProfilePipeline(DiagnosticsPipeline):
+class IndividualDensityProfilePipelineLegacy(DiagnosticsPipeline):
     """
     Pipeline to create plots of radial density distribution.
 
@@ -52,15 +61,19 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
         Steps:
 
         1. Load halo data.
-        2. Restrict halo data to halos above mass threshhold.
-        3. Load gas cell position and mass data.
-        4. For every selected halo:
-           i. Query gas cells for neighbors (either using KDTree or pre-
+        2. Restrict halo data to halos above mass threshold.
+        3. Load gas cell data required for temperature calculation.
+        4. Calculate gas cell temperatures, discard obsolete data.
+        5. Load gas cell position and mass data.
+        6. For every selected halo:
+           1. Query gas cells for neighbors (either using KDTree or pre-
               saved particle IDs)
-           ii. Create a histogram of mass vs. distance.
-           iii. Normalize every bin by the shell volume to get density.
-           iv. Save figure and data to file.
-           v. Discard data in memory.
+           2. Bin gas by temperature.
+           3. Create a histogram of mass vs. distance for total and
+              for binned gas.
+           4. Normalize every bin by the shell volume to get density.
+           5. Save figure and data to file.
+           6. Discard data in memory.
 
         :return: Exit code.
         """
@@ -247,8 +260,7 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
         fig, axes = plt.subplots(figsize=(5, 4))
         fig.set_tight_layout(True)
         title = (
-            f"Density profile of halo {halo_id} "
-            rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
+            rf"Halo {halo_id} ($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         plot_radial_profiles.plot_1d_radial_profile(
             axes, histogram, edges, log=self.log, title=title
@@ -273,7 +285,7 @@ class IndividualDensityProfilePipeline(DiagnosticsPipeline):
         plt.close(fig)
 
 
-class IDProfilesFromFilePipeline(IndividualDensityProfilePipeline):
+class IDProfilesFromFilePipeline(IndividualDensityProfilePipelineLegacy):
     """
     Pipeline to recreate the temp profiles of individual halos from file.
     """
@@ -308,10 +320,10 @@ class IDProfilesFromFilePipeline(IndividualDensityProfilePipeline):
             self.paths["data_dir"], self.radial_bins
         )
         for halo_data in load_generator:
-            self._plot_halo(**halo_data)
+            self._plot_temperature_profile(**halo_data)
 
 
-class IndivDensityTNGClusterPipeline(IndividualDensityProfilePipeline):
+class IndivDensityTNGClusterPipeline(IndividualDensityProfilePipelineLegacy):
     """
     Pipeline to create radial density profiles for TNG cluster halos.
 
@@ -394,7 +406,7 @@ class IndivDensityTNGClusterPipeline(IndividualDensityProfilePipeline):
                     halo_id=halo_id,
                     halo_mass=halo_data[self.config.mass_field][i],
                 )
-            self._plot_halo(
+            self._plot_temperature_profile(
                 halo_id=halo_id,
                 halo_mass=halo_data[self.config.mass_field][i],
                 histogram=hist,
