@@ -248,18 +248,16 @@ def load_individuals_1d_profile(
         if not filename.is_file():
             logging.warning(f"Skipping non-file entry {filename}.")
         with np.load(filename) as data_file:
-            histogram = data_file["histogram"]
-            edges = data_file["edges"]
-            halo_id = data_file["halo_id"]
-            halo_mass = data_file["halo_mass"]
-
-        # construct dictionary
-        halo_data = {
-            "histogram": histogram,
-            "edges": edges,
-            "halo_id": halo_id,
-            "halo_mass": halo_mass,
-        }
+            # construct dictionary
+            halo_data = {
+                "total_histogram": data_file["total_histogram"],
+                "hot_histogram": data_file["hot_histogram"],
+                "warm_histogram": data_file["warm_histogram"],
+                "cool_histogram": data_file["cool_histogram"],
+                "edges": data_file["edges"],
+                "halo_id": data_file["halo_id"],
+                "halo_mass": data_file["halo_mass"],
+            }
 
         # if data verification is undesired, yield data right away
         if expected_shape is None:
@@ -269,16 +267,17 @@ def load_individuals_1d_profile(
         # verify the data shape (is skipped for expected_shape = None)
         if isinstance(expected_shape, int):
             expected_shape = (expected_shape, )
-        if histogram.shape != expected_shape:
-            logging.error(
-                f"Halo {halo_id} has histogram data not matching the expected "
-                f"shape: Expected shape {expected_shape} but got "
-                f"{histogram.shape} instead."
-            )
-            if fail_fast:
-                raise StopIteration
+        for hist in ["total", "hot", "warm", "cool"]:
+            if shape := halo_data[f"{hist}_histogram"].shape != expected_shape:
+                logging.error(
+                    f"Halo {halo_data['halo_id']} has {hist} histogram data "
+                    f"not matching the expected shape: Expected shape "
+                    f"{expected_shape} but got {shape} instead."
+                )
+                if fail_fast:
+                    raise StopIteration
+                else:
+                    logging.warning("Yielding None. This may cause issues.")
+                    yield None
             else:
-                logging.warning("Yielding None. This may cause issues.")
-                yield None
-        else:
-            yield halo_data
+                yield halo_data

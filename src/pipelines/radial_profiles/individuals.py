@@ -31,12 +31,12 @@ if TYPE_CHECKING:
 @dataclass
 class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     """
-    Pipeline to create plots of radial temperature distribution.
+    Pipeline to create plots of radial temperature/density distribution.
 
-    Pipeline creates 2D histograms of the temperature distribution with
-    radial distance to the center of the halo, including particles not
-    bound to the halo. It does this for every halo above 10^14 solar
-    masses in virial mass.
+    Pipeline creates histograms of the distribution of temperature or
+    density with radial distance to the center of the halo, including
+    particles not bound to the halo. It does this for every halo above
+    10^14 solar masses in virial mass.
 
     This pipeline must load all particle data in order to be able to
     plot gas particles that do ot belong to halos as well.
@@ -80,7 +80,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         """
         # Step 0: create directories, start memory monitoring, timing
         self._create_directories(
-            subdirs=["particle_ids", "temperature_profiles"], force=True
+            subdirs=[
+                "particle_ids", "temperature_profiles", "density_profiles"
+            ],
+            force=True
         )
         tracemalloc.start()
         begin = time.time()
