@@ -53,6 +53,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     def __post_init__(self):
         super().__post_init__()
         self.use_tree = not self.forbid_tree
+        if self.config.sim_name == "TNG-Cluster":
+            self.group_name = "cluster"
+        else:
+            self.group_name = "halo"
 
     def run(self) -> int:
         """
@@ -194,7 +198,18 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             logging.fatal(f"Unrecognized plot type {self.what}.")
             return 3
         for i in range(len(selected_halos["ids"])):
-            worker_method(i, selected_halos, gas_data, positions_tree, workers)
+            kwargs = {
+                "halo_id": selected_halos["ids"][i],
+                "halo_position": selected_halos["positions"][i],
+                "halo_mass": selected_halos["masses"][i],
+                "virial_radius": selected_halos["radii"][i],
+                "virial_temperature": selected_halos["virial_temperatures"][i],
+                "gas_data": gas_data,
+                "positions_tree": positions_tree,
+            }
+            if self.what == "density":
+                kwargs.pop("virial_temperature")  # not required
+            worker_method(**kwargs)
 
         self._diagnostics(timepoint, "plotting individual profiles")
 
@@ -271,61 +286,51 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
 
     def _process_halo_temperature_profile(
         self,
-        i: int,
-        selected_halos: dict[str, NDArray],
+        halo_id: int,
+        halo_position: NDArray,
+        halo_mass: float,
+        virial_radius: float,
+        virial_temperature: float,
         gas_data: dict[str, NDArray],
         positions_tree: KDTree | None,
-        workers: int
     ) -> None:
         """
         Process a single halo into a temperature radial profile.
 
-        :param i: List index of the current halo inside the arrays of
-            the ``selected_halos`` field values.
-        :param selected_halos: The dictionary of the halo data.
+        :param halo_id: The ID of the halo.
+        :param halo_position: The 3D vector pointing to the position
+            of the halo, in units of kpc.
+        :param halo_mass: The mass of the halo in units of solar masses.
+        :param virial_radius: The virial radius of the halo, in units
+            of kpc.
+        :param virial_temperature: The virial temperature of the halo in
+            units of Kelvin.
         :param gas_data: The dictionary of the gas cell data.
         :param positions_tree: If ``self.use_tree`` is True, meaning
             that neighboring particles must be queried using a KDTree,
             this must be the KDTree of all particle positions in the
             simulation. Otherwise, it can be set to None.
-        :param workers: The number of cores used to query the KDTree.
-            If ``self.use_tree`` is False, this has no effect and can
-            be set to 1 arbitrarily.
         :return: None
         """
-        halo_id = selected_halos["ids"][i]
-        neighbors = self._query_for_neighbors(
-            halo_id,
-            selected_halos["positions"][i],
-            selected_halos["radii"][i],
-            positions_tree,
-            workers
+        restricted_gas_data = self._restrict_gas_data_to_halo(
+            gas_data, halo_id, halo_position, virial_radius, positions_tree
         )
 
-        # slice and normalize distances
-        part_positions = gas_data["Coordinates"][neighbors]
-        part_distances = np.linalg.norm(
-            part_positions - selected_halos["positions"][i], axis=1
-        ) / selected_halos["radii"][i]
-
-        # slice temperatures
-        part_temperatures = gas_data["Temperatures"][neighbors]
-
         # weight by gas mass
-        weights = gas_data["Masses"][neighbors]
-        weights /= np.sum(gas_data["Masses"][neighbors])
+        weights = restricted_gas_data["Masses"]
+        weights /= np.sum(restricted_gas_data["Masses"])
 
         # create histogram
         h, _, _, = np.histogram2d(
-            part_distances,
-            np.log10(part_temperatures),
+            restricted_gas_data["Distances"],
+            np.log10(restricted_gas_data["Temperatures"]),
             range=self.ranges,
             bins=(self.radial_bins, self.temperature_bins),
             weights=weights,
         )
         hn, xe, ye = statistics.column_normalized_hist2d(
-            part_distances,
-            np.log10(part_temperatures),
+            restricted_gas_data["Distances"],
+            np.log10(restricted_gas_data["Temperatures"]),
             ranges=self.ranges,
             bins=(self.radial_bins, self.temperature_bins),
             values=weights,
@@ -338,7 +343,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                 f"Writing histogram data for halo {halo_id} to file."
             )
             filepath = Path(self.paths["data_dir"]) / "temperature_profiles"
-            filename = f"{self.paths['data_file_stem']}_halo_{halo_id}.npz"
+            filename = (
+                f"{self.paths['data_file_stem']}_{self.group_name}_"
+                f"{halo_id}.npz"
+            )
             np.savez(
                 filepath / filename,
                 histogram=hn,
@@ -346,31 +354,32 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                 xedges=xe,
                 yedges=ye,
                 halo_id=halo_id,
-                halo_mass=selected_halos["masses"][i],
-                virial_temperature=selected_halos["virial_temperatures"][i],
+                halo_mass=halo_mass,
+                virial_temperature=virial_temperature,
             )  # yapf: disable
 
         # plot and save data
         self._plot_temperature_profile(
             halo_id=halo_id,
-            halo_mass=selected_halos["masses"][i],
-            virial_temperature=selected_halos["virial_temperatures"][i],
+            halo_mass=halo_mass,
+            virial_temperature=virial_temperature,
             histogram=hn,
             xedges=xe,
             yedges=ye,
         )
 
         # cleanup
-        del part_positions, part_distances, part_temperatures, weights
+        del restricted_gas_data, weights
         del hn, h, xe, ye
 
     def _process_halo_density_profile(
         self,
-        i: int,
-        selected_halos: dict[str, NDArray],
+        halo_id: int,
+        halo_position: NDArray,
+        halo_mass: float,
+        virial_radius: float,
         gas_data: dict[str, NDArray],
         positions_tree: KDTree | None,
-        workers: int
     ) -> None:
         """
         Process a single halo into a density radial profile.
@@ -386,26 +395,130 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         5. Save figure and data to file.
         6. Discard data in memory.
 
-        :param i: List index of the current halo inside the arrays of
-            the ``selected_halos`` field values.
-        :param selected_halos: The dictionary of the halo data.
+        :param halo_id: The ID of the halo.
+        :param halo_position: The 3D vector pointing to the position
+            of the halo, in units of kpc.
+        :param halo_mass: The mass of the halo in units of solar masses.
+        :param virial_radius: The viriral radius of the halo, in units
+            of kpc.
         :param gas_data: The dictionary of the gas cell data.
         :param positions_tree: If ``self.use_tree`` is True, meaning
             that neighboring particles must be queried using a KDTree,
             this must be the KDTree of all particle positions in the
             simulation. Otherwise, it can be set to None.
-        :param workers: The number of cores used to query the KDTree.
-            If ``self.use_tree`` is False, this has no effect and can
-            be set to 1 arbitrarily.
         :return: None
         """
-        halo_id = selected_halos["ids"][i]
+        restricted_gas_data = self._restrict_gas_data_to_halo(
+            gas_data, halo_id, halo_position, virial_radius, positions_tree
+        )
+
+        # bin gas particles by temperature:
+        mask = np.digitize(
+            np.log10(restricted_gas_data["Temperatures"]),
+            self.temperature_bins,
+        )
+
+        # create a total density profile
+        total, edges = statistics.volume_normalized_radial_profile(
+            restricted_gas_data["Distances"],
+            restricted_gas_data["Masses"],
+            self.radial_bins,
+            virial_radius,
+            radial_range=np.array([0., 2.]),
+        )
+
+        # create density profile for cool gas
+        masses = restricted_gas_data["Masses"]
+        cool, _ = statistics.volume_normalized_radial_profile(
+            selection.mask_quantity(restricted_gas_data["Distances"], mask, index=1),
+            selection.mask_quantity(masses, mask, index=1),
+            self.radial_bins,
+            virial_radius,
+            radial_range=np.array([0., 2.]),
+        )
+        warm, _ = statistics.volume_normalized_radial_profile(
+            selection.mask_quantity(restricted_gas_data["Distances"], mask, index=2),
+            selection.mask_quantity(masses, mask, index=2),
+            self.radial_bins,
+            virial_radius,
+            radial_range=np.array([0., 2.]),
+        )
+        hot, _ = statistics.volume_normalized_radial_profile(
+            selection.mask_quantity(restricted_gas_data["Distances"], mask, index=3),
+            selection.mask_quantity(masses, mask, index=3),
+            self.radial_bins,
+            virial_radius,
+            radial_range=np.array([0., 2.]),
+        )
+        # np.testing.assert_allclose(total, hot + cool + warm, rtol=0.03)
+
+        # write data to file
+        if self.to_file:
+            logging.debug(f"Writing data for halo {halo_id} to file.")
+            filepath = Path(self.paths["data_dir"]) / "density_profiles"
+            filename = (
+                f"{self.paths['data_file_stem']}_{self.group_name}_"
+                f"{halo_id}.npz"
+            )
+            np.savez(
+                filepath / filename,
+                total_histogram=total,
+                edges=edges,
+                cool_histogram=cool,
+                warm_histogram=warm,
+                hot_histogram=hot,
+                halo_id=halo_id,
+                halo_mass=halo_mass,
+            )
+
+        # plot
+        self._plot_density_profile(
+            halo_id,
+            halo_mass,
+            total,
+            edges,
+            hot,
+            warm,
+            cool,
+        )
+
+    def _restrict_gas_data_to_halo(
+        self,
+        gas_data: dict[str, NDArray],
+        halo_id: int,
+        halo_pos: NDArray,
+        halo_radius: float,
+        positions_tree: KDTree | None
+    ) -> dict[str, NDArray]:
+        """
+        Restrict the given gas data only to the halo of the given ID.
+
+        Appends to the gas data catalogue also the distance to the
+        current halo center in units of virial radii.
+
+        :param gas_data: The dictionary containing the gas data to
+            constrain to only the particles within 2 R_vir of the given
+            halo.
+        :param halo_id: ID of the halo.
+        :param halo_pos: The 3D cartesian vector giving the coordinates
+            of the halo position. In units of kpc.
+        :param halo_radius: The virial radius of the halo in units of
+            kpc.
+        :param positions_tree: If the neighboring particles must be
+            queried from a KDTree, this must be the KDTree to use. If
+            particle IDs already exist on file, this cna be None.
+        :return: The dictionary of gas data, but only containing as
+            values arrays, that have been restricted to particles within
+            2 R_vir of the given halo. Additionally, also contains a new
+            field 'Distances' which contains the distance of every gas
+            particle to the halo position in units of virial radii.
+        """
         neighbors = self._query_for_neighbors(
             halo_id,
-            selected_halos["positions"][i],
-            selected_halos["radii"][i],
+            halo_pos,
+            halo_radius,
             positions_tree,
-            workers
+            self.processes,
         )
 
         # restrict gas data to chosen particles only:
@@ -418,74 +531,13 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
 
         # calculate distances
         part_distances = np.linalg.norm(
-            restricted_gas_data["Coordinates"]
-            - selected_halos["positions"][i],
-            axis=1
-        ) / selected_halos["radii"][i]
+            restricted_gas_data["Coordinates"] - halo_pos, axis=1
+        ) / halo_radius
         assert np.max(part_distances) <= 2.0
 
-        # bin gas particles by temperature:
-        mask = np.digitize(
-            np.log10(restricted_gas_data["Temperatures"]),
-            self.temperature_bins,
-        )
+        restricted_gas_data.update({"Distances": part_distances})
 
-        # create a total density profile
-        total, edges = statistics.volume_normalized_radial_profile(
-            part_distances,
-            restricted_gas_data["Masses"],
-            self.radial_bins,
-            selected_halos["radii"][i],
-        )
-
-        # create density profile for cool gas
-        masses = restricted_gas_data["Masses"]
-        cool, _ = statistics.volume_normalized_radial_profile(
-            selection.mask_quantity(part_distances, mask, index=1),
-            selection.mask_quantity(masses, mask, index=1),
-            self.radial_bins,
-            selected_halos["radii"][i],
-        )
-        warm, _ = statistics.volume_normalized_radial_profile(
-            selection.mask_quantity(part_distances, mask, index=2),
-            selection.mask_quantity(masses, mask, index=2),
-            self.radial_bins,
-            selected_halos["radii"][i],
-        )
-        hot, _ = statistics.volume_normalized_radial_profile(
-            selection.mask_quantity(part_distances, mask, index=3),
-            selection.mask_quantity(masses, mask, index=3),
-            self.radial_bins,
-            selected_halos["radii"][i],
-        )
-        # np.testing.assert_allclose(total, hot + cool + warm, rtol=0.03)
-
-        # write data to file
-        if self.to_file:
-            logging.debug(f"Writing data for halo {halo_id} to file.")
-            filepath = Path(self.paths["data_dir"]) / "density_profiles"
-            filename = f"{self.paths['data_file_stem']}_halo_{halo_id}.npz"
-            np.savez(
-                filepath / filename,
-                total_histogram=total,
-                edges=edges,
-                cool_histogram=cool,
-                warm_histogram=warm,
-                hot_histogram=hot,
-                halo_id=halo_id,
-                halo_mass=selected_halos["masses"][i]
-            )
-
-        # plot
-        self._plot_density_profile(
-            halo_id,
-            selected_halos["masses"][i],
-            total,
-            edges,
-            hot,
-            warm,
-            cool,
-        )
+        return restricted_gas_data
 
     def _query_for_neighbors(
         self,
@@ -557,7 +609,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         fig, axes = plt.subplots(figsize=(5, 4))
         fig.set_tight_layout(True)
         title = (
-            f"Temperature profile of halo {halo_id} "
+            f"{self.group_name.capitalize()} {halo_id} "
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
@@ -622,19 +674,22 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         fig.set_tight_layout(True)
 
         title = (
-            rf"Halo {halo_id} ($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
+            f"{self.group_name.capitalize()} {halo_id} "
+            rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
+
         plot_radial_profiles.plot_1d_radial_profile(
             axes, total_histogram, edges, log=self.log, title=title
         )
-        plot_radial_profiles.plot_1d_radial_profile(
-            axes,
-            hot_histogram,
-            edges,
-            log=self.log,
-            label=r"Hot ($> 10^{5.5} K$)",
-            color=common.temperature_colors_named["hot"],
-        )
+        # Removed: hot line is visually indistinguishable from total
+        # plot_radial_profiles.plot_1d_radial_profile(
+        #     axes,
+        #     hot_histogram,
+        #     edges,
+        #     log=self.log,
+        #     label=r"Hot ($> 10^{5.5} K$)",
+        #     color=common.temperature_colors_named["hot"],
+        # )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
             warm_histogram,
@@ -825,47 +880,38 @@ class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
             ) / halo_data[self.config.radius_field][i]
 
             # Step 3.3: Create histogram
-            weights = gas_data["Masses"] / np.sum(gas_data["Masses"])
-            h, xe, ye = np.histogram2d(
-                gas_distances,
-                np.log10(gas_temperatures),
-                range=self.ranges,
-                bins=(self.radial_bins, self.temperature_bins),
-                weights=weights,
+            gas_data.update(
+                {
+                    "Temperatures": gas_temperatures,
+                    "Distances": gas_distances,
+                }
             )
-            hn, _, _ = statistics.column_normalized_hist2d(
-                h, None, None, normalization="density"
-            )
+            if self.what == "temperature":
+                self._process_halo_temperature_profile(
+                    halo_id,
+                    halo_data["GroupPos"][i],
+                    halo_data[self.config.mass_field][i],
+                    halo_data[self.config.radius_field][i],
+                    halo_data["VirialTemperature"][i],
+                    gas_data,
+                    None,
+                )
+            elif self.what == "density":
+                self._process_halo_density_profile(
+                    halo_id,
+                    halo_data["GroupPos"][i],
+                    halo_data[self.config.mass_field][i],
+                    halo_data[self.config.radius_field][i],
+                    gas_data,
+                    None,
+                )
+            else:
+                logging.fatal(f"Unrecognized plot type {self.what}.")
+                return 3
 
             # Step 3.4: Save data to file and plot it
-            if self.to_file:
-                logging.debug(f"Writing data for cluster {halo_id} to file.")
-                filepath = self.paths["data_dir"] / "temperature_profiles"
-                filename = (
-                    f"{self.paths['data_file_stem']}_cluster_{halo_id}.npz"
-                )
-                np.savez(
-                    filepath / filename,
-                    histogram=hn,
-                    original_histogram=h,
-                    xedges=xe,
-                    yedges=ye,
-                    halo_id=halo_id,
-                    halo_mass=halo_data[self.config.mass_field][i],
-                    virial_temperature=halo_data["VirialTemperature"],
-                )
-            self._plot_temperature_profile(
-                halo_id=halo_id,
-                halo_mass=halo_data[self.config.mass_field][i],
-                virial_temperature=halo_data["VirialTemperature"][i],
-                histogram=hn,
-                xedges=xe,
-                yedges=ye,
-            )
 
             # Step 3.5: Cleanup
-            del gas_temperatures, gas_data, gas_distances, weights
-            del h, hn, xe, ye
             timepoint = self._diagnostics(
                 timepoint, f"processing halo {halo_id} ({i}/352)"
             )
@@ -873,3 +919,26 @@ class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
         self._diagnostics(begin, "total execution")
         tracemalloc.stop()
         return 0
+
+    def _restrict_gas_data_to_halo(
+        self,
+        gas_data: dict[str, NDArray],
+        halo_id: int,
+        halo_pos: NDArray,
+        halo_radius: float,
+        positions_tree: KDTree | None
+    ) -> dict[str, NDArray]:
+        """
+        Overwrites parent method, since no restriction is required.
+
+        Method returns the ``gas_data`` unaltered since for TNG-Cluster,
+        the gas data is already loaded only for the cluster.
+
+        :param gas_data: Dictionary of gas data for the TNG-Cluster halo.
+        :param halo_id: Dummy parameter.
+        :param halo_pos: Dummy parameter.
+        :param halo_radius: Dummy parameter.
+        :param positions_tree: Dummy parameter.
+        :return: ``gas_data``, unaltered (as it is already restricted).
+        """
+        return gas_data
