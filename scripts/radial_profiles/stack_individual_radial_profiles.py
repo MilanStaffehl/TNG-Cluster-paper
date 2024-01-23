@@ -7,9 +7,7 @@ sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
 from library.config import config
-from pipelines.radial_profiles.profiles_stacked_per_simulation import (
-    StackProfilesPipeline,
-)
+from pipelines.radial_profiles.stacks import StackProfilesPipeline
 
 
 def main(args: argparse.Namespace) -> None:
