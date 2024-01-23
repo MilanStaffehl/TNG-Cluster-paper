@@ -19,7 +19,7 @@ from scipy.spatial import KDTree
 from library import compute
 from library.data_acquisition import gas_daq, halos_daq
 from library.loading import load_radial_profiles
-from library.plotting import plot_radial_profiles
+from library.plotting import common, plot_radial_profiles
 from library.processing import selection, statistics
 from pipelines.base import DiagnosticsPipeline
 
@@ -630,7 +630,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             edges,
             log=self.log,
             label=r"Hot ($> 10^{5.5} K$)",
-            color="crimson",
+            color=common.temperature_colors_named["hot"],
         )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
@@ -638,7 +638,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             edges,
             log=self.log,
             label=r"Warm ($10^{4.5} - 10^{5.5} K$)",
-            color="purple",
+            color=common.temperature_colors_named["warm"],
         )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
@@ -646,7 +646,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             edges,
             log=self.log,
             label=r"Cool ($< 10^{4.5} K$)",
-            color="dodgerblue",
+            color=common.temperature_colors_named["cool"],
         )
         axes.legend()
 

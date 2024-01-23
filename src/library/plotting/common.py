@@ -9,6 +9,18 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from numpy.typing import NDArray
 
+temperature_colors_rgb = {
+    "cool": (30, 144, 255),  # dodgerblue
+    "warm": (128, 0, 128),  # purple
+    "hot": (220, 20, 60),  # crimson
+}
+
+temperature_colors_named = {
+    "cool": "dodgerblue",
+    "warm": "purple",
+    "hot": "crimson",
+}
+
 
 def overplot_datapoints(
     x_data: NDArray,
