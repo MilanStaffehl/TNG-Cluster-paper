@@ -5,29 +5,33 @@ from pathlib import Path
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
-import glob_util
 from library.config import config
-from pipelines.radial_profiles.stacks import StackProfilesPipeline
+from pipelines.radial_profiles.stacks_binned import StackProfilesBinnedPipeline
 
 
 def main(args: argparse.Namespace) -> None:
-    """Create stacks of radial profiles for clusters"""
+    """Create stacks of TNG300 and TNG Cluster clusters"""
     # sim data
-    sim = glob_util.translate_sim_name(args.sim)
+    sim = "TNG-Cluster"  # set arbitrarily, not used
 
     # config
     cfg = config.get_default_config(sim)
 
     # paths
-    file_data = glob_util.assemble_path_dict(
-        "radial_profiles",
-        cfg,
-        args.what,
-        False,
-        args.figurespath,
-        args.datapath,
-        data_subdirectory=f"./individuals/{cfg.sim_path}/{args.what}_profiles",
-    )
+    if args.figurespath:
+        figure_path = Path(args.figurepath)
+    else:
+        figure_path = cfg.figures_home / "radial_profiles"
+    if args.datapath:
+        data_path = Path(args.datapath)
+    else:
+        data_path = cfg.data_home / "radial_profiles" / "individuals"
+    file_data = {
+        "figures_dir": figure_path.resolve(),
+        "data_dir": data_path.resolve(),
+        "figures_file_stem": f"radial_profiles_{args.what}_clusters",
+        "data_file_stem": f"radial_profiles_{args.what}_clusters",
+    }
 
     pipeline_config = {
         "config": cfg,
@@ -40,7 +44,7 @@ def main(args: argparse.Namespace) -> None:
         "what": args.what,
         "method": args.method,
     }
-    pipeline = StackProfilesPipeline(**pipeline_config)
+    pipeline = StackProfilesBinnedPipeline(**pipeline_config)
     pipeline.run()
 
 
@@ -48,22 +52,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog=f"python {Path(__file__).name}",
         description=(
-            "Stack individual radial profiles of all halos in TNG with mass "
-            "above 10^14 solar masses."
+            "Stack individual radial profiles of all clusters in TNG300-1 and "
+            "TNG Cluster, binned by mass."
         ),
-    )
-    parser.add_argument(
-        "-s",
-        "--sim",
-        help=(
-            "Type of the simulation to use; main sim is TNG300-1, dev sim "
-            "is TNG50-3, test sim is TNG50-4, and CLUSTER is TNG-Cluster. "
-            "Defaults to TNG300-1."
-        ),
-        dest="sim",
-        type=str,
-        default="MAIN_SIM",
-        choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM", "CLUSTER"],
     )
     parser.add_argument(
         "-w",
@@ -127,9 +118,5 @@ if __name__ == "__main__":
         args = parser.parse_args()
         main(args)
     except KeyboardInterrupt:
-        print(
-            "Execution forcefully stopped. Some subprocesses might still be "
-            "running and need to be killed manually if multiprocessing was "
-            "used."
-        )
+        print("Execution forcefully stopped.")
         sys.exit(1)

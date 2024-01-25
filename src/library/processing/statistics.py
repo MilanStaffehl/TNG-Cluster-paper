@@ -105,7 +105,7 @@ def stack_histograms_per_mass_bin(
     number.
 
     :param histograms: Array of shape (N, T) where N is the number of
-        halos in the simulaton and T is the number of temperature bins
+        halos in the simulation and T is the number of temperature bins
         of every histogram. Invalid histograms are expected to be filled
         with ``np.nan``.
     :param n_mass_bins: The number of mass bins.
@@ -114,7 +114,7 @@ def stack_histograms_per_mass_bin(
         :func:``sort_masses_into_bins`. Every entry must be a number,
         assigning the corresponding histogram of the same array index to
         a mass bin.
-    :return: A tuple of NDArrays, with the first being an array of shape
+   :return: A tuple of NDArrays, with the first being an array of shape
         (M, T) where M is the number of mass bins set by ``n_mass_bins``
         and T is the number of temperature bins, containing the mean
         histogram for every mass bin. The second array contains the
@@ -161,7 +161,7 @@ def stack_2d_histograms_per_mass_bin(
     mass_bin_mask: NDArray,
 ) -> NDArray | None:
     """
-    Stackk all 2D histograms per mass bin into an average histogram.
+    Stack all 2D histograms per mass bin into an average histogram.
 
     The function will average all histograms in every mass bin and
     return the resulting average histogram data. Function also calculates
@@ -172,8 +172,8 @@ def stack_2d_histograms_per_mass_bin(
         N is the total number of halos, X is the number of x-axis bins
         in the 2D histograms and Y is the number of y-bins.
     :param n_mass_bins: The number of mass bins.
-    :param mass_bin_mask: A mask asigning every histogram in ``histograms``
-        to a mass bin. This can be obtained from
+    :param mass_bin_mask: A mask assigning every histogram in
+        ``histograms`` to a mass bin. This can be obtained from
         :func:``sort_masses_into_bins``. Every entry must be a number,
         assigning the corresponding histogram of the same array index to
         a mass bin.
