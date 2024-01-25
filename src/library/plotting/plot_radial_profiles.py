@@ -83,13 +83,15 @@ def plot_2d_radial_profile(
     xlabel: str | None = r"Distance from halo center [$R_{200c}$]",
     ylabel: str | None = r"Temperature [$\log K$]",
     title: str | None = None,
-    colormap: str = "inferno",
-    cbar_label: str | Colormap = "Count",
+    value_range: Sequence[float, float] | None = None,
+    colormap: str | Colormap = "inferno",
+    cbar_label: str = "Count",
     cbar_ticks: NDArray | None = None,
     cbar_limits: Sequence[float | None] | None = None,
     scale: Literal["linear", "log"] = "linear",
     log_msg: str | None = None,
     labelsize: int = 12,
+    suppress_colorbar: bool = False,
 ) -> tuple[Figure, Axes]:
     """
     Plot the given 2D histogram of temperature vs. halocentric distance.
@@ -124,6 +126,9 @@ def plot_2d_radial_profile(
         set to None, to not set an axes label.
     :param title: Title of the figure. Set to None to leave the figure
         without a title. Can be a raw string to use formulas.
+    :param value_range: The range of values for the histogram. If given,
+        all values are limited to this range. Must be of the form
+        [vmin, vmax].
     :param colormap: A matplotlib colormap for the plot. Defaults to
         "inferno".
     :param cbar_label: The label for the colorbar data. Defaults to
@@ -148,6 +153,8 @@ def plot_2d_radial_profile(
         Defaults to None, which means no message is logged.
     :param labelsize: Size of the axes labels in points. Optional,
         defaults to 12 pt.
+    :param suppress_colorbar: When set to True, no colorbar is added to
+        the figure.
     :return: The figure and axes objects as tuple with the histogram
         added to them; returned for convenience, axes object is altered
         in place.
@@ -197,18 +204,21 @@ def plot_2d_radial_profile(
         "aspect": "auto",
         "extent": ranges,
     }
+    if value_range is not None:
+        hist_config.update({"vmin": value_range[0], "vmax": value_range[1]})
     profile = axes.imshow(histogram2d, **hist_config)
 
     # add colorbar
-    cbar_config = {
-        "location": "right",
-        "label": cbar_label,
-    }
-    if cbar_ticks is not None:
-        cbar_config.update({"ticks": cbar_ticks})
-    if cbar_limits is not None:
-        cbar_config.update({"extend": cbar_extend})
-    fig.colorbar(profile, ax=axes, **cbar_config)
+    if not suppress_colorbar:
+        cbar_config = {
+            "location": "right",
+            "label": cbar_label,
+        }
+        if cbar_ticks is not None:
+            cbar_config.update({"ticks": cbar_ticks})
+        if cbar_limits is not None:
+            cbar_config.update({"extend": cbar_extend})
+        fig.colorbar(profile, ax=axes, **cbar_config)
 
     return fig, axes
 
