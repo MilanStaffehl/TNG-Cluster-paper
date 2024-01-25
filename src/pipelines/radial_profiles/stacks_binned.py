@@ -6,6 +6,7 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import matplotlib.cm
@@ -98,6 +99,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         edges = cluster_data["edges"]
 
         # Step 4: create mass bin mask
+        logging.info("Creating a mass bin mask.")
         n_mass_bins = len(self.mass_bins) - 1
         mask = np.digitize(cluster_masses, self.mass_bins)
 
@@ -108,11 +110,8 @@ class StackProfilesBinnedPipeline(Pipeline):
         stacks = np.zeros((n_mass_bins + 1, ) + cluster_histograms[0].shape)
         """First 7 entries: mass bins. Last entry: total."""
         errors = np.zeros(
-            (
-                n_mass_bins + 1,
-                2,
-            ) + cluster_histograms[0].shape
-        )
+            (n_mass_bins + 1, 2,) + cluster_histograms[0].shape
+        )  # yapf: disable
         """Axes: mass bin, lower/upper error, values"""
 
         # Step 6: loop over mass bins and create stacks
@@ -138,9 +137,10 @@ class StackProfilesBinnedPipeline(Pipeline):
 
         # Step 9: plot the data
         if self.what == "temperature":
-            f, a = self._plot_temperature_stacks(stacks, errors, edges)
+            f, _ = self._plot_temperature_stacks(stacks, errors, edges)
         else:
-            f, a = self._plot_density_stacks(stacks, errors, edges)
+            f, _ = self._plot_density_stacks(stacks, errors, edges)
+        self._save_plot(f)
 
         return 0
 
@@ -165,7 +165,14 @@ class StackProfilesBinnedPipeline(Pipeline):
         filepath = list(test_path.iterdir())[0]
         with np.load(filepath.resolve()) as test_file:
             shape = test_file["original_histogram"].shape
-            edges = np.array(test_file["xedges"] + test_file["yedges"])
+            edges = np.array(
+                [
+                    test_file["xedges"][0],
+                    test_file["xedges"][-1],
+                    test_file["yedges"][0],
+                    test_file["yedges"][-1],
+                ]
+            )
 
         # allocate memory
         masses = np.zeros(self.n_clusters)
@@ -189,7 +196,16 @@ class StackProfilesBinnedPipeline(Pipeline):
         )
         for i, halo_data in enumerate(load_generator):
             if i == 0:
-                if not halo_data["xedges"] + halo_data["yedges"] == edges:
+                # verify both simulation data were saved with the same shape
+                cledges = np.array(
+                    [
+                        halo_data["xedges"][0],
+                        halo_data["xedges"][-1],
+                        halo_data["yedges"][0],
+                        halo_data["yedges"][-1],
+                    ]
+                )
+                if not np.allclose(edges, cledges):
                     logging.fatal(
                         "Temperature histograms for TNG300-1 and TNG Cluster "
                         "have different bin edges."
@@ -289,7 +305,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         """
         stack, low_err, upp_err = statistics.stack_histograms(histograms, self.method)
         # column-normalise the stack
-        stack_normalized = statistics.column_normalized_hist2d(
+        stack_normalized, _, _ = statistics.column_normalized_hist2d(
             stack, None, None, normalization="density"
         )
         return stack_normalized, np.array([low_err, upp_err])
@@ -352,32 +368,45 @@ class StackProfilesBinnedPipeline(Pipeline):
         """
         ncols = len(stacks) // 2
         fig, axes = plt.subplots(
-            nrows=2, ncols=ncols, figsize=(ncols * 2.5 + 1.5, 5)
+            nrows=2,
+            ncols=ncols,
+            figsize=(ncols * 2.5 + 2., 5),
+            sharex=True,
+            sharey=True,
+            gridspec_kw={"hspace": 0, "wspace": 0},
+            layout="constrained",
         )
+        # fig.set_tight_layout(True)
         flat_axes = axes.flatten()
+        # common axes labels
+        fig.supxlabel(r"Distance from halo center [$R_{200c}$]")
+        fig.supylabel(r"Temperature [$\log K$]")
 
         if self.log:
             clabel = r"Normalized mean gas fraction ($\log_{10}$)"
-            value_range = (-4, np.max(stacks))
-            norm = matplotlib.colors.LogNorm(*value_range)
+            value_range = (-4, np.log10(np.max(stacks)))
+            text_pos = (0.1, 3.3)
         else:
             clabel = "Normalized mean gas fraction"
             value_range = (np.min(stacks), np.max(stacks))
-            norm = matplotlib.colors.Normalize(*value_range)
+            text_pos = (0, 0)
 
         for i in range(len(stacks)):
             # plot histograms
-            plot_radial_profiles.plot_2d_radial_profile(
-                fig,
-                flat_axes[i],
-                stacks[i],
-                edges,
-                cbar_label=clabel,
-                cbar_limits=[-4, None] if self.log else None,
-                scale="log" if self.log else "linear",
-                value_range=value_range,
-                suppress_colorbar=True,
-            )
+            with np.errstate(invalid="ignore", divide="ignore"):
+                plot_radial_profiles.plot_2d_radial_profile(
+                    fig,
+                    flat_axes[i],
+                    stacks[i],
+                    edges,
+                    xlabel=None,
+                    ylabel=None,
+                    cbar_label=clabel,
+                    cbar_limits=[-4, None] if self.log else None,
+                    scale="log" if self.log else "linear",
+                    value_range=value_range,
+                    suppress_colorbar=True,
+                )
             # running average
             running_average = statistics.get_2d_histogram_running_average(
                 stacks[i], edges[-2:]
@@ -387,6 +416,7 @@ class StackProfilesBinnedPipeline(Pipeline):
                 flat_axes[i],
                 running_average,
                 edges,
+                suppress_label=True,
             )
             # label with mass bin
             if i == len(stacks) - 1:
@@ -396,14 +426,17 @@ class StackProfilesBinnedPipeline(Pipeline):
                     rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
                     rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}}$"
                 )
-            flat_axes[i].text(3.3, 0.1, label, color="white")
+            flat_axes[i].text(*text_pos, label, color="white")
 
         # add a colorbar
+        norm = matplotlib.colors.Normalize(*value_range)
         fig.colorbar(
             matplotlib.cm.ScalarMappable(norm=norm, cmap="inferno"),
             ax=axes.ravel().tolist(),
-            pad=0.07,
             aspect=20,
+            pad=0.03,
+            label=clabel,
+            extend="min" if self.log else "neither",
         )
         return fig, axes
 
@@ -425,3 +458,20 @@ class StackProfilesBinnedPipeline(Pipeline):
         :return: The figure and axes with the plot.
         """
         pass
+
+    def _save_plot(self, fig: Figure):
+        """
+        Save figure to file.
+
+        :param fig: The figure to save.
+        :return: None
+        """
+        logging.info(f"Saving {self.what} {self.method} profile to file.")
+        if self.no_plots:
+            return 0
+        name = f"{self.paths['figures_file_stem']}_{self.method}.pdf"
+        path = Path(self.paths["figures_dir"])
+        if not path.exists():
+            logging.info("Creating missing figures directory for stacks.")
+            path.mkdir(parents=True)
+        fig.savefig(path / name, bbox_inches="tight")

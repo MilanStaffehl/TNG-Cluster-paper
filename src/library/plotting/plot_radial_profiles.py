@@ -228,6 +228,7 @@ def overplot_running_average(
     axes: Axes,
     averages: NDArray,
     ranges: tuple[float, float, float, float] | NDArray,
+    suppress_label: bool = False,
 ) -> tuple[Figure, Axes]:
     """
     Overplot a running average onto a 2D histogram.
@@ -243,6 +244,8 @@ def overplot_running_average(
         (B, ) where B is the number of x-bins in the histogram.
     :param ranges:  The min and max value for every axis in the format
         [xmin, xmax, ymin, ymax].
+    :param suppress_label: When set to True, no label describing the
+        line will be added.
     :return: The figure and axes objects with the data drawn onto them.
     """
     # plot the running average
@@ -260,5 +263,6 @@ def overplot_running_average(
     # discarded instead)
     extended_averages = np.append(averages, averages[-1])
     axes.step(xs, extended_averages, **avg_config)
-    axes.legend()
+    if not suppress_label:
+        axes.legend()
     return figure, axes
