@@ -706,7 +706,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             label=r"Cool ($< 10^{4.5} K$)",
             color=common.temperature_colors_named["cool"],
         )
-        axes.legend()
+        axes.legend(fontsize=10, frameon=False)
 
         # save
         self._save_fig(fig, halo_id)
@@ -723,14 +723,11 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             plt.close(fig)
             return
 
-        # Update the file name
-        if self.config.sim_name == "TNG-Cluster":
-            htype = "cluster"
-        else:
-            htype = "halo"
-
-        name = f"{self.paths['figures_file_stem']}_{htype}_{halo_id}.png"
-        path = Path(self.paths["figures_dir"]) / f"{htype}_{halo_id}"
+        name = (
+            f"{self.paths['figures_file_stem']}_{self.group_name}"
+            f"_{halo_id}.png"
+        )
+        path = Path(self.paths["figures_dir"]) / f"{self.group_name}_{halo_id}"
         if not path.exists():
             logging.debug(
                 f"Creating missing figures directory for halo "
