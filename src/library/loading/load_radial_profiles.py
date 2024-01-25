@@ -247,6 +247,7 @@ def load_individuals_1d_profile(
     for filename in filepath.iterdir():
         if not filename.is_file():
             logging.warning(f"Skipping non-file entry {filename}.")
+            continue
         with np.load(filename) as data_file:
             # construct dictionary
             halo_data = {
@@ -267,6 +268,7 @@ def load_individuals_1d_profile(
         # verify the data shape (is skipped for expected_shape = None)
         if isinstance(expected_shape, int):
             expected_shape = (expected_shape, )
+        any_failures = False
         for hist in ["total", "hot", "warm", "cool"]:
             if shape := halo_data[f"{hist}_histogram"].shape != expected_shape:
                 logging.error(
@@ -275,9 +277,13 @@ def load_individuals_1d_profile(
                     f"{expected_shape} but got {shape} instead."
                 )
                 if fail_fast:
-                    raise StopIteration
+                    raise StopIteration  # fail immediately
                 else:
-                    logging.warning("Yielding None. This may cause issues.")
-                    yield None
-            else:
-                yield halo_data
+                    any_failures = True  # yield None later
+
+        # depending on verification: yield data or None
+        if any_failures:
+            logging.warning("Yielding None. This may cause issues.")
+            yield None
+        else:
+            yield halo_data
