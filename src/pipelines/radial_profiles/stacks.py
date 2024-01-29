@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import matplotlib.gridspec
 import matplotlib.pyplot as plt
@@ -32,6 +32,8 @@ class StackProfilesPipeline(Pipeline):
     log: bool
     what: str
     method: Literal["mean", "median"]
+
+    divisions: ClassVar[NDArray] = np.array([4.5, 5.5])  # temperature divs
 
     def run(self) -> int:
         """
@@ -185,6 +187,12 @@ class StackProfilesPipeline(Pipeline):
             running_average,
             edges,
         )
+        # plot temperature division
+        if self.log:
+            divs = self.divisions
+        else:
+            divs = 10**self.divisions
+        plot_radial_profiles.overplot_temperature_divisions(axes, divs, 0, 2)
         return fig, axes
 
     def _plot_2d_median(

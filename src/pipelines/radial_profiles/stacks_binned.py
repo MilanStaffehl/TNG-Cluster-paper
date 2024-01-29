@@ -368,7 +368,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         fig, axes = plt.subplots(
             nrows=2,
             ncols=ncols,
-            figsize=(ncols * 2.5 + 2., 5),
+            figsize=(ncols * 1.8 + 1.2, 4),
             sharex=True,
             sharey=True,
             gridspec_kw={"hspace": 0, "wspace": 0},

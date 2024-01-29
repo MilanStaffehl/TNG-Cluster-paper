@@ -49,6 +49,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     forbid_tree: bool = True  # whether KDTree construction is allowed
 
     ranges: ClassVar[NDArray] = np.array([[0, 2], [3, 8.5]])  # hist ranges
+    divisions: ClassVar[NDArray] = np.array([4.5, 5.5])  # in log K
 
     def __post_init__(self):
         super().__post_init__()
@@ -635,11 +636,17 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                     title=title,
                     cbar_label="Normalized gas mass fraction"
                 )
-        # virial temperature
+        # virial temperature and temperature divisions
         if self.log:
             axes.hlines(np.log10(virial_temperature), 0, 2, colors="blue")
+            plot_radial_profiles.overplot_temperature_divisions(
+                axes, self.divisions, 0, 2
+            )
         else:
             axes.hlines(virial_temperature, 0, 2, colors="blue")
+            plot_radial_profiles.overplot_temperature_divisions(
+                axes, 10**self.divisions, 0, 2
+            )
 
         # save figure
         self._save_fig(fig, halo_id)

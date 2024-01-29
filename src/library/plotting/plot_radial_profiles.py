@@ -268,3 +268,32 @@ def overplot_running_average(
     if not suppress_label:
         axes.legend()
     return figure, axes
+
+
+def overplot_temperature_divisions(
+    axes: Axes,
+    divisions: Sequence[float],
+    xmin: float,
+    xmax: float,
+) -> Axes:
+    """
+    Overplot two lines for the temperature divisions between regimes.
+
+    Function lots two horizontal dashed lines into the radial temperature
+    profile plot to denote the limiting temperatures of the regimes,
+    i.e. the division lines between hot/warm and cool/warm gas.
+
+    :param axes: The axes onto which to plot the line.
+    :param divisions: A sequence of the two values. Must be in the
+        same units and scale as the data on the y-axis.
+    :param xmin: Leftmost x value, from where to draw the line towards
+        the right.
+    :param xmax: Rightmost x value, up to where to draw the line.
+    :return: Axes, for convenience. Axes object is altered in place.
+    """
+    line_config = {
+        "colors": "white",
+        "linestyles": "dashed",
+    }
+    axes.hlines(divisions, xmin=xmin, xmax=xmax, **line_config)
+    return axes
