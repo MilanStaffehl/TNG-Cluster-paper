@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 RGBAColor: TypeAlias = Sequence[float]
 
 
-def sample_cmap(colormap: str, samples: int, index: int) -> RGBAColor:
+def sample_cmap(colormap: str, samples: int, index: int | None) -> RGBAColor:
     """
     Return a color sample from the given color map.
 

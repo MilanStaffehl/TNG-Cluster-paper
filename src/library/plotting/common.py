@@ -3,7 +3,7 @@ Common plotting utilities.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Sequence
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -63,8 +63,13 @@ def plot_curve_with_error_region(
     x_data: NDArray,
     y_data: NDArray,
     x_err: Any,
-    y_err: NDArray,
+    y_err: NDArray | None,
     axes: Axes,
+    linestyle: str = "solid",
+    color: str | Sequence[float] = "black",
+    label: str | None = None,
+    suppress_error_line: bool = False,
+    suppress_error_region: bool = False,
 ) -> Axes:
     """
     Overplot the given values with a shaded error region onto the axes.
@@ -76,32 +81,45 @@ def plot_curve_with_error_region(
     :param y_err: Error on the y values, as an array [lower, upper] of
         shape (2, N).
     :param axes: The axes object onto which to plot the data.
+    :param linestyle: The line style for the central line. Should not
+        be 'dotted' as this is used for the errors.
+    :param color: The color for the lines and shaded region.
+    :param label: A label for the curve. Note that this function will
+        not create a legend on the plot.
+    :param suppress_error_line: Set to True to not draw lines for the
+        error.
+    :param suppress_error_region: Set to True to not draw the shaded
+        region between the errors.
     :return: The updated axes object. Axes is altered in place, so this
         is merely a convenience. The original axes does not need to be
         replaced.
     """
-    median_config = {
-        "linestyle": "solid",
-        "color": "black",
+    curve_config = {
+        "linestyle": linestyle,
+        "color": color,
         "linewidth": 1,
         "marker": None,
         "zorder": 10,
     }
     error_config = {
         "linestyle": "dotted",
-        "color": "black",
+        "color": color,
         "linewidth": 1,
         "marker": None,
         "zorder": 10,
     }
     fill_config = {
         "alpha": 0.1,
-        "color": "black",
+        "color": color,
     }
-    axes.plot(x_data, y_data, **median_config)
-    axes.plot(x_data, y_data - y_err[0], **error_config)
-    axes.plot(x_data, y_data + y_err[1], **error_config)
-    axes.fill_between(
-        x_data, y_data - y_err[0], y_data + y_err[1], **fill_config
-    )
+    if label is not None:
+        curve_config.update({"label": label})
+    axes.plot(x_data, y_data, **curve_config)
+    if y_err is not None and not suppress_error_line:
+        axes.plot(x_data, y_data - y_err[0], **error_config)
+        axes.plot(x_data, y_data + y_err[1], **error_config)
+    if y_err is not None and not suppress_error_region:
+        axes.fill_between(
+            x_data, y_data - y_err[0], y_data + y_err[1], **fill_config
+        )
     return axes

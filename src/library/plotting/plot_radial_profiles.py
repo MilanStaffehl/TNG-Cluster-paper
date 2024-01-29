@@ -19,12 +19,12 @@ def plot_1d_radial_profile(
     axes: Axes,
     histogram: NDArray,
     edges: NDArray,
-    xlabel: str = r"Distance from halo center [$R_{200c}$]",
-    ylabel: str = r"Density in radial shell [$M_\odot / kpc^3$]",
+    xlabel: str | None = r"Distance from halo center [$R_{200c}$]",
+    ylabel: str | None = r"Density in radial shell [$M_\odot / kpc^3$]",
     title: str | None = None,
     log: bool = True,
     xlims: tuple[float, float] = (0, 2),
-    color: str = "black",
+    color: str | Sequence[float] = "black",
     label: str | None = None,
 ) -> Axes:
     """
@@ -56,9 +56,11 @@ def plot_1d_radial_profile(
     :return: The axes with the histogrm added to it; returned for
         convenience, axes is altered in place.
     """
-    axes.set_xlabel(xlabel)
     axes.set_xlim(*xlims)
-    axes.set_ylabel(ylabel)
+    if xlabel is not None:
+        axes.set_xlabel(xlabel)
+    if ylabel is not None:
+        axes.set_ylabel(ylabel)
     if title:
         axes.set_title(title)
 

@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from library.loading import load_radial_profiles
-from library.plotting import plot_radial_profiles
+from library.plotting import common, plot_radial_profiles, pltutil
 from library.processing import selection, statistics
 from pipelines.base import Pipeline
 
@@ -133,7 +133,7 @@ class StackProfilesBinnedPipeline(Pipeline):
 
         # Step 8: save data to file
         if self.to_file:
-            pass
+            pass  # not implemented
 
         # Step 9: plot the data
         if self.what == "temperature":
@@ -246,10 +246,7 @@ class StackProfilesBinnedPipeline(Pipeline):
 
         # allocate memory
         masses = np.zeros(self.n_clusters)
-        hists = np.zeros((
-            self.n_clusters,
-            2,
-        ) + shape)
+        hists = np.zeros((self.n_clusters, 2, ) + shape)  # yapf: disable
 
         # load TNG300-1 data
         load_generator = load_radial_profiles.load_individuals_1d_profile(
@@ -270,10 +267,11 @@ class StackProfilesBinnedPipeline(Pipeline):
         )
         for i, halo_data in enumerate(load_generator):
             if i == 0:
-                if not halo_data["edges"] == edges:
+                if not np.allclose(halo_data["edges"], edges):
                     logging.fatal(
-                        "Density histograms for TNG300-1 and TNG Cluster have "
-                        "different bin edges."
+                        f"Density histograms for TNG300-1 and TNG-Cluster "
+                        f"have different bin edges:\nTNG300: {edges}\n"
+                        f"TNG-Cluster: {halo_data['edges']}"
                     )
                     sys.exit(2)
             masses[i + n_tng300_clusters] = halo_data["halo_mass"]
@@ -332,11 +330,11 @@ class StackProfilesBinnedPipeline(Pipeline):
             cool-gas-only density profile.
         :return: Tuple of the stacked histogram (shape (2, Y)) and the
             error (shape (2, 2, X)). For the error, the axes are
-            assigned as (lower/upper error, total/cool gas, bins).
+            assigned as (total/cool gas, lower/upper error, bins).
         """
-        # splice input array
-        total_hists = histograms[0, :]
-        cool_gas_hists = histograms[1, :]
+        # splice input array [all halos, total/cool only, full histogram]
+        total_hists = histograms[:, 0, :]
+        cool_gas_hists = histograms[:, 1, :]
         # stack arrays separately
         total_stack, total_lowerr, total_upperr = statistics.stack_histograms(
             total_hists, self.method
@@ -347,7 +345,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         # construct expected return array shape
         stack = np.array([total_stack, cool_stack])
         errors = np.array(
-            [[total_lowerr, cool_lowerr], [total_upperr, cool_upperr]]
+            [[total_lowerr, total_upperr], [cool_lowerr, cool_upperr]]
         )
         return stack, errors
 
@@ -453,11 +451,77 @@ class StackProfilesBinnedPipeline(Pipeline):
             stack (second entry). X is the number of radial bins.
         :param errors: The array of errors on the stacks, of shape
             (N + 1, 2, 2, X). This corresponds to the following quantities:
-            (bin/total, lower/upper error, total/cool-only, bin).
+            (bin/total, total/cool-only, lower/upper error, bin).
         :param edges: The edges of the histograms, [xmin, xmax].
         :return: The figure and axes with the plot.
         """
-        pass
+        fig, axes = plt.subplots(figsize=(5, 5))
+        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        axes.set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
+        if self.log:
+            axes.set_yscale("log")
+
+        xs = (edges[:-1] + edges[1:]) / 2
+
+        # plot mass bins
+        for i in range(len(stacks)):
+            if i == len(stacks) - 1:
+                color = "black"
+                label = "Total"
+            else:
+                color = pltutil.sample_cmap("jet", len(stacks) - 1, i)
+                label = (
+                    rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
+                    rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}}$"
+                )
+
+            # error config
+            if self.method == "mean":
+                total_errors = errors[i][0]
+                cool_errors = errors[i][1]
+            elif self.method == "median":
+                total_errors = pltutil.get_errorbar_lengths(
+                    stacks[i][0], [errors[i][0][0], errors[i][0][1]]
+                )
+                cool_errors = pltutil.get_errorbar_lengths(
+                    stacks[i][1], [errors[i][1][0], errors[i][1][1]]
+                )
+            else:
+                logging.fatal(f"Unrecognised plot method {self.method}.")
+                sys.exit(4)
+
+            # total as solid line
+            common.plot_curve_with_error_region(
+                xs,
+                stacks[i][0],
+                x_err=None,
+                y_err=total_errors,
+                axes=axes,
+                linestyle="solid",
+                color=color,
+                label=label,
+                suppress_error_line=True,
+                suppress_error_region=False,
+            )
+            # plot cool gas only as dashed line
+            common.plot_curve_with_error_region(
+                xs,
+                stacks[i][1],
+                x_err=None,
+                y_err=cool_errors,
+                axes=axes,
+                linestyle="dashed",
+                color=color,
+                suppress_error_line=True,
+                suppress_error_region=False,
+            )
+
+        axes.legend(
+            loc="lower center",
+            bbox_to_anchor=(0.5, 1.1),
+            ncol=len(stacks) // 2,
+        )
+        return fig, axes
 
     def _save_plot(self, fig: Figure):
         """

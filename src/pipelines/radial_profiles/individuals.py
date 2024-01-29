@@ -725,7 +725,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
 
         name = (
             f"{self.paths['figures_file_stem']}_{self.group_name}"
-            f"_{halo_id}.png"
+            f"_{halo_id}.pdf"
         )
         path = Path(self.paths["figures_dir"]) / f"{self.group_name}_{halo_id}"
         if not path.exists():
@@ -792,6 +792,7 @@ class IndividualProfilesFromFilePipeline(IndividualRadialProfilePipeline):
             if self.what == "temperature":
                 halo_data.pop("original_histogram")
             plotting_func(**halo_data)
+        logging.info("Done! Finished plotting individual halo profiles.")
 
 
 class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
