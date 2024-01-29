@@ -270,11 +270,11 @@ def load_individuals_1d_profile(
             expected_shape = (expected_shape, )
         any_failures = False
         for hist in ["total", "hot", "warm", "cool"]:
-            if shape := halo_data[f"{hist}_histogram"].shape != expected_shape:
+            if (s := halo_data[f"{hist}_histogram"].shape) != expected_shape:
                 logging.error(
                     f"Halo {halo_data['halo_id']} has {hist} histogram data "
                     f"not matching the expected shape: Expected shape "
-                    f"{expected_shape} but got {shape} instead."
+                    f"{expected_shape} but got {s} instead."
                 )
                 if fail_fast:
                     raise StopIteration  # fail immediately

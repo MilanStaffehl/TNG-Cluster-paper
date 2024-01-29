@@ -54,7 +54,8 @@ class StackProfilesPipeline(Pipeline):
         # test-load first halo
         with np.load(files[0].resolve()) as data_file:
             if self.what == "temperature":
-                hist_attr = "original_histogram"
+                hist_shape = data_file["original_historgram"].shape
+                desired_shape = hist_shape
                 edges = [
                     data_file["xedges"][0],
                     data_file["xedges"][-1],
@@ -62,12 +63,13 @@ class StackProfilesPipeline(Pipeline):
                     data_file["yedges"][-1],
                 ]
             else:
-                hist_attr = "histogram"
+                # allocate space for total, warm and cool hist
+                hist_shape = data_file["total_histogram"].shape
+                desired_shape = (3, ) + hist_shape
                 edges = data_file["edges"]
-            hist_shape = data_file[hist_attr].shape
 
         # allocate memory
-        histograms = np.zeros((n_halos, ) + hist_shape)
+        histograms = np.zeros((n_halos, ) + desired_shape)
 
         # Step 2: load the data
         if self.what == "temperature":
@@ -76,7 +78,12 @@ class StackProfilesPipeline(Pipeline):
             loader = load_radial_profiles.load_individuals_1d_profile
         # iterate through directory
         for i, halo_data in enumerate(loader(self.paths["data_dir"], hist_shape)):
-            histograms[i] = halo_data[hist_attr]
+            if self.what == "temperature":
+                histograms[i] = halo_data["original_histogram"]
+            elif self.what == "density":
+                histograms[i][0] = halo_data["total_histogram"]
+                histograms[i][1] = halo_data["warm_histogram"]
+                histograms[i][2] = halo_data["cool_histogram"]
 
         # Step 3: stack the histograms
         stack = statistics.stack_histograms(histograms, method=self.method)
@@ -115,7 +122,7 @@ class StackProfilesPipeline(Pipeline):
         # save plot to file
         if self.no_plots:
             return 0
-        name = f"{self.paths['figures_file_stem']}_{self.method}.png"
+        name = f"{self.paths['figures_file_stem']}_{self.method}.pdf"
         path = Path(self.paths["figures_dir"])
         if not path.exists():
             logging.info("Creating missing figures directory for stacks.")
@@ -257,7 +264,10 @@ class StackProfilesPipeline(Pipeline):
         Plot the mean density histogram.
 
         :param stack_data: The tuple of the mean histogram, and the
-            stadard deviation.
+            standard deviation. The three arrays are each of shape
+            (3, X) where the first axis splits the histograms into
+            total (0), warm (1) and hot (2) histograms, each of shape
+            (X, ).
         :param type_: The type of plot, can either be 'mean' or 'median'.
         :return: Tuple of figure and axes objects with the plots.
         """
@@ -274,23 +284,31 @@ class StackProfilesPipeline(Pipeline):
             axes.set_yscale("log")
 
         # generate x-values in the middle of the radial bins
-        xs = np.linspace(0, 2, len(stack_data[0]), endpoint=False)
-        xs += (1 / len(stack_data[0]))
+        xs = np.linspace(0, 2, len(stack_data[0][0]), endpoint=False)
+        xs += (1 / len(stack_data[0][0]))
 
-        # generate an aray of errors
-        if type_ == "mean":
-            errors = np.array([stack_data[1], stack_data[2]])
-        elif type_ == "median":
-            errors = pltutil.get_errorbar_lengths(
-                stack_data[0], [stack_data[1], stack_data[2]]
+        for i, label in enumerate(["total", "warm", "cool"]):
+            # generate an array of errors
+            if type_ == "mean":
+                errors = np.array([stack_data[1][i], stack_data[2][i]])
+            elif type_ == "median":
+                errors = pltutil.get_errorbar_lengths(
+                    stack_data[0][i], [stack_data[1][i], stack_data[2][i]]
+                )
+
+            if label == "total":
+                color = "black"
+            else:
+                color = common.temperature_colors_named[label]
+
+            # plot
+            common.plot_curve_with_error_region(
+                xs,
+                stack_data[0][i],
+                None,
+                errors,
+                axes,
+                label=label,
+                color=color,
             )
-
-        # plot
-        common.plot_curve_with_error_region(
-            xs,
-            stack_data[0],
-            None,
-            errors,
-            axes,
-        )
         return fig, axes
