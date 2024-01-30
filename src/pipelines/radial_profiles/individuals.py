@@ -47,8 +47,9 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     temperature_bins: int
     log: bool
     forbid_tree: bool = True  # whether KDTree construction is allowed
+    ranges: NDArray = np.array([[0, 2], [3, 8.5]])  # hist ranges
+    core_only: bool = False
 
-    ranges: ClassVar[NDArray] = np.array([[0, 2], [3, 8.5]])  # hist ranges
     divisions: ClassVar[NDArray] = np.array([4.5, 5.5])  # in log K
 
     def __post_init__(self):
@@ -58,6 +59,12 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             self.group_name = "cluster"
         else:
             self.group_name = "halo"
+        # particle id directory
+        if self.core_only:
+            pid_dir = Path(self.paths["data_dir"]) / "particle_ids_core"
+        else:
+            pid_dir = Path(self.paths["data_dir"]) / "particle_ids"
+        self.part_id_dir = pid_dir
 
     def run(self) -> int:
         """
@@ -86,10 +93,15 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         # Step 0: create directories, start memory monitoring, timing
         self._create_directories(
             subdirs=[
-                "particle_ids", "temperature_profiles", "density_profiles"
+                "particle_ids",
+                "particle_ids_core",
+                "temperature_profiles",
+                "density_profiles",
             ],
             force=True
         )
+        if self.core_only:
+            logging.info("Received instructions to only plot halo cores.")
         tracemalloc.start()
         begin = time.time()
 
@@ -238,17 +250,17 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :return: The tuple of the number of workers and the KDTree, if
             construction of it is required.
         """
-        part_id_directory = Path(self.paths["data_dir"]) / "particle_ids"
         try:
-            available_ids = set([f.stem for f in part_id_directory.iterdir()])
+            available_ids = set([f.stem for f in self.part_id_dir.iterdir()])
         except IOError:
             logging.warning(
                 f"Could not find or read the particle IDs from the directory "
-                f"{part_id_directory}. Did you delete or move the directory?"
+                f"{self.part_id_dir}. Did you delete or move the directory?"
             )
             available_ids = set()
+        suffix = "_core" if self.core_only else ""
         required_ids = set(
-            [f"particles_halo_{i}" for i in selected_halos["ids"]]
+            [f"particles_halo_{i}{suffix}" for i in selected_halos["ids"]]
         )
 
         # check whether all halos have particle ID files available
@@ -568,23 +580,26 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :return: The array of list indices of particles which belong to
             the chosen halo, i.e. are within 2 R_vir of the halo center.
         """
-        part_id_directory = Path(self.paths["data_dir"]) / "particle_ids"
-
+        suffix = "_core" if self.core_only else ""
         # find all particles within 2 * R_vir
         if self.use_tree:
             neighbors = positions_tree.query_ball_point(
-                halo_position, 2 * halo_radius, workers=workers
+                halo_position,
+                self.ranges[0][-1] * halo_radius,
+                workers=workers
             )
             if self.to_file:
                 logging.debug(
                     f"Saving particle indices and distances of halo {halo_id} "
                     "to file."
                 )
-                filepath = self.paths["data_dir"] / "particle_ids"
-                np.save(filepath / f"particles_halo_{halo_id}.npy", neighbors)
+                np.save(
+                    self.part_id_dir / f"particles_halo_{halo_id}{suffix}.npy",
+                    neighbors
+                )
         else:
             neighbors = np.load(
-                part_id_directory / f"particles_halo_{halo_id}.npy"
+                self.part_id_dir / f"particles_halo_{halo_id}{suffix}.npy"
             )
         return neighbors
 
@@ -638,14 +653,21 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                 )
         # virial temperature and temperature divisions
         if self.log:
-            axes.hlines(np.log10(virial_temperature), 0, 2, colors="blue")
+            axes.hlines(
+                np.log10(virial_temperature),
+                xedges[0],
+                xedges[-1],
+                colors="blue"
+            )
             plot_radial_profiles.overplot_temperature_divisions(
-                axes, self.divisions, 0, 2
+                axes, self.divisions, xedges[0], xedges[-1]
             )
         else:
-            axes.hlines(virial_temperature, 0, 2, colors="blue")
+            axes.hlines(
+                virial_temperature, xedges[0], xedges[-1], colors="blue"
+            )
             plot_radial_profiles.overplot_temperature_divisions(
-                axes, 10**self.divisions, 0, 2
+                axes, 10**self.divisions, xedges[0], xedges[-1]
             )
 
         # save figure
@@ -730,9 +752,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             plt.close(fig)
             return
 
+        suffix = "_core" if self.core_only else ""
         name = (
             f"{self.paths['figures_file_stem']}_{self.group_name}"
-            f"_{halo_id}.pdf"
+            f"_{halo_id}{suffix}.png"
         )
         path = Path(self.paths["figures_dir"]) / f"{self.group_name}_{halo_id}"
         if not path.exists():

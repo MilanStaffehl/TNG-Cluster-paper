@@ -25,10 +25,14 @@ def main(args: argparse.Namespace) -> None:
     cfg = config.get_default_config(sim)
 
     # paths
+    if args.core_only:
+        type_flag = f"{args.what}_core"  # prevent overwriting
+    else:
+        type_flag = args.what
     file_data = glob_util.assemble_path_dict(
         "radial_profiles",
         cfg,
-        args.what,
+        type_flag,
         False,
         args.figurespath,
         args.datapath,
@@ -36,10 +40,17 @@ def main(args: argparse.Namespace) -> None:
         data_subdirectory=f"./individuals/{cfg.sim_path}/",
     )
 
+    # temperature bins is either the number of bins or the three regimes
     if args.what == "temperature":
         tbins = args.tbins
     else:
         tbins = np.array([0, 4.5, 5.5, np.inf])
+
+    # if only the core is to be shown, restrict radial range
+    if args.core_only:
+        ranges = np.array([[0, 0.05], [3, 8.5]])  # units: R_vir, log K
+    else:
+        ranges = np.array([[0, 2], [3, 8.5]])  # units: R_vir, log K
 
     pipeline_config = {
         "config": cfg,
@@ -53,6 +64,8 @@ def main(args: argparse.Namespace) -> None:
         "temperature_bins": tbins,
         "log": args.log,
         "forbid_tree": args.forbid_tree,
+        "ranges": ranges,
+        "core_only": args.core_only,
     }
     if args.from_file:
         pipeline = IndividualProfilesFromFilePipeline(**pipeline_config)
@@ -159,6 +172,16 @@ if __name__ == "__main__":
         "--quiet",
         help="Prevent progress and memory usage information to be emitted.",
         dest="quiet",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-c",
+        "--cluster-core",
+        help=(
+            "Plot the core region of the cluster only. This will restrict the "
+            "radial range of the plot to around 50 kpc physical size."
+        ),
+        dest="core_only",
         action="store_true",
     )
     parser.add_argument(
