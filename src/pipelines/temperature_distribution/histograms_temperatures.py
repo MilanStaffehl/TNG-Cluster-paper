@@ -78,7 +78,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
         )
 
         # Step 2: get bin mask
-        mass_bin_mask = selection.sort_masses_into_bins(
+        mass_bin_mask = np.digitize(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
 
@@ -108,7 +108,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
             )
 
         # Step 5: post-processing - stack histograms per mass bin
-        mean, median, perc = statistics.stack_histograms_per_mass_bin(
+        mean, median, perc, nums = statistics.stack_histograms_per_mass_bin(
             hists, len(self.mass_bin_edges) - 1, mass_bin_mask
         )
         if self.to_file:
@@ -119,6 +119,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 hist_mean=mean,
                 hist_median=median,
                 hist_percentiles=perc,
+                halos_per_bin=nums,
             )
         end = time.time()
         # get time spent on computation
@@ -129,7 +130,9 @@ class TemperatureHistogramsPipeline(base.Pipeline):
         # Step 6: plot the data
         if self.no_plots:
             return 0
-        self._plot(mean, median, perc, virial_temperatures, mass_bin_mask)
+        self._plot(
+            mean, median, perc, nums, virial_temperatures, mass_bin_mask
+        )
         return 0
 
     def _get_callback(self, masses: NDArray,
@@ -228,6 +231,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
         mean: NDArray,
         median: NDArray,
         percentiles: NDArray,
+        halos_per_mass_bin: NDArray,
         virial_temperatures: NDArray | None,
         mass_bin_mask: NDArray | None
     ) -> None:
@@ -246,6 +250,8 @@ class TemperatureHistogramsPipeline(base.Pipeline):
         :param percentiles: The array of 16th and 84th percentile of every
             temperature bin. Must be of shape (M, 2, T) where M is the
             number of mass bins and T the number of temperature bins.
+        :param halos_per_mass_bin: The array containing the count of
+            halos in every mass bin. Must have shape (M, ).
         :param virial_temperatures: Array of virial temperatures for all
             halos. Can be set to None if ``self.with_virial_temperatures``
             is False.
@@ -278,6 +284,12 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 facecolor,
                 xlabel,
                 ylabel,
+            )
+            plot_temperature_histograms.overplot_bin_info(
+                a,
+                self.mass_bin_edges[i],
+                self.mass_bin_edges[i + 1],
+                halos_per_mass_bin[i],
             )
             if self.with_virial_temperatures:
                 plot_temperature_histograms.overplot_virial_temperatures(
@@ -344,7 +356,7 @@ class FromFilePipeline(TemperatureHistogramsPipeline):
         else:
             vts = None
         # Step 4: get primary data - histograms for every halo
-        mean, median, perc = load_temperature_histograms.load_histogram_data(
+        a, m, p, n = load_temperature_histograms.load_histogram_data(
             hist_data_path,
             (len(self.mass_bin_edges) - 1, self.n_temperature_bins)
         )
@@ -355,7 +367,7 @@ class FromFilePipeline(TemperatureHistogramsPipeline):
                 "pointless and probably not what you wanted."
             )
             return 0
-        self._plot(mean, median, perc, vts, mass_bin_mask)
+        self._plot(a, m, p, n, vts, mass_bin_mask)
         return 0
 
 
@@ -373,6 +385,7 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
         mean: NDArray,
         median: NDArray,
         percentiles: NDArray,
+        halos_per_mass_bin: NDArray,
         virial_temperatures: NDArray | None,
         mass_bin_mask: NDArray | None
     ) -> None:
@@ -388,6 +401,8 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
         :param percentiles: The array of 16th and 84th percentile of every
             temperature bin. Must be of shape (M, 2, T) where M is the
             number of mass bins and T the number of temperature bins.
+        :param halos_per_mass_bin: The array containing the count of
+            halos in every mass bin. Must have shape (M, ).
         :param virial_temperatures: Array of virial temperatures for all
             halos. Can be set to None if ``self.with_virial_temperatures``
             is False.
@@ -453,6 +468,7 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
         mean: NDArray,
         median: NDArray,
         percentiles: NDArray,
+        halos_per_mass_bin: NDArray,
         virial_temperatures: NDArray | None,
         mass_bin_mask: NDArray | None
     ) -> None:
@@ -468,6 +484,8 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
         :param percentiles: The array of 16th and 84th percentile of every
             temperature bin. Must be of shape (M, 2, T) where M is the
             number of mass bins and T the number of temperature bins.
+        :param halos_per_mass_bin: The array containing the count of
+            halos in every mass bin. Must have shape (M, ).
         :param virial_temperatures: Array of virial temperatures for all
             halos. Can be set to None if ``self.with_virial_temperatures``
             is False.
@@ -536,6 +554,7 @@ class PlotGridPipeline(FromFilePipeline):
         mean: NDArray,
         median: NDArray,
         percentiles: NDArray,
+        halos_per_mass_bin: NDArray,
         virial_temperatures: NDArray | None,
         mass_bin_mask: NDArray | None
     ) -> None:
@@ -551,6 +570,8 @@ class PlotGridPipeline(FromFilePipeline):
         :param percentiles: The array of 16th and 84th percentile of every
             temperature bin. Must be of shape (M, 2, T) where M is the
             number of mass bins and T the number of temperature bins.
+        :param halos_per_mass_bin: The array containing the count of
+            halos in every mass bin. Must have shape (M, ).
         :param virial_temperatures: Array of virial temperatures for all
             halos. Can be set to None if ``self.with_virial_temperatures``
             is False.
@@ -586,7 +607,6 @@ class PlotGridPipeline(FromFilePipeline):
             ylabel,
             facecolor,
             True,
-            [0.05, 0.07],
         )
 
         for i, axes in enumerate(a.flatten()):

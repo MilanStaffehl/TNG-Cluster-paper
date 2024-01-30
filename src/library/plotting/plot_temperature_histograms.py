@@ -433,7 +433,6 @@ def plot_td_in_grid(
     ylabel: str,
     facecolor: str,
     log: bool = True,
-    text_position: Sequence[float] = (0, 0),
 ) -> tuple[Figure, Sequence[Axes]]:
     """
     Plot the temperature distribution histograms into a single grid plot.
@@ -460,9 +459,6 @@ def plot_td_in_grid(
     :param ylabel: Label for the y-axis.
     :param facecolor: Color for the histogram bars.
     :param log: Whether to plot the y-axis in log scale. Defaults to True.
-    :param text_position: The position of the text for the mass bin
-        information as a sequence (x, y). Denotes the lower left corner
-        of the text field.
     :return: A tuple of the matplotlib figure and axes objects, with the
         plot drawn onto them.
     """
@@ -498,20 +494,44 @@ def plot_td_in_grid(
             facecolor,
             log,
         )
-        mass_bin_str = (
-            rf"$10^{{{np.log10(mass_bin_edges[i]):.0f}}} - "
-            rf"10^{{{np.log10(mass_bin_edges[i + 1]):.0f}}} M_\odot$"
+        overplot_bin_info(
+            flat_axes[i], mass_bin_edges[i], mass_bin_edges[i + 1], None
         )
-        text_box_cofig = {
-            "color": "black",
-            "fontsize": 9,
-            "transform": flat_axes[i].transAxes,
-            "bbox": {
-                "alpha": 0.7,
-                "facecolor": "white",
-                "edgecolor": "black",
-            }
-        }  # yapf: disable
-        flat_axes[i].text(*text_position, mass_bin_str, **text_box_cofig)
 
     return fig, axes
+
+
+def overplot_bin_info(
+    axes: Axes,
+    lower_edge: float,
+    upper_edge: float,
+    n_halos: int | None = None
+) -> Axes:
+    """
+    Plot mass bin range and optionally number of halos into bottom left.
+
+    :param axes: Axes object onto which to plot the info text.
+    :param lower_edge: Lower mass bin edge in units of solar masses.
+    :param upper_edge: Upper mass bin edge in units of solar masses.
+    :param n_halos: The number of halos in the mass bin. Optional, set
+        to None to skip adding this to the info text.
+    :return:
+    """
+    mass_bin_str = (
+        rf"$10^{{{np.log10(lower_edge):.0f}}} - "
+        rf"10^{{{np.log10(upper_edge):.0f}}} M_\odot$"
+    )
+    if n_halos is not None:
+        mass_bin_str += rf" ({n_halos} halos)"
+    text_box_cofig = {
+        "color": "black",
+        "fontsize": 9,
+        "transform": axes.transAxes,
+        "bbox": {
+            "alpha": 0.7,
+            "facecolor": "white",
+            "edgecolor": "black",
+        }
+    }  # yapf: disable
+    axes.text(0.05, 0.07, mass_bin_str, **text_box_cofig)
+    return axes

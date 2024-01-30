@@ -7,7 +7,6 @@ import logging
 from typing import Literal, Sequence, TypeVar
 
 import numpy as np
-import numpy.ma as ma
 import scipy.stats
 from numpy.typing import NDArray  # MUST be imported for type definition!
 
@@ -91,7 +90,7 @@ def stack_histograms_per_mass_bin(
     histograms: NDArray,
     n_mass_bins: int,
     mass_bin_mask: NDArray,
-) -> tuple[NDArray, NDArray, NDArray] | None:
+) -> tuple[NDArray, NDArray, NDArray, NDArray] | None:
     """
     Stack all histograms per mass bin into an average histogram.
 
@@ -118,8 +117,10 @@ def stack_histograms_per_mass_bin(
         (M, T) where M is the number of mass bins set by ``n_mass_bins``
         and T is the number of temperature bins, containing the mean
         histogram for every mass bin. The second array contains the
-        median and the third has shape (M, 2, T), containing 16th and
-        84th percentile of every histogram in the mass bin.
+        median. The array third has shape (M, 2, T), containing 16th and
+        84th percentile of every histogram in the mass bin. The fourth
+        array has shape (M, ) and contains the number of halos in every
+        mass bin.
     """
     logging.info("Start post-processing of data (stacking hists).")
     n_halos, n_temperature_bins = histograms.shape
@@ -132,12 +133,13 @@ def stack_histograms_per_mass_bin(
     histograms_mean = np.zeros((n_mass_bins, n_temperature_bins))
     histograms_median = np.zeros_like(histograms_mean)
     histograms_percentiles = np.zeros((n_mass_bins, 2, n_temperature_bins))
+    halos_per_bin = np.zeros(n_mass_bins)
     for bin_num in range(n_mass_bins):
         # mask histogram data
-        mask = np.where(mass_bin_mask == bin_num + 1, 1, 0)
-        masked_hists = ma.masked_array(histograms).compress(mask, axis=0)
-        # masked arrays need to be compressed into standard arrays
-        halo_hists = masked_hists.compressed().reshape(masked_hists.shape)
+        halo_hists = selection.mask_quantity(
+            histograms, mass_bin_mask, index=(bin_num + 1)
+        )
+        # calculate mean, median and error
         histograms_mean[bin_num] = np.nanmean(halo_hists, axis=0)
         histograms_median[bin_num] = np.nanmedian(halo_hists, axis=0)
         histograms_percentiles[bin_num] = np.nanpercentile(
@@ -145,6 +147,7 @@ def stack_histograms_per_mass_bin(
             (16, 84),
             axis=0,
         )
+        halos_per_bin[bin_num] = len(halo_hists)
         # diagnostics
         logging.debug(
             f"Empty halos in mass bin {bin_num}: "
@@ -152,11 +155,16 @@ def stack_histograms_per_mass_bin(
         )
 
     logging.info("Finished post-processing data.")
-    return histograms_mean, histograms_median, histograms_percentiles
+    return (
+        histograms_mean,
+        histograms_median,
+        histograms_percentiles,
+        halos_per_bin,
+    )
 
 
 def stack_2d_histograms_per_mass_bin(
-    histograms: Sequence[Hist2D],
+    histograms: NDArray,
     n_mass_bins: int,
     mass_bin_mask: NDArray,
 ) -> NDArray | None:
@@ -193,10 +201,9 @@ def stack_2d_histograms_per_mass_bin(
     histograms_mean = np.zeros((n_mass_bins, n_x_bins, n_y_bins))
     for bin_num in range(n_mass_bins):
         # mask histogram data
-        mask = np.where(mass_bin_mask == bin_num + 1, 1, 0)
-        masked_hists = ma.masked_array(histograms).compress(mask, axis=0)
-        # masked arrays need to be compressed into standard arrays
-        halo_hists = masked_hists.compressed().reshape(masked_hists.shape)
+        halo_hists = selection.mask_quantity(
+            histograms, mass_bin_mask, index=(bin_num + 1)
+        )
         histograms_mean[bin_num] = np.nanmean(halo_hists, axis=0)
         # diagnostics
         logging.debug(
