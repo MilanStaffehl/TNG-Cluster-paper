@@ -380,7 +380,6 @@ def plot_tds_in_one(
     fig, axes = plt.subplots(figsize=(6, 5))
     fig.set_tight_layout(True)
 
-    axes.set_title("Temperature distributions")
     labelsize = 12
     axes.set_xlabel(xlabel, fontsize=labelsize)
     axes.set_ylabel(ylabel, fontsize=labelsize)

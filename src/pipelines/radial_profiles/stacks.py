@@ -163,7 +163,6 @@ class StackProfilesPipeline(Pipeline):
                 axes[0],
                 stack_data[0],
                 edges,
-                title="Mean temperature profile",
                 cbar_label=clabel,
                 cbar_limits=[-4, None] if self.log else None,
                 scale="log" if self.log else "linear",
@@ -175,7 +174,6 @@ class StackProfilesPipeline(Pipeline):
                 axes[1],
                 stack_data[1],
                 edges,
-                title="Standard deviation",
                 colormap="gist_rainbow",
                 cbar_label="Standard deviation of gas fraction",
                 scale="log" if self.log else "linear",
@@ -232,7 +230,6 @@ class StackProfilesPipeline(Pipeline):
                 ax1,
                 stack_data[0],
                 edges,
-                title="Median temperature profile",
                 cbar_label=clabel,
                 cbar_limits=[-4, None] if self.log else None,
                 scale="log" if self.log else "linear",
@@ -281,7 +278,6 @@ class StackProfilesPipeline(Pipeline):
         """
         logging.info(f"Plotting {type_} density profile.")
         fig, axes = plt.subplots(figsize=(5, 4))
-        axes.set_title(f"{type_.capitalize()} density")
         axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
         axes.set_xlim([0, 2])
         axes.set_ylabel(

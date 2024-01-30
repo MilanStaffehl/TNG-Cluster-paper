@@ -72,8 +72,6 @@ def plot_gas_mass_trends_individuals(
     fig.set_tight_layout(True)
     axes[-1][0].set_xlabel(r"Halo mass [$\log M_\odot$]")
     axes[-1][1].set_xlabel(r"Halo mass [$\log M_\odot$]")
-    axes[0][0].set_title("Gas fraction")
-    axes[0][1].set_title("Gas mass")
     for i in range(3):
         for j in range(2):
             axes[i][j].set_yscale("log")
