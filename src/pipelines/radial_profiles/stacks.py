@@ -56,7 +56,7 @@ class StackProfilesPipeline(Pipeline):
         # test-load first halo
         with np.load(files[0].resolve()) as data_file:
             if self.what == "temperature":
-                hist_shape = data_file["original_historgram"].shape
+                hist_shape = data_file["original_histogram"].shape
                 desired_shape = hist_shape
                 edges = [
                     data_file["xedges"][0],
