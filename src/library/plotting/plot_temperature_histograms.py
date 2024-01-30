@@ -415,7 +415,9 @@ def plot_tds_in_one(
             **plot_config
         )
     axes.legend(
-        loc="lower center", bbox_to_anchor=(0.5, 1.1), ncol=len(means) // 2
+        loc="lower center",
+        # bbox_to_anchor=(0.5, 1.1),
+        ncol=len(means) // 2,
     )
     return fig, axes
 
