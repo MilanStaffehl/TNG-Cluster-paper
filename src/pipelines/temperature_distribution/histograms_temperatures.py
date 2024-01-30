@@ -585,6 +585,8 @@ class PlotGridPipeline(FromFilePipeline):
             xlabel,
             ylabel,
             facecolor,
+            True,
+            [0.05, 0.07],
         )
 
         for i, axes in enumerate(a.flatten()):
