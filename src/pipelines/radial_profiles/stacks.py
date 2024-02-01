@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import matplotlib.gridspec
@@ -122,15 +121,7 @@ class StackProfilesPipeline(Pipeline):
             return 2
 
         # save plot to file
-        if self.no_plots:
-            return 0
-        name = f"{self.paths['figures_file_stem']}_{self.method}.pdf"
-        path = Path(self.paths["figures_dir"])
-        if not path.exists():
-            logging.info("Creating missing figures directory for stacks.")
-            path.mkdir(parents=True)
-        f.savefig(path / name, bbox_inches="tight")
-        plt.close(f)
+        self._save_fig(f, ident_flag=self.method)
 
     def _plot_2d_mean(
         self,

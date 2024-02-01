@@ -24,7 +24,6 @@ from library.processing import selection, statistics
 from pipelines.base import DiagnosticsPipeline
 
 if TYPE_CHECKING:
-    from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
 
@@ -747,34 +746,11 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         axes.legend(fontsize=10, frameon=False)
 
         # save
-        self._save_fig(fig, halo_id)
-
-    def _save_fig(self, fig: Figure, halo_id: int) -> None:
-        """
-        Save figure to file.
-
-        :param fig: Figure object.
-        :param halo_id: The ID of the halo.
-        :return: None
-        """
-        if self.no_plots:
-            plt.close(fig)
-            return
-
         suffix = "_core" if self.core_only else ""
-        name = (
-            f"{self.paths['figures_file_stem']}_{self.group_name}"
-            f"_{halo_id}{suffix}.png"
+        supplementary = f"{self.group_name}_{halo_id}{suffix}"
+        self._save_fig(
+            fig, ident_flag=supplementary, subdirs=f"./{supplementary}"
         )
-        path = Path(self.paths["figures_dir"]) / f"{self.group_name}_{halo_id}"
-        if not path.exists():
-            logging.debug(
-                f"Creating missing figures directory for halo "
-                f"{halo_id}."
-            )
-            path.mkdir(parents=True)
-        fig.savefig(path / name, bbox_inches="tight")
-        plt.close(fig)
 
 
 class IndividualProfilesFromFilePipeline(IndividualRadialProfilePipeline):

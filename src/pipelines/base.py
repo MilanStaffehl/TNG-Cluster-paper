@@ -8,10 +8,15 @@ import tracemalloc
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import TYPE_CHECKING, Literal, Sequence
+
+from matplotlib import pyplot as plt
 
 import typedef
 from library.config import config, logging_config
+
+if TYPE_CHECKING:
+    from matplotlib.figure import Figure
 
 
 @dataclass
@@ -135,6 +140,57 @@ class Pipeline:
         time_fmt = time.strftime('%H:%M:%S', time.gmtime(time_diff))
         logging.info(f"Spent {time_fmt} hours on {step_description}.")
         return now
+
+    def _save_fig(
+        self,
+        figure: Figure,
+        ident_flag: str = "",
+        subdirs: Path | str | None = None,
+    ) -> None:
+        """
+        Save the given figure to file.
+
+        The figure is saved to file with the file extension set in the
+        pipeline and under the path given in the ``paths`` attribute of
+        the pipeline. If subdirectories are specified, they are added at
+        the end of the path. The ``ident_flag`` is added to the end of
+        the file stem given in the ``paths`` attribute of the pipeline.
+
+        After saving, the figure is closed.
+
+        :param figure: The matplotlib figure to save.
+        :param ident_flag: The ident flag for the file name, i.e. the
+            string that is appended to the end of the figure file stem
+            as specified in ``self.paths``. Optional, defaults to an
+            empty string (i.e. file is saved using the file stem in
+            ``self.paths`` alone).
+        :param subdirs: String or Path object of subdirectories, relative
+            to the figures path given in ``self.paths``. Optional,
+            defaults to None, which means the figure will be saved in
+            the directory specified in ``self.paths``.
+        :return: None
+        """
+        if self.no_plots:
+            plt.close(figure)
+            return
+
+        # file name
+        if ident_flag:
+            ident_flag = f"_{ident_flag}"
+        filename = f"{self.paths['figures_file_stem']}{ident_flag}.pdf"
+
+        # file path
+        filepath = Path(self.paths["figures_dir"])
+        if subdirs:
+            filepath = filepath / Path(subdirs)
+        if not filepath.exists():
+            logging.info("Creating missing figures directory.")
+            filepath.mkdir(parents=True)
+        figure.savefig(filepath / filename, bbox_inches="tight")
+        logging.debug(f"Saved a plot to file: {str(filename)}")
+
+        # close figure
+        plt.close(figure)
 
 
 class DiagnosticsPipeline(Pipeline):

@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging.config
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
@@ -16,13 +15,7 @@ from library import compute
 from library.data_acquisition import gas_daq, halos_daq
 from library.loading import load_temperature_histograms
 from library.plotting import plot_temperature_histograms, pltutil
-from library.processing import (
-    gas_temperatures,
-    parallelization,
-    selection,
-    sequential,
-    statistics,
-)
+from library.processing import gas_temperatures, parallelization, sequential, statistics
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -300,12 +293,6 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                     f, a, self.temperature_divisions
                 )
             # save figure
-            filename = f"{self.paths['figures_file_stem']}_{i}.pdf"
-            filepath = Path(self.paths["figures_dir"])
-            if not filepath.exists():
-                logging.info("Creating missing figures directory.")
-                filepath.mkdir(parents=True)
-            f.savefig(filepath / filename, bbox_inches="tight")
 
 
 class FromFilePipeline(TemperatureHistogramsPipeline):
@@ -446,12 +433,7 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
             )
 
         # save figure
-        filename = f"{self.paths['figures_file_stem']}_combined.pdf"
-        filepath = Path(self.paths["figures_dir"])
-        if not filepath.exists():
-            logging.info("Creating missing figures directory.")
-            filepath.mkdir(parents=True)
-        fig.savefig(filepath / filename, bbox_inches="tight")
+        self._save_fig(fig, ident_flag="combined")
 
 
 class CombinedPlotsFromFilePipeline(FromFilePipeline):
@@ -535,12 +517,7 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
             )
 
         # save figure
-        filename = f"{self.paths['figures_file_stem']}_combined.pdf"
-        filepath = Path(self.paths["figures_dir"])
-        if not filepath.exists():
-            logging.info("Creating missing figures directory.")
-            filepath.mkdir(parents=True)
-        fig.savefig(filepath / filename, bbox_inches="tight")
+        self._save_fig(fig, ident_flag="combined")
 
 
 class PlotGridPipeline(FromFilePipeline):
@@ -622,10 +599,4 @@ class PlotGridPipeline(FromFilePipeline):
                 )
 
         # save figure
-        filename = f"{self.paths['figures_file_stem']}_grid.pdf"
-        filepath = Path(self.paths["figures_dir"])
-        if not filepath.exists():
-            logging.info("Creating missing figures directory.")
-            filepath.mkdir(parents=True)
-        f.savefig(filepath / filename, bbox_inches="tight")
-        logging.info("Successfully saved plot to file!")
+        self._save_fig(f, ident_flag="grid")

@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 import matplotlib.cm
@@ -140,7 +139,8 @@ class StackProfilesBinnedPipeline(Pipeline):
             f, _ = self._plot_temperature_stacks(stacks, errors, edges)
         else:
             f, _ = self._plot_density_stacks(stacks, errors, edges)
-        self._save_plot(f)
+        logging.info(f"Saving {self.what} {self.method} profile to file.")
+        self._save_fig(f, ident_flag=self.method)
 
         return 0
 
@@ -522,20 +522,3 @@ class StackProfilesBinnedPipeline(Pipeline):
             ncol=len(stacks) // 2,
         )
         return fig, axes
-
-    def _save_plot(self, fig: Figure):
-        """
-        Save figure to file.
-
-        :param fig: The figure to save.
-        :return: None
-        """
-        logging.info(f"Saving {self.what} {self.method} profile to file.")
-        if self.no_plots:
-            return 0
-        name = f"{self.paths['figures_file_stem']}_{self.method}.pdf"
-        path = Path(self.paths["figures_dir"])
-        if not path.exists():
-            logging.info("Creating missing figures directory for stacks.")
-            path.mkdir(parents=True)
-        fig.savefig(path / name, bbox_inches="tight")
