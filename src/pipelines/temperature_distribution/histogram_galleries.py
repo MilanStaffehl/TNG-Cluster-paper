@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import logging.config
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 
 import numpy as np
@@ -193,12 +192,7 @@ class GalleriesPipeline(base.Pipeline):
                 xlabel=xlabel,
             )
             # save figure
-            filename = f"{self.paths['figures_file_stem']}_{i}.pdf"
-            filepath = Path(self.paths["figures_dir"])
-            if not filepath.exists():
-                logging.info("Creating missing figures directory.")
-                filepath.mkdir(parents=True)
-            f.savefig(filepath / filename, bbox_inches="tight")
+            self._save_fig(f, ident_flag=str(i))
 
 
 class FromFilePipeline(GalleriesPipeline):

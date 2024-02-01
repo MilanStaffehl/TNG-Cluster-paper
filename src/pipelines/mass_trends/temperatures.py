@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging.config
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Callable, ClassVar, Literal, Sequence
 
 import numpy as np
@@ -15,13 +14,7 @@ from library import compute
 from library.data_acquisition import gas_daq, halos_daq
 from library.loading import load_mass_trends
 from library.plotting import common, plot_mass_trends
-from library.processing import (
-    gas_temperatures,
-    parallelization,
-    selection,
-    sequential,
-    statistics,
-)
+from library.processing import gas_temperatures, parallelization, sequential, statistics
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -372,15 +365,9 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         )
 
         # save figure
-        filename = f"{self.paths['figures_file_stem']}.pdf"
-        filepath = Path(self.paths["figures_dir"])
-        if not filepath.exists():
-            logging.info("Creating missing figures directory.")
-            filepath.mkdir(parents=True)
-        f.savefig(filepath / filename)
-
+        self._save_fig(f)
         logging.info("Successfully saved mass trend plot to file!")
-        return 0
+        return
 
 
 class FromFilePipeline(IndividualsMassTrendPipeline):
