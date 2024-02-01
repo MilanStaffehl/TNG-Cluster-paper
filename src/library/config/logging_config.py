@@ -14,7 +14,7 @@ def get_logging_config(logging_level: str | int) -> dict[str, Any]:
         "version": 1,
         "formatters": {
             "stdout": {
-                "format": "%(levelname)s: %(message)s"
+                "format": "%(asctime)s - %(levelname)s: %(message)s"
             }
         },
         "handlers": {

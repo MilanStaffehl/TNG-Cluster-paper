@@ -3,6 +3,7 @@ Test the logging_config module.
 """
 import logging
 import logging.config
+import re
 
 from library.config import logging_config
 
@@ -46,7 +47,14 @@ def test_logging_config(mocker):
     logging.info("I should not show up.")
     mock_stdout.assert_not_called()
     logging.warning("I am a warning!")
-    mock_stdout.assert_called_with("WARNING: I am a warning!\n")
+    mock_stdout.assert_called()
+    # get call args
+    arg = mock_stdout.call_args[0][0]
+    pattern = re.compile(
+        r"\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3} - "
+        r"WARNING: I am a warning!"
+    )
+    assert re.search(pattern, arg) is not None
 
 
 def test_change_level(mocker):
@@ -67,4 +75,11 @@ def test_change_level(mocker):
     assert root_logger.handlers[0].level == 20
     # check log emission
     logging.info("I am an information.")
-    mock_stdout.assert_called_with("INFO: I am an information.\n")
+    mock_stdout.assert_called()
+    # get call args
+    arg = mock_stdout.call_args[0][0]
+    pattern = re.compile(
+        r"\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2},\d{3} - "
+        r"INFO: I am an information."
+    )
+    assert re.search(pattern, arg) is not None
