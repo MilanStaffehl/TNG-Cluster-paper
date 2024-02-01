@@ -56,29 +56,6 @@ def select_halos_from_mass_bins(
     return selected_halo_ids
 
 
-def sort_masses_into_bins(
-    masses: NDArray, mass_bins: Sequence[float]
-) -> NDArray:
-    """
-    Sort the given masses into the bins and return mask index array.
-
-    The returned array is of the same length as ``masses`` and contains
-    the index of the bin into which the mass of the same array index
-    falls, starting from 1.
-
-    :param masses: Array of masses.
-    :param mass_bins: List of bin edges, must have same unit as ``masses``.
-    :return: Array of mask indices for masses.
-    """
-    warnings.warn(
-        "Called function 'sort_masses_into_bins', which is merely an alias "
-        "for 'numpy.digitize'. Use the latter instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return np.digitize(masses, mass_bins)
-
-
 def bin_quantity(quantity: NDArray,
                  bin_mask: NDArray,
                  n_bins: int = -1) -> Iterator[NDArray]:

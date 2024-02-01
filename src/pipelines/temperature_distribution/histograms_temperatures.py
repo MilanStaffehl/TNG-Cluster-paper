@@ -344,7 +344,7 @@ class FromFilePipeline(TemperatureHistogramsPipeline):
             self.config.base_path, self.config.snap_num, fields=fields
         )
         # Step 2: get bin mask
-        mass_bin_mask = selection.sort_masses_into_bins(
+        mass_bin_mask = np.digitize(
             halo_data[self.config.mass_field], self.mass_bin_edges
         )
         # Step 3: load virial temperatures

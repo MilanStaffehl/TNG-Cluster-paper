@@ -203,9 +203,7 @@ def select_halo_data_subset(
         number of mass bins: ``M = len(mass_bins) - 1``.
     """
     halo_data = get_halo_properties(base_path, snap_num, fields)
-    mass_bin_mask = selection.sort_masses_into_bins(
-        halo_data[mass_field], mass_bins
-    )
+    mass_bin_mask = np.digitize(halo_data[mass_field], mass_bins)
 
     # for every mass bin, select twice as many halos as needed (to
     # have a backup when empty halos are selected by accident)
