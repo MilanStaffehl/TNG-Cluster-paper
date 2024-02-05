@@ -6,6 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
+from library import scriptparse
 from library.config import config
 from pipelines.mass_trends.temperatures import (
     FromFilePipeline,
@@ -56,6 +57,7 @@ def main(args: argparse.Namespace) -> None:
         "config": cfg,
         "paths": file_data,
         "processes": args.processes,
+        "fig_ext": args.extension,
         "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
         "temperature_divisions": temperature_divs,
         "normalize": args.normalize,
@@ -73,71 +75,9 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
+    parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
         description="Plot mass trends of gas of halos in TNG",
-    )
-    parser.add_argument(
-        "-s",
-        "--sim",
-        help=(
-            "Type of the simulation to use; main sim is TNG300-1, dev sim "
-            "is TNG50-3 and test sim is TNG50-4"
-        ),
-        dest="sim",
-        type=str,
-        default="MAIN_SIM",
-        choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM"],
-    )
-    parser.add_argument(
-        "-p",
-        "--processes",
-        help=("Use multiprocessing, with the specified number of processes."),
-        type=int,
-        default=0,
-        dest="processes",
-        metavar="PROCESSES",
-    )
-    parser.add_argument(
-        "-f",
-        "--to-file",
-        help=(
-            "Whether to write the plot data and virial temperature data "
-            "calculated to file"
-        ),
-        dest="to_file",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-l",
-        "--load-data",
-        help=(
-            "When given, data is loaded from data files rather than newly "
-            "acquired. This only works if data files of the expected name are "
-            "present. When used, the flags -p, -f, -q have no effect."
-        ),
-        dest="from_file",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-x",
-        "--no-plots",
-        help=(
-            "Suppresses creation of plots, use to prevent overwriting "
-            "existing files."
-        ),
-        dest="no_plots",
-        action="store_true",
-    )
-    parser.add_argument(
-        "-q",
-        "--quiet",
-        help=(
-            "Prevent progress information to be emitted. Has no effect when "
-            "multiprocessing is used."
-        ),
-        dest="quiet",
-        action="store_true",
     )
     parser.add_argument(
         "-n",
@@ -162,32 +102,6 @@ if __name__ == "__main__":
         ),
         dest="running_median",
         action="store_true",
-    )
-    parser.add_argument(
-        "--figures-dir",
-        help=(
-            "The directory path under which to save the figures, if created. "
-            "Directories that do not exist will be recursively created. "
-            "It is recommended to leave this at the default value unless "
-            "the expected directories do not exist."
-        ),
-        dest="figurespath",
-        default=None,
-        metavar="DIR PATH",
-    )
-    parser.add_argument(
-        "--data-dir",
-        help=(
-            "The directory path under which to save the plots, if created. "
-            "Directories that do not exist will be recursively created. "
-            "When using --load-data, this directory is queried for data. "
-            "It is recommended to leave this at the default value unless "
-            "the expected directories do not exist and/or data has been saved "
-            "somewhere else."
-        ),
-        dest="datapath",
-        default=None,
-        metavar="DIR PATH",
     )
 
     # parse arguments
