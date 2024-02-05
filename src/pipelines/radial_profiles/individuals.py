@@ -437,7 +437,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             restricted_gas_data["Masses"],
             self.radial_bins,
             virial_radius,
-            radial_range=np.array([0., 2.]),
+            radial_range=self.ranges[0],
         )
 
         # create density profile for cool gas
@@ -447,21 +447,21 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             selection.mask_quantity(masses, mask, index=1),
             self.radial_bins,
             virial_radius,
-            radial_range=np.array([0., 2.]),
+            radial_range=self.ranges[0],
         )
         warm, _ = statistics.volume_normalized_radial_profile(
             selection.mask_quantity(restricted_gas_data["Distances"], mask, index=2),
             selection.mask_quantity(masses, mask, index=2),
             self.radial_bins,
             virial_radius,
-            radial_range=np.array([0., 2.]),
+            radial_range=self.ranges[0],
         )
         hot, _ = statistics.volume_normalized_radial_profile(
             selection.mask_quantity(restricted_gas_data["Distances"], mask, index=3),
             selection.mask_quantity(masses, mask, index=3),
             self.radial_bins,
             virial_radius,
-            radial_range=np.array([0., 2.]),
+            radial_range=self.ranges[0],
         )
         # np.testing.assert_allclose(total, hot + cool + warm, rtol=0.03)
 
@@ -706,15 +706,22 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             f"{self.group_name.capitalize()} {halo_id} "
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
+        ranges = np.array([edges[0], edges[-1]])
 
         plot_radial_profiles.plot_1d_radial_profile(
-            axes, total_histogram, edges, log=self.log, title=title
+            axes,
+            total_histogram,
+            edges,
+            xlims=ranges,
+            log=self.log,
+            title=title,
         )
         # Removed: hot line is visually indistinguishable from total
         # plot_radial_profiles.plot_1d_radial_profile(
         #     axes,
         #     hot_histogram,
         #     edges,
+        #     xlims=ranges,
         #     log=self.log,
         #     label=r"Hot ($> 10^{5.5} K$)",
         #     color=common.temperature_colors_named["hot"],
@@ -723,6 +730,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             axes,
             warm_histogram,
             edges,
+            xlims=ranges,
             log=self.log,
             label=r"Warm ($10^{4.5} - 10^{5.5} K$)",
             color=common.temperature_colors_named["warm"],
@@ -731,6 +739,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             axes,
             cool_histogram,
             edges,
+            xlims=ranges,
             log=self.log,
             label=r"Cool ($< 10^{4.5} K$)",
             color=common.temperature_colors_named["cool"],
