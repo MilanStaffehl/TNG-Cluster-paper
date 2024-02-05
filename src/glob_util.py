@@ -106,24 +106,3 @@ def assemble_path_dict(
             {"virial_temp_file_stem": f"virial_temperatures_{cfg.sim_path}"}
         )
     return file_data
-
-
-def translate_sim_name(name: str) -> str:
-    """
-    Return the simulation name from the development name.
-
-    :param name: The development handle, i.e. MAIN_SIM or DEV_SIM.
-    :raises ValueError: When the given name is not a valid simulation
-        shorthand.
-    :return: The actual name of the simulation, i.e. TNG300-1 or TNG50-3.
-    """
-    if name == "TEST_SIM":
-        return "TNG50-4"
-    elif name == "DEV_SIM":
-        return "TNG50-3"
-    elif name == "MAIN_SIM":
-        return "TNG300-1"
-    elif name == "CLUSTER":
-        return "TNG-Cluster"
-    else:
-        raise ValueError(f"Unknown simulation type {name}.")

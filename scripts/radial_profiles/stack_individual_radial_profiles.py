@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -13,11 +14,11 @@ from pipelines.radial_profiles.stacks import StackProfilesPipeline
 
 def main(args: argparse.Namespace) -> None:
     """Create stacks of radial profiles for clusters"""
-    # sim data
-    sim = glob_util.translate_sim_name(args.sim)
-
     # config
-    cfg = config.get_default_config(sim)
+    try:
+        cfg = config.get_default_config(args.sim)
+    except config.InvalidSimulationNameError:
+        logging.fatal(f"Unsupported simulation: {args.sim}")
 
     # paths
     file_data = glob_util.assemble_path_dict(
@@ -53,7 +54,7 @@ if __name__ == "__main__":
             "Stack individual radial profiles of all halos in TNG with mass "
             "above 10^14 solar masses."
         ),
-        allowed_sims=["MAIN_SIM", "DEV_SIM", "TEST_SIM", "CLUSTER"],
+        allowed_sims=("TNG300", "TNG100", "TNG50", "TNG-Cluster"),
     )
     parser.remove_argument("processes")
     parser.remove_argument("to_file")

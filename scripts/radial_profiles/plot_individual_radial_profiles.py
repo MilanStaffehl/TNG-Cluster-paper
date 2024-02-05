@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -19,11 +20,11 @@ from pipelines.radial_profiles.individuals import (
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
-    # sim data
-    sim = glob_util.translate_sim_name(args.sim)
-
     # config
-    cfg = config.get_default_config(sim)
+    try:
+        cfg = config.get_default_config(args.sim)
+    except config.InvalidSimulationNameError:
+        logging.fatal(f"Unsupported simulation: {args.sim}")
 
     # paths
     if args.core_only:
@@ -71,7 +72,7 @@ def main(args: argparse.Namespace) -> None:
     }
     if args.from_file:
         pipeline = IndividualProfilesFromFilePipeline(**pipeline_config)
-    elif sim == "TNG-Cluster":
+    elif args.sim == "TNG-Cluster":
         pipeline = IndivTemperatureTNGClusterPipeline(**pipeline_config)
     else:
         pipeline = IndividualRadialProfilePipeline(**pipeline_config)
@@ -85,7 +86,7 @@ if __name__ == "__main__":
             "Plot individual radial profiles of all halos in TNG with mass "
             "above 10^14 solar masses."
         ),
-        allowed_sims=["MAIN_SIM", "DEV_SIM", "TEST_SIM", "CLUSTER"],
+        allowed_sims=("TNG300", "TNG100", "TNG50", "TNG-Cluster"),
     )
     parser.add_argument(
         "-w",
