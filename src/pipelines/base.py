@@ -1,6 +1,8 @@
 """
 Base classes for pipelines.
 """
+from __future__ import annotations
+
 import logging
 import logging.config
 import time
@@ -13,10 +15,12 @@ from typing import TYPE_CHECKING, Literal, Sequence
 from matplotlib import pyplot as plt
 
 import typedef
-from library.config import config, logging_config
+from library.config import logging_config
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
+
+    from library.config import config  # noqa: F401
 
 
 @dataclass
