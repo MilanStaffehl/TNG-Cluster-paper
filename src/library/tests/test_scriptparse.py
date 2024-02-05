@@ -29,7 +29,7 @@ def test_base_parser_basics(base_parser):
     assert hasattr(args, "figurespath")
     assert hasattr(args, "datapath")
     # assert the default values are set correctly
-    assert args.sim == "MAIN_SIM"
+    assert args.sim == "TNG300-1"
     assert args.processes == 0
     assert args.to_file is False
     assert args.from_file is False
@@ -102,17 +102,14 @@ def test_base_parser_allowed_sims(capsys):
     # check that the help and usage text are updated accordingly
     parser.print_help()
     captured = capsys.readouterr()
-    testing_help = "-s {SIM_A,SIM_B,SIMBA}, --sim {SIM_A,SIM_B,SIMBA}"
+    testing_help = "Supported simulations: SIM_A, SIM_B, SIMBA"
     assert testing_help in captured.out
     parser.print_usage()
     captured = capsys.readouterr()
-    testing_usage = "[-s {SIM_A,SIM_B,SIMBA}]"
+    testing_usage = "[-s SIM]"
     assert testing_usage in captured.out
 
     # check that the argument parser parses the names correctly
     for sim in ["SIM_A", "SIM_B", "SIMBA"]:
         args = parser.parse_args(["--sim", sim])
         assert args.sim == sim
-    # check that these are the only valid options
-    with pytest.raises(SystemExit):
-        parser.parse_args(["--sim", "NOT_SUPPORTED"])
