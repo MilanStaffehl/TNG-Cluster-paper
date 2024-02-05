@@ -20,11 +20,11 @@ from pipelines.temperature_distribution.histograms_temperatures import (
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
-    # sim data
-    sim = glob_util.translate_sim_name(args.sim)
-
     # config
-    cfg = config.get_default_config(sim)
+    try:
+        cfg = config.get_default_config(args.sim)
+    except config.InvalidSimulationNameError:
+        logging.fatal(f"Unsupported simulation: {args.sim}")
 
     # warn of impossible combinations
     if args.grid and args.combine:

@@ -6,7 +6,7 @@ class BaseScriptParser(argparse.ArgumentParser):
 
     def __init__(
         self,
-        allowed_sims=("MAIN_SIM", "TEST_SIM", "DEV_SIM"),
+        allowed_sims=("TNG300", "TNG100", "TNG50"),
         prog=None,
         usage=None,
         description=None,
@@ -14,7 +14,10 @@ class BaseScriptParser(argparse.ArgumentParser):
     ):
         """
         :param allowed_sims: List of the names of simulations that the
-            script can run on.
+            script can run on. If there is no restriction, leave it as
+            None. This list will merely be used for the help text of
+            the ``--sim`` argument, so it does not need to match the
+            list of simulations in the config file.
         :param prog: Command to execute the program.
         :param usage: Usage description.
         :param description: Description of what the program does.
@@ -27,17 +30,23 @@ class BaseScriptParser(argparse.ArgumentParser):
             epilog=epilog,
         )
         # set up default args
+        if allowed_sims is None:
+            add_str = ""
+        else:
+            add_str = (
+                f"Supported simulations: {', '.join(allowed_sims)} (you "
+                f"might need to specify resolution for these simulations)"
+            )
         self.add_argument(
             "-s",
             "--sim",
             help=(
-                "Type of the simulation to use. Note that not all simulations "
-                "are available choices for all scripts."
+                f"Name of the simulation to use. Must match one of the names "
+                f"given in the configuration file (config.yaml). {add_str}."
             ),
             dest="sim",
             type=str,
-            default="MAIN_SIM",
-            choices=allowed_sims,
+            default="TNG300-1",
         )
         self.add_argument(
             "-p",
