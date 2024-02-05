@@ -5,10 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
+import library.scriptparse
+
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
-import glob_util
 from library import scriptparse
 from library.config import config
 from pipelines.radial_profiles.individuals import (
@@ -31,7 +32,7 @@ def main(args: argparse.Namespace) -> None:
         type_flag = f"{args.what}_core"  # prevent overwriting
     else:
         type_flag = args.what
-    file_data = glob_util.assemble_path_dict(
+    file_data = library.scriptparse.assemble_path_dict(
         "radial_profiles",
         cfg,
         type_flag,

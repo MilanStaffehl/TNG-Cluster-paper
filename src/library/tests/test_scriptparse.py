@@ -1,7 +1,10 @@
 """Tests for the custom argparser"""
+from pathlib import Path
+
 import pytest
 
 from library import scriptparse
+from library.config import config
 
 
 @pytest.fixture
@@ -113,3 +116,112 @@ def test_base_parser_allowed_sims(capsys):
     for sim in ["SIM_A", "SIM_B", "SIMBA"]:
         args = parser.parse_args(["--sim", sim])
         assert args.sim == sim
+
+
+@pytest.fixture
+def mock_config():
+    """A mock config object"""
+    yield config.Config(
+        "TNG300-1",
+        str(Path().home() / ".local"),
+        99,
+        "Group_M_Crit200",
+        "Group_R_Crit200",
+        Path().home() / ".local" / "data",
+        Path().home() / ".local" / "figures",
+    )
+
+
+def test_assemble_path_dict(mock_config):
+    """Test the function to assemble a path dictionary"""
+    output = scriptparse.assemble_path_dict(
+        milestone="test_milestone",
+        cfg=mock_config,
+        type_flag="type_flag",
+    )
+    # assert validity of dict
+    assert "figures_dir" in output.keys()
+    assert "data_dir" in output.keys()
+    assert "figures_file_stem" in output.keys()
+    assert "data_file_stem" in output.keys()
+    # assert validity of values
+    fig_path = (
+        Path().home() / ".local" / "figures" / "test_milestone" / "TNG300_1"
+    ).resolve()
+    assert output["figures_dir"] == fig_path
+    data_path = (Path().home() / ".local" / "data"
+                 / "test_milestone").resolve()
+    assert output["data_dir"] == data_path
+    stem = "test_milestone_type_flag_TNG300_1"
+    assert output["figures_file_stem"] == stem
+    assert output["data_file_stem"] == stem
+
+
+def test_assemble_path_dict_custom_dirs(mock_config):
+    """Test that custom data and figure homes are respected"""
+    # paths must actually exist!
+    output = scriptparse.assemble_path_dict(
+        milestone="test_milestone",
+        cfg=mock_config,
+        type_flag="type_flag",
+        alt_data_dir=Path().home(),
+        alt_figure_dir=Path().home(),
+    )
+    fig_path = Path().home().resolve()
+    assert output["figures_dir"] == fig_path
+    data_path = Path().home().resolve()
+    assert output["data_dir"] == data_path
+
+
+def test_assemble_path_dict_invalid_custom_dir(mock_config, caplog):
+    """Test that only valid paths are accepted"""
+    output = scriptparse.assemble_path_dict(
+        milestone="test_milestone",
+        cfg=mock_config,
+        type_flag="type_flag",
+        alt_figure_dir=Path("i/do/not/exist"),
+        alt_data_dir=Path("and/neither/do/i"),
+    )
+    fig_path = mock_config.figures_home / "test_milestone" / "TNG300_1"
+    assert output["figures_dir"] == fig_path.resolve()
+    expected_msg = (
+        f"Given figures path is invalid: i/do/not/exist. Using fallback path"
+        f" {str(fig_path)} instead."
+    )
+    assert expected_msg in caplog.records[0].message
+    data_path = mock_config.data_home / "test_milestone"
+    assert output["data_dir"] == data_path.resolve()
+    expected_msg = (
+        f"Given data path is invalid: and/neither/do/i. Attempting fallback "
+        f"path {str(data_path)} instead."
+    )
+    assert expected_msg in caplog.records[1].message
+
+
+def test_assemble_path_dict_virial_temperature(mock_config):
+    """Test that the virial temperature stem can be included"""
+    output = scriptparse.assemble_path_dict(
+        milestone="test_milestone",
+        cfg=mock_config,
+        type_flag="type_flag",
+        virial_temperatures=True
+    )
+    assert "virial_temp_file_stem" in output.keys()
+    assert output["virial_temp_file_stem"] == "virial_temperatures_TNG300_1"
+
+
+def test_assemble_path_dict_subdirs(mock_config):
+    """Test that subdirectories may be specified"""
+    output = scriptparse.assemble_path_dict(
+        milestone="test_milestone",
+        cfg=mock_config,
+        type_flag="type_flag",
+        figures_subdirectory="./fig_subdir",
+        data_subdirectory="./data_subdir",
+    )
+    fig_path = (
+        mock_config.figures_home.resolve() / "test_milestone" / "TNG300_1"
+    )
+    assert output["figures_dir"] == fig_path / "fig_subdir"
+    data_path = mock_config.data_home.resolve() / "test_milestone"
+    assert output["data_dir"] == data_path / "data_subdir"

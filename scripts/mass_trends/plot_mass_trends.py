@@ -6,7 +6,6 @@ from pathlib import Path
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
-import glob_util
 from library import scriptparse
 from library.config import config
 from pipelines.mass_trends.temperatures import (
@@ -45,7 +44,7 @@ def main(args: argparse.Namespace) -> None:
         type_flag = f"{type_flag}_rm"
 
     # paths
-    file_data = glob_util.assemble_path_dict(
+    file_data = scriptparse.assemble_path_dict(
         "mass_trends",
         cfg,
         type_flag,
