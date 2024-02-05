@@ -39,6 +39,7 @@ class Pipeline:
     quiet: bool
     to_file: bool
     no_plots: bool
+    fig_ext: Literal["pdf", "svg", "png", "jpeg", "jpg", "tif", "esp", "ps"]
 
     def __post_init__(self):
         # set up logging
@@ -177,7 +178,9 @@ class Pipeline:
         # file name
         if ident_flag:
             ident_flag = f"_{ident_flag}"
-        filename = f"{self.paths['figures_file_stem']}{ident_flag}.pdf"
+        filename = (
+            f"{self.paths['figures_file_stem']}{ident_flag}.{self.fig_ext}"
+        )
 
         # file path
         filepath = Path(self.paths["figures_dir"])
