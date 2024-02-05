@@ -1,5 +1,8 @@
 paths:
-  simulation_home: /virgotng/universe/IllustrisTNG/
-  cluster_home: /virgotng/mpia/TNG-Cluster/
+  base_paths:
+    TNG300-1: /virgotng/universe/IllustrisTNG/TNG300-1/output
+    TNG50-4: /virgotng/universe/IllustrisTNG/TNG50-4/output
+    TNG50-3: /virgotng/universe/IllustrisTNG/TNG50-3/output
+    TNG-Cluster: /virgotng/mpia/TNG-Cluster/TNG-Cluster/output
   data_home: ~/thesisProject/data/
   figures_home: ~/thesisProject/figures/

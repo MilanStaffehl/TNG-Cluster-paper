@@ -44,13 +44,15 @@ def test_default_config_generic(mocker):
             {
                 "data_home": str(Path(__file__).parents[4].resolve() / "data"),
                 "figures_home": str(Path(__file__).parents[4].resolve() / "figures"),
-                "simulation_home": str(mock_sim_home),
+                "base_paths": {
+                    "TNG300-1": str(mock_sim_home),
+                }
             }
     }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = str(mock_sim_home / "TNG300-1" / "output")
+    sim_path = str(mock_sim_home)
     assert test_cfg.base_path == sim_path
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
@@ -70,7 +72,9 @@ def test_custom_config(mocker):
             {
                 "data_home": str(Path(__file__).parents[4].resolve() / "data"),
                 "figures_home": str(Path(__file__).parents[4].resolve() / "figures"),
-                "simulation_home": str(mock_sim_home),
+                "base_paths": {
+                    "TNG50-2": str(mock_sim_home),
+                }
             }
     }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
@@ -78,7 +82,7 @@ def test_custom_config(mocker):
     test_cfg = config.get_default_config(
         "TNG50-2", 50, "Group_M_Crit500", "Radius"
     )
-    sim_path = str(mock_sim_home / "TNG50-2" / "output")
+    sim_path = str(mock_sim_home)
     assert test_cfg.base_path == sim_path
     assert test_cfg.snap_num == 50
     assert test_cfg.mass_field == "Group_M_Crit500"
@@ -101,14 +105,16 @@ def test_custom_paths_linux(mocker):
             {
                 "data_home": str(Path().home() / ".local"),
                 "figures_home": str(Path().home() / ".local"),
-                "simulation_home": str(Path().home() / ".local"),
+                "base_paths": {
+                    "TNG300-1": str(Path().home() / ".local"),
+                },
             }
     }
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     # create and test config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = str(Path.home() / ".local" / "TNG300-1" / "output")
+    sim_path = str(Path.home() / ".local")
     assert test_cfg.base_path == sim_path
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
@@ -132,14 +138,16 @@ def test_custom_paths_windows(mocker):
             {
                 "data_home": app_data,
                 "figures_home": app_data,
-                "simulation_home": app_data,
+                "base_paths": {
+                    "TNG300-1": app_data,
+                }
             }
     }
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     # create and test config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = str(app_data / "TNG300-1" / "output")
+    sim_path = str(app_data)
     assert test_cfg.base_path == sim_path
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
@@ -158,7 +166,9 @@ def test_invalid_paths(mocker):
             {
                 "data_home": "this/path/does/not/exits",
                 "figures_home": "neither/does/this/path",
-                "simulation_home": str(Path().home() / ".local"),
+                "base_paths": {
+                    "TNG300-1": str(Path().home() / ".local"),
+                }
             }
     }
     mock_load = mocker.patch("yaml.full_load")
@@ -169,4 +179,34 @@ def test_invalid_paths(mocker):
     # figures home is tested first, so it should raise the exception
     wrong_path = Path("neither/does/this/path")
     expected_msg = f"The config path {str(wrong_path)} does not exist"
+    assert str(e.value) == expected_msg
+
+
+def test_invalid_simulation_name(mocker):
+    """
+    Test that an exception is raised when an unknown simulation name is given.
+    """
+    # set paths to something non-existent and/or invalid
+    mock_config = {
+        "paths": {
+            "data_home": str(Path().home() / ".local"),
+            "figures_home": str(Path().home() / ".local"),
+            "base_paths": {
+                "TNG300-1": str(Path().home() / ".local"),
+                "TNG100-1": str(Path().home() / ".local"),
+                "TNG50-1": str(Path().home() / ".local"),
+                "TNG-Cluster": str(Path().home() / ".local"),
+            }
+        }
+    }  # yapf: disable
+    mock_load = mocker.patch("yaml.full_load")
+    mock_load.return_value = mock_config
+    # create and test config
+    with pytest.raises(config.InvalidSimulationNameError) as e:
+        config.get_default_config("TNG50-4")
+    # TNG50-4 is not in the config file, so it should raise the exception
+    expected_msg = (
+        "'There is no simulation named TNG50-4 in the config.yaml "
+        "configuration file.'"
+    )
     assert str(e.value) == expected_msg

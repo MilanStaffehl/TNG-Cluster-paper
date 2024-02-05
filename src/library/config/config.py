@@ -36,7 +36,7 @@ class Config:
 
     def __post_init__(self):
         """
-        Set up aux fields from exisiting fields.
+        Set up aux fields from existing fields.
         """
         self.sim_path: str = self.sim_name.replace("-", "_")
 
@@ -57,6 +57,17 @@ class InvalidConfigPathError(Exception):
             return f"The config path {self.path} does not point to a directory"
         else:
             return f"The config path {self.path} is not a valid config path"
+
+
+class InvalidSimulationNameError(KeyError):
+    """Raised when an unknown simulation name is used"""
+
+    def __init__(self, name: str, *args: object) -> None:
+        msg = (
+            f"There is no simulation named {name} in the config.yaml "
+            f"configuration file."
+        )
+        super().__init__(msg, *args)
 
 
 def get_default_config(
@@ -83,22 +94,23 @@ def get_default_config(
     with open(root_dir / "config.yaml", "r") as config_file:
         stream = config_file.read()
     config = yaml.full_load(stream)
+
     # set paths
     figures_home = Path(config["paths"]["figures_home"]).expanduser()
     data_home = Path(config["paths"]["data_home"]).expanduser()
-    if sim == "TNG-Cluster":
-        sim_home = "cluster_home"
-    else:
-        sim_home = "simulation_home"
-    simulation_home = Path(config["paths"][sim_home]).expanduser()
+
+    try:
+        base_path = Path(config["paths"]["base_paths"][sim]).expanduser()
+    except KeyError:
+        raise InvalidSimulationNameError(sim)
 
     # verify paths
-    for path in [figures_home, data_home, simulation_home]:
+    for path in [figures_home, data_home, base_path]:
         if not path.exists() or not path.is_dir():
             raise InvalidConfigPathError(path)
 
     # return config
-    base_path = simulation_home / sim / "output"
+    # base_path = simulation_home / sim / "output"
     final_config = Config(
         sim,
         str(base_path),  # illustris_python does not support Path-likes
