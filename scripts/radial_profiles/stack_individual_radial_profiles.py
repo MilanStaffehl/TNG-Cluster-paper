@@ -6,6 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 import glob_util
+from library import scriptparse
 from library.config import config
 from pipelines.radial_profiles.stacks import StackProfilesPipeline
 
@@ -36,6 +37,7 @@ def main(args: argparse.Namespace) -> None:
         "quiet": False,
         "to_file": True,
         "no_plots": False,
+        "fig_ext": args.extension,
         "log": args.log,
         "what": args.what,
         "method": args.method,
@@ -45,26 +47,19 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
+    parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
         description=(
             "Stack individual radial profiles of all halos in TNG with mass "
             "above 10^14 solar masses."
         ),
+        allowed_sims=["MAIN_SIM", "DEV_SIM", "TEST_SIM", "CLUSTER"],
     )
-    parser.add_argument(
-        "-s",
-        "--sim",
-        help=(
-            "Type of the simulation to use; main sim is TNG300-1, dev sim "
-            "is TNG50-3, test sim is TNG50-4, and CLUSTER is TNG-Cluster. "
-            "Defaults to TNG300-1."
-        ),
-        dest="sim",
-        type=str,
-        default="MAIN_SIM",
-        choices=["MAIN_SIM", "DEV_SIM", "TEST_SIM", "CLUSTER"],
-    )
+    parser.remove_argument("processes")
+    parser.remove_argument("to_file")
+    parser.remove_argument("from_file")
+    parser.remove_argument("no_plots")
+    parser.remove_argument("quiet")
     parser.add_argument(
         "-w",
         "--what",
@@ -96,30 +91,6 @@ if __name__ == "__main__":
         help="Plot the figures in log scale instead of linear scale.",
         action="store_true",
         dest="log",
-    )
-    parser.add_argument(
-        "--figures-dir",
-        help=(
-            "The directory path under which to save the figures, if created. "
-            "Directories that do not exist will be recursively created. "
-            "It is recommended to leave this at the default value unless "
-            "the expected directories do not exist."
-        ),
-        dest="figurespath",
-        default=None,
-        metavar="DIR PATH",
-    )
-    parser.add_argument(
-        "--data-dir",
-        help=(
-            "The directory path from which to load the data. "
-            "It is recommended to leave this at the default value unless "
-            "the expected directories do not exist and/or data has been saved "
-            "somewhere else."
-        ),
-        dest="datapath",
-        default=None,
-        metavar="DIR PATH",
     )
 
     # parse arguments

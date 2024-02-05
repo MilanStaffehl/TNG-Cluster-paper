@@ -181,7 +181,9 @@ class StackProfilesPipeline(Pipeline):
             divs = self.divisions
         else:
             divs = 10**self.divisions
-        plot_radial_profiles.overplot_temperature_divisions(axes, divs, 0, 2)
+        plot_radial_profiles.overplot_temperature_divisions(
+            axes[0], divs, 0, 2
+        )
         return fig, axes
 
     def _plot_2d_median(
@@ -249,6 +251,12 @@ class StackProfilesPipeline(Pipeline):
         plot_radial_profiles.overplot_running_average(
             fig, ax1, running_average, edges
         )
+        # plot temperature division
+        if self.log:
+            divs = self.divisions
+        else:
+            divs = 10**self.divisions
+        plot_radial_profiles.overplot_temperature_divisions(ax1, divs, 0, 2)
         return fig, (ax1, ax2, ax3)
 
     def _plot_1d(

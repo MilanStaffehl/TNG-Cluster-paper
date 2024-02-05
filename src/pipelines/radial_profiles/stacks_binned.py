@@ -207,8 +207,9 @@ class StackProfilesBinnedPipeline(Pipeline):
                 )
                 if not np.allclose(edges, cledges):
                     logging.fatal(
-                        "Temperature histograms for TNG300-1 and TNG Cluster "
-                        "have different bin edges."
+                        f"Temperature histograms for TNG300-1 and TNG-Cluster "
+                        f"have different bin edges:\nTNG300: {edges}\n"
+                        f"TNG-Cluster: {cledges}"
                     )
                     sys.exit(2)
             masses[i + n_tng300_clusters] = halo_data["halo_mass"]

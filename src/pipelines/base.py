@@ -20,6 +20,7 @@ from library.config import logging_config
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
+    # Reason for noqa: https://github.com/PyCQA/pyflakes/issues/648
     from library.config import config  # noqa: F401
 
 
