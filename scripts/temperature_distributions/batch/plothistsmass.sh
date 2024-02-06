@@ -24,4 +24,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/temperature_distributions/plot_temperature_distribution.py -s MAIN_SIM -p $SLURM_CPUS_PER_TASK -f --use-mass
+srun python3 ~/thesisProject/scripts/temperature_distributions/plot_temperature_distribution.py -s TNG300-1 -p $SLURM_CPUS_PER_TASK -f --use-mass
