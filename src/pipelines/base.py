@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Literal, Sequence
 from matplotlib import pyplot as plt
 
 import typedef
-from library.config import logging_config
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -41,15 +40,9 @@ class Pipeline:
     config: config.Config
     paths: typedef.FileDict | typedef.FileDictVT
     processes: int
-    quiet: bool
     to_file: bool
     no_plots: bool
     fig_ext: Literal["pdf", "svg", "png", "jpeg", "jpg", "tif", "esp", "ps"]
-
-    def __post_init__(self):
-        # set up logging
-        log = logging_config.get_logging_config("INFO")
-        logging.config.dictConfig(log)
 
     @abstractmethod
     def run(self) -> int:
@@ -209,13 +202,6 @@ class DiagnosticsPipeline(Pipeline):
     logging level MEMLOG of severity 18. It also offers a handy method
     that combines timing and memory usage information.
     """
-
-    def __post_init__(self):
-        super().__post_init__()
-        # define custom logging level for memory infos
-        logging.addLevelName(18, "MEMORY")
-        if not self.quiet:
-            logging_config.change_level(18)
 
     @abstractmethod
     def run(self) -> int:

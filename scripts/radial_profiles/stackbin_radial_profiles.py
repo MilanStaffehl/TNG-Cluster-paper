@@ -38,7 +38,6 @@ def main(args: argparse.Namespace) -> None:
         "config": cfg,
         "paths": file_data,
         "processes": -1,
-        "quiet": False,
         "to_file": True,
         "no_plots": False,
         "fig_ext": args.extension,
@@ -63,7 +62,6 @@ if __name__ == "__main__":
     parser.remove_argument("to_file")
     parser.remove_argument("from_file")
     parser.remove_argument("no_plots")
-    parser.remove_argument("quiet")
     parser.add_argument(
         "-w",
         "--what",

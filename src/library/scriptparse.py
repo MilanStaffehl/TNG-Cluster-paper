@@ -3,12 +3,16 @@ from __future__ import annotations
 
 import argparse
 import logging
+import logging.config
 import sys
 from pathlib import Path
-from typing import Any
+from typing import TypeAlias
 
 import typedef
-from library.config import config
+from library.config import config, logging_config
+
+# type def
+PipelineKwargs: TypeAlias = dict[str, bool | str | int]
 
 
 class BaseScriptParser(argparse.ArgumentParser):
@@ -104,22 +108,39 @@ class BaseScriptParser(argparse.ArgumentParser):
             action="store_true",
         )
         self.add_argument(
-            "-q",
-            "--quiet",
-            help=(
-                "Prevent progress information to be emitted. Has no effect when "
-                "multiprocessing is used."
-            ),
-            dest="quiet",
-            action="store_true",
-        )
-        self.add_argument(
             "--ext",
             help="File extension for the plot files. Defaults to pdf.",
             dest="fig_ext",
             type=str,
             default="pdf",
             choices=["pdf", "png"]
+        )
+        exclusion_group = self.add_mutually_exclusive_group(required=False)
+        exclusion_group.add_argument(
+            "-v",
+            help=(
+                "Make the output more verbose. Stackable. Determines the log "
+                "level and whether real-time updates are sent to stdout. If "
+                "not set, the logging level is set to INFO. Setting -v means "
+                "log level MEMORY for diagnostics, -vv means real-time status"
+                "updates in loops are logged (not recommended when piping "
+                "stdout to file!), and -vvv means log level DEBUG."
+            ),
+            dest="verbosity",
+            action="count",
+            default=0,
+        )
+        exclusion_group.add_argument(
+            "-q",
+            help=(
+                "Reduce the verbosity of the script. Stackable. Corresponds to "
+                "raising the logging level. Setting -q means log level "
+                "WARNING, -qq means log level ERROR, and -qqq means log level "
+                "CRITICAL."
+            ),
+            dest="quiet",
+            action="count",
+            default=0,
         )
         self.add_argument(
             "--figures-dir",
@@ -177,6 +198,81 @@ class BaseScriptParser(argparse.ArgumentParser):
                     return
 
 
+def startup(
+    namespace: argparse.Namespace,
+    milestone: str,
+    type_flag: str,
+    with_virial_temperatures: bool = False,
+    figures_subdirectory: str | Path | None = None,
+    data_subdirectory: str | Path | None = None,
+) -> PipelineKwargs:
+    """
+    Common set-up for scripts.
+
+    Function sets up logging according to the received verbosity, and
+    creates a base kwargs dictionary for pipelines, to be amended by
+    script-specific keyword arguments.
+
+    The logging setup also includes the addition of the custom logging
+    level MEMORY with a numeric value of 18 for memory monitoring.
+
+    :param namespace: The namespace returned by the parser. Can be
+        given as-is, and will not be altered.
+    :param milestone: The name of the milestone. Example: ``mass_trends``.
+    :param type_flag: The type flag to be inserted after the milestone.
+    :param with_virial_temperatures: Whether to include the file stem for
+        virial temperature data files in the paths dictionary.
+    :param figures_subdirectory: An optional subdirectory inside the
+        figures home where to save figures. Must be given relative to
+        the figures home directory.
+    :param data_subdirectory: An optional subdirectory inside the
+        data home where to save data files. Must be given relative to
+        the data home directory.
+    :return: A dictionary of keyword arguments suitable to start up a
+        base :class:`~library.pipelines.base.Pipeline`, by using it
+        with the ``**`` operator as init args for a pipeline. This
+        dictionary can be updated with additional information required
+        for other subclasses of pipelines afterward.
+    """
+    # set up logging
+    log_level = parse_verbosity(namespace)
+    log_config = logging_config.get_logging_config(log_level)
+    logging.config.dictConfig(log_config)
+    logging.addLevelName(18, "MEMORY")  # custom level
+    # parse namespace for initial kwargs dictionary for pipelines
+    return parse_namespace(
+        namespace,
+        milestone,
+        type_flag,
+        with_virial_temperatures,
+        figures_subdirectory,
+        data_subdirectory,
+    )
+
+
+def parse_verbosity(namespace: argparse.Namespace) -> int:
+    """
+    Translate the verbosity information into a log level.
+
+    :param namespace: The script parser namespace.
+    :return: The logging level determined from the verbosity args.
+    """
+    if namespace.verbosity >= 3:
+        return 10
+    elif namespace.verbosity == 2:
+        return 15
+    elif namespace.verbosity == 1:
+        return 18
+    elif namespace.quiet == 1:
+        return 30
+    elif namespace.quiet == 2:
+        return 40
+    elif namespace.quiet >= 3:
+        return 50
+    else:
+        return 20
+
+
 def parse_namespace(
     namespace: argparse.Namespace,
     milestone: str,
@@ -184,13 +280,13 @@ def parse_namespace(
     with_virial_temperatures: bool = False,
     figures_subdirectory: str | Path | None = None,
     data_subdirectory: str | Path | None = None,
-) -> dict[str, Any]:
+) -> PipelineKwargs:
     """
     Parse the namespace of a script base parser for base arguments.
 
     Return a dictionary containing field-value pairs capable of acting
     as the init-parameters for a base pipeline, i.e. a dictionary with
-    keys 'config', 'paths', 'processes', 'quiet', 'to_file', 'no_plots',
+    keys 'config', 'paths', 'processes', 'to_file', 'no_plots',
     'fig_ext', all with corresponding values taken from the namespace.
     Where the namespace did not supply values, sensible defaults are
     applied, assuming that the corresponding pipeline field will not be
@@ -211,7 +307,11 @@ def parse_namespace(
     :param data_subdirectory: An optional subdirectory inside the
         data home where to save data files. Must be given relative to
         the data home directory.
-    :return:
+    :return: A dictionary of keyword arguments suitable to start up a
+        base :class:`~library.pipelines.base.Pipeline`, by using it
+        with the ``**`` operator as init args for a pipeline. This
+        dictionary can be updated with additional information required
+        for other subclasses of pipelines afterward.
     """
     if not hasattr(namespace, "sim"):
         namespace.sim = "TNG300-1"  # throwaway name to get valid config
@@ -224,7 +324,7 @@ def parse_namespace(
         sys.exit(1)
 
     # get a paths dictionary
-    paths = assemble_path_dict(
+    paths = _assemble_path_dict(
         milestone,
         cfg,
         type_flag,
@@ -240,12 +340,7 @@ def parse_namespace(
 
     # set defaults for other base arguments
     defaults = {
-        "processes": 0,
-        "to_file": False,
-        "from_file": False,
-        "no_plots": False,
-        "quiet": False,
-        "fig_ext": "pdf"
+        "processes": 0, "to_file": False, "no_plots": False, "fig_ext": "pdf"
     }
     # apply defaults if not explicitly set to arrive at a full valid kwargs
     # dictionary that can be used to initialise a base pipeline
@@ -263,7 +358,7 @@ def parse_namespace(
     return kwargs
 
 
-def assemble_path_dict(
+def _assemble_path_dict(
     milestone: str,
     cfg: config.Config,
     type_flag: str,
@@ -314,9 +409,11 @@ def assemble_path_dict(
     :return: A valid file path dictionary.
     """
     figure_path = cfg.figures_home / milestone / cfg.sim_path
+    data_path = cfg.data_home / milestone
+    file_stem = f"{milestone}_{type_flag}_{cfg.sim_path}"
+
     if figures_subdirectory:
         figure_path = figure_path / Path(figures_subdirectory)
-    figure_stem = f"{milestone}_{type_flag}_{cfg.sim_path}"
 
     if alt_figure_dir:
         new_path = Path(alt_figure_dir)
@@ -328,10 +425,8 @@ def assemble_path_dict(
                 f"Using fallback path {str(figure_path)} instead."
             )
 
-    data_path = cfg.data_home / milestone
     if data_subdirectory:
         data_path = data_path / Path(data_subdirectory)
-    data_stem = f"{milestone}_{type_flag}_{cfg.sim_path}"
 
     if alt_data_dir:
         new_path = Path(alt_data_dir)
@@ -346,8 +441,8 @@ def assemble_path_dict(
     file_data = {
         "figures_dir": figure_path.resolve(),
         "data_dir": data_path.resolve(),
-        "figures_file_stem": figure_stem,
-        "data_file_stem": data_stem,
+        "figures_file_stem": file_stem,
+        "data_file_stem": file_stem,
     }
     if virial_temperatures:
         file_data.update(

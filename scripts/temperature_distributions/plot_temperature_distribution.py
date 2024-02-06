@@ -1,15 +1,11 @@
 import argparse
-import logging
 import sys
 from pathlib import Path
-
-import library.scriptparse
 
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from library.config import config
 from pipelines.temperature_distribution.histograms_temperatures import (
     CombinedPlotsFromFilePipeline,
     CombinedPlotsPipeline,
@@ -21,17 +17,7 @@ from pipelines.temperature_distribution.histograms_temperatures import (
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
-    # config
-    try:
-        cfg = config.get_default_config(args.sim)
-    except config.InvalidSimulationNameError:
-        logging.fatal(f"Unsupported simulation: {args.sim}")
-
-    # warn of impossible combinations
-    if args.grid and args.combine:
-        logging.fatal("Combining the -g and -c flags is not possible.")
-        sys.exit(1)
-
+    # determine required variables
     # histogram weights
     if args.use_mass:
         weight_type = "mass"
@@ -62,44 +48,39 @@ def main(args: argparse.Namespace) -> None:
     if args.normalize:
         type_flag = f"norm_{type_flag}"
 
-    # file paths
-    file_data = library.scriptparse.assemble_path_dict(
+    # startup
+    pipeline_config = scriptparse.startup(
+        args,
         "temperature_distribution",
-        cfg,
         type_flag,
-        True,
-        args.figurespath,
-        args.datapath,
-        subdirectory,
+        with_virial_temperatures=True,
+        figures_subdirectory=subdirectory,
     )
 
-    pipeline_config = {
-        "config": cfg,
-        "paths": file_data,
-        "processes": args.processes,
-        "fig_ext": args.extension,
-        "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
-        "n_temperature_bins": args.bins,
-        "temperature_range": (-4.0, +4.0) if args.normalize else (3., 8.),
-        "weights": weight_type,
-        "normalize": args.normalize,
-        "with_virial_temperatures": not args.normalize and args.overplot,
-        "temperature_divisions": temperature_division,
-        "quiet": args.quiet,
-        "to_file": args.to_file,
-        "no_plots": args.no_plots,
-    }
+    pipeline_config.update(
+        {
+            "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
+            "n_temperature_bins": args.bins,
+            "temperature_range": (-4.0, +4.0) if args.normalize else (3., 8.),
+            "weights": weight_type,
+            "normalize": args.normalize,
+            "with_virial_temperatures": not args.normalize and args.overplot,
+            "temperature_divisions": temperature_division,
+        }
+    )
+
+    # determine pipeline and run it
     if args.from_file and not args.combine and not args.grid:
-        hist_plotter = FromFilePipeline(**pipeline_config)
+        pipeline = FromFilePipeline(**pipeline_config)
     elif args.from_file and args.combine:
-        hist_plotter = CombinedPlotsFromFilePipeline(**pipeline_config)
+        pipeline = CombinedPlotsFromFilePipeline(**pipeline_config)
     elif not args.from_file and args.combine:
-        hist_plotter = CombinedPlotsPipeline(**pipeline_config)
+        pipeline = CombinedPlotsPipeline(**pipeline_config)
     elif args.grid:
-        hist_plotter = PlotGridPipeline(**pipeline_config)
+        pipeline = PlotGridPipeline(**pipeline_config)
     else:
-        hist_plotter = TemperatureHistogramsPipeline(**pipeline_config)
-    hist_plotter.run()
+        pipeline = TemperatureHistogramsPipeline(**pipeline_config)
+    pipeline.run()
 
 
 if __name__ == "__main__":
