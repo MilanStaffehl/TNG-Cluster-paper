@@ -4,9 +4,10 @@
 #SBATCH -e ./output/err.%j
 #SBATCH -D ./
 #SBATCH -J MS02TI
+# SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=04:00:00       # maximum time the job is allowed to take
+#SBATCH --time=2:00:00
 
 module purge
 module load gcc/13 impi/2021.9
@@ -22,4 +23,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s CLUSTER -f --log -v
+srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s CLUSTER -w density -f --log -v --forbid-tree

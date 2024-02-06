@@ -52,7 +52,6 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     divisions: ClassVar[NDArray] = np.array([4.5, 5.5])  # in log K
 
     def __post_init__(self):
-        super().__post_init__()
         self.use_tree = not self.forbid_tree
         if self.config.sim_name == "TNG-Cluster":
             self.group_name = "cluster"
@@ -61,8 +60,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         # particle id directory
         if self.core_only:
             pid_dir = Path(self.paths["data_dir"]) / "particle_ids_core"
+            self.suffix = "_core"
         else:
             pid_dir = Path(self.paths["data_dir"]) / "particle_ids"
+            self.suffix = ""
         self.part_id_dir = pid_dir
 
     def run(self) -> int:
@@ -94,8 +95,8 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             subdirs=[
                 "particle_ids",
                 "particle_ids_core",
-                "temperature_profiles",
-                "density_profiles",
+                f"temperature_profiles{self.suffix}",
+                f"density_profiles{self.suffix}",
             ],
             force=True
         )
@@ -257,9 +258,11 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                 f"{self.part_id_dir}. Did you delete or move the directory?"
             )
             available_ids = set()
-        suffix = "_core" if self.core_only else ""
         required_ids = set(
-            [f"particles_halo_{i}{suffix}" for i in selected_halos["ids"]]
+            [
+                f"particles_halo_{i}{self.suffix}"
+                for i in selected_halos["ids"]
+            ]
         )
 
         # check whether all halos have particle ID files available
@@ -354,7 +357,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             logging.debug(
                 f"Writing histogram data for halo {halo_id} to file."
             )
-            filepath = Path(self.paths["data_dir"]) / "temperature_profiles"
+            filepath = (
+                Path(self.paths["data_dir"])
+                / f"temperature_profiles{self.suffix}"
+            )
             filename = (
                 f"{self.paths['data_file_stem']}_{self.group_name}_"
                 f"{halo_id}.npz"
@@ -467,7 +473,9 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         # write data to file
         if self.to_file:
             logging.debug(f"Writing data for halo {halo_id} to file.")
-            filepath = Path(self.paths["data_dir"]) / "density_profiles"
+            filepath = (
+                Path(self.paths["data_dir"]) / f"density_profiles{self.suffix}"
+            )
             filename = (
                 f"{self.paths['data_file_stem']}_{self.group_name}_"
                 f"{halo_id}.npz"
@@ -579,7 +587,6 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :return: The array of list indices of particles which belong to
             the chosen halo, i.e. are within 2 R_vir of the halo center.
         """
-        suffix = "_core" if self.core_only else ""
         # find all particles within 2 * R_vir
         if self.use_tree:
             neighbors = positions_tree.query_ball_point(
@@ -593,12 +600,13 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                     "to file."
                 )
                 np.save(
-                    self.part_id_dir / f"particles_halo_{halo_id}{suffix}.npy",
+                    self.part_id_dir
+                    / f"particles_halo_{halo_id}{self.suffix}.npy",
                     neighbors
                 )
         else:
             neighbors = np.load(
-                self.part_id_dir / f"particles_halo_{halo_id}{suffix}.npy"
+                self.part_id_dir / f"particles_halo_{halo_id}{self.suffix}.npy"
             )
         return neighbors
 
@@ -670,7 +678,12 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             )
 
         # save figure
-        self._save_fig(fig, halo_id)
+        supplementary = f"{self.group_name}_{halo_id}"
+        self._save_fig(
+            fig,
+            ident_flag=supplementary,
+            subdirs=f"./{supplementary}",
+        )
 
     def _plot_density_profile(
         self,
@@ -746,10 +759,11 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         axes.legend(fontsize=10, frameon=False)
 
         # save
-        suffix = "_core" if self.core_only else ""
-        supplementary = f"{self.group_name}_{halo_id}{suffix}"
+        supplementary = f"{self.group_name}_{halo_id}"
         self._save_fig(
-            fig, ident_flag=supplementary, subdirs=f"./{supplementary}"
+            fig,
+            ident_flag=supplementary,
+            subdirs=f"./{supplementary}",
         )
 
 
@@ -787,13 +801,13 @@ class IndividualProfilesFromFilePipeline(IndividualRadialProfilePipeline):
         logging.info(f"Start loading {self.what} data from file.")
         if self.what == "temperature":
             load_generator = load_radial_profiles.load_individuals_2d_profile(
-                self.paths["data_dir"] / "temperature_profiles",
+                self.paths["data_dir"] / f"temperature_profiles{self.suffix}",
                 (self.radial_bins, self.temperature_bins),
             )
             plotting_func = self._plot_temperature_profile
         elif self.what == "density":
             load_generator = load_radial_profiles.load_individuals_1d_profile(
-                self.paths["data_dir"] / "density_profiles",
+                self.paths["data_dir"] / f"density_profiles{self.suffix}",
                 self.radial_bins,
             )
             plotting_func = self._plot_density_profile

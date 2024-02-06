@@ -3,7 +3,7 @@
 #SBATCH -o ./output/out.%j
 #SBATCH -e ./output/err.%j
 #SBATCH -D ./
-#SBATCH -J MS02TC
+#SBATCH -J MS02TI
 #SBATCH --partition=p.huge
 #SBATCH --ntasks-per-node=1   # only start 1 task via srun because Python multiprocessing starts more tasks internally
 #SBATCH --cpus-per-task=32    # assign all the cores to that first task to make room for Python's multiprocessing tasks
@@ -24,4 +24,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s MAIN_SIM -p $SLURM_CPUS_PER_TASK -f --log -c -v
+srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG-Cluster -p $SLURM_CPUS_PER_TASK -f --log -v
