@@ -52,11 +52,12 @@ def load_histogram_data(
         hist_mean = hist_data["hist_mean"]
         hist_median = hist_data["hist_median"]
         hist_perc = hist_data["hist_percentiles"]
+        halos_per_bin = hist_data["halos_per_bin"]
 
     if not expected_shape:
         # no verificatin of data
         logging.info("Returning histogram data without verification.")
-        return hist_mean, hist_median, hist_perc
+        return hist_mean, hist_median, hist_perc, halos_per_bin
 
     # verify data:
     if not hist_median.shape == expected_shape:
@@ -86,7 +87,7 @@ def load_histogram_data(
         return
     else:
         logging.info("Successfully loaded and verified histogram data!")
-        return hist_mean, hist_median, hist_perc
+        return hist_mean, hist_median, hist_perc, halos_per_bin
 
 
 def load_virial_temperatures(filepath: str | Path) -> NDArray | None:
