@@ -104,7 +104,6 @@ class IndividualsMassTrendPipeline(base.Pipeline):
                 callback,
                 halo_data["IDs"],
                 (2, 3),
-                quiet=self.quiet,
             )
         # points has shape (H, 2, 3) where the first axis is the halos,
         # second axis is the weight type and third axis is the regime,
@@ -258,7 +257,6 @@ class IndividualsMassTrendPipeline(base.Pipeline):
                 tuple(),
                 halo_data[self.config.mass_field],
                 halo_data[self.config.radius_field],
-                quiet=self.quiet,
             )
         logging.info("Finished calculating virial temperatures.")
         # optionally write data to file

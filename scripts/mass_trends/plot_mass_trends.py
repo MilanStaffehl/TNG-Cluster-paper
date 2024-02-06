@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sys
 from pathlib import Path
 
@@ -7,7 +6,6 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from library.config import config
 from pipelines.mass_trends.temperatures import (
     FromFilePipeline,
     IndividualsMassTrendPipeline,
@@ -16,12 +14,6 @@ from pipelines.mass_trends.temperatures import (
 
 def main(args: argparse.Namespace) -> None:
     """Create plot of gas mass trends for individual halos"""
-    # config
-    try:
-        cfg = config.get_default_config(args.sim)
-    except config.InvalidSimulationNameError:
-        logging.fatal(f"Unsupported simulation: {args.sim}")
-
     # temperature divisions
     if args.normalize:
         temperature_divs = [-100.0, -2.0, -1.0, 100.0]
@@ -43,30 +35,22 @@ def main(args: argparse.Namespace) -> None:
     if args.running_median:
         type_flag = f"{type_flag}_rm"
 
-    # paths
-    file_data = scriptparse.assemble_path_dict(
+    pipeline_config = scriptparse.startup(
+        args,
         "mass_trends",
-        cfg,
         type_flag,
-        args.normalize,
-        args.figurespath,
-        args.datapath,
+        with_virial_temperatures=args.normalize,
     )
 
-    pipeline_config = {
-        "config": cfg,
-        "paths": file_data,
-        "processes": args.processes,
-        "fig_ext": args.extension,
-        "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
-        "temperature_divisions": temperature_divs,
-        "normalize": args.normalize,
-        "statistic_method": statistics,
-        "running_median": args.running_median,
-        "quiet": args.quiet,
-        "to_file": args.to_file,
-        "no_plots": args.no_plots,
-    }
+    pipeline_config.update(
+        {
+            "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
+            "temperature_divisions": temperature_divs,
+            "normalize": args.normalize,
+            "statistic_method": statistics,
+            "running_median": args.running_median,
+        }
+    )
     if args.from_file:
         pipeline = FromFilePipeline(**pipeline_config)
     else:

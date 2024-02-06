@@ -1,5 +1,4 @@
 import argparse
-import logging
 import sys
 from pathlib import Path
 
@@ -7,7 +6,6 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from library.config import config
 from pipelines.temperature_distribution.histogram_galleries import (
     FromFilePipeline,
     GalleriesPipeline,
@@ -16,42 +14,28 @@ from pipelines.temperature_distribution.histogram_galleries import (
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
-    # config
-    try:
-        cfg = config.get_default_config(args.sim)
-    except config.InvalidSimulationNameError:
-        logging.fatal(f"Unsupported simulation: {args.sim}")
-
     # type flag
     type_flag = "gallery"
     if args.normalize:
         type_flag = f"norm_{type_flag}"
 
-    # paths
-    file_data = scriptparse.assemble_path_dict(
-        "temperature_hist",
-        cfg,
+    pipeline_config = scriptparse.startup(
+        args,
+        "temperature_distribution",
         type_flag,
-        False,
-        args.figurespath,
-        args.datapath,
-        "galleries",
+        with_virial_temperatures=False,
+        figures_subdirectory="galleries",
     )
 
-    pipeline_config = {
-        "config": cfg,
-        "paths": file_data,
-        "processes": 1,
-        "fig_ext": args.extension,
-        "plots_per_bin": args.plots_per_bin,
-        "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
-        "n_temperature_bins": args.bins,
-        "temperature_range": (3., 8.),
-        "normalize": args.normalize,
-        "quiet": args.quiet,
-        "no_plots": args.no_plots,
-        "to_file": args.to_file,
-    }
+    pipeline_config.update(
+        {
+            "plots_per_bin": args.plots_per_bin,
+            "mass_bin_edges": [1e8, 1e9, 1e10, 1e11, 1e12, 1e13, 1e14, 1e15],
+            "n_temperature_bins": args.bins,
+            "temperature_range": (3., 8.),
+            "normalize": args.normalize,
+        }
+    )
     if args.from_file:
         gallery_plotter = FromFilePipeline(**pipeline_config)
     else:

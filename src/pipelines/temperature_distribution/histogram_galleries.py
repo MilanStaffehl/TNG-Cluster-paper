@@ -78,15 +78,15 @@ class GalleriesPipeline(base.Pipeline):
             tuple(),
             selected_masses,
             selected_radii,
-            quiet=self.quiet,
         )
         # Step 4: get temperature histograms
         logging.info("Calculating temperature histograms for all halos.")
         histograms = np.zeros(
             (len(selected_halo_ids), self.n_temperature_bins)
         )
+        log_level = logging.getLogger("root").level
         for i, halo_id in enumerate(selected_halo_ids):
-            if not self.quiet:
+            if log_level <= 15:
                 total = len(selected_halo_ids)
                 perc = i / total * 100
                 print(f"Processing halo {i}/{total} ({perc:.1f}%)", end="\r")

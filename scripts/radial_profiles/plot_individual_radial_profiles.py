@@ -1,17 +1,13 @@
 import argparse
-import logging
 import sys
 from pathlib import Path
 
 import numpy as np
 
-import library.scriptparse
-
 root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from library.config import config
 from pipelines.radial_profiles.individuals import (
     IndividualProfilesFromFilePipeline,
     IndividualRadialProfilePipeline,
@@ -21,26 +17,19 @@ from pipelines.radial_profiles.individuals import (
 
 def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
-    # config
-    try:
-        cfg = config.get_default_config(args.sim)
-    except config.InvalidSimulationNameError:
-        logging.fatal(f"Unsupported simulation: {args.sim}")
-
     # paths
     if args.core_only:
         type_flag = f"{args.what}_core"  # prevent overwriting
     else:
         type_flag = args.what
-    file_data = library.scriptparse.assemble_path_dict(
+
+    pipeline_config = scriptparse.startup(
+        args,
         "radial_profiles",
-        cfg,
         type_flag,
-        False,
-        args.figurespath,
-        args.datapath,
+        with_virial_temperatures=False,
         figures_subdirectory="./individuals/",
-        data_subdirectory=f"./individuals/{cfg.sim_path}/",
+        data_subdirectory=f"./individuals/{args.sim.replace('-', '_')}/",
     )
 
     # temperature bins is either the number of bins or the three regimes
@@ -55,22 +44,17 @@ def main(args: argparse.Namespace) -> None:
     else:
         ranges = np.array([[0, 2], [3, 8.5]])  # units: R_vir, log K
 
-    pipeline_config = {
-        "config": cfg,
-        "paths": file_data,
-        "processes": args.processes,
-        "quiet": args.quiet,
-        "to_file": args.to_file,
-        "no_plots": args.no_plots,
-        "fig_ext": args.extension,
-        "what": args.what,
-        "radial_bins": args.rbins,
-        "temperature_bins": tbins,
-        "log": args.log,
-        "forbid_tree": args.forbid_tree,
-        "ranges": ranges,
-        "core_only": args.core_only,
-    }
+    pipeline_config.update(
+        {
+            "what": args.what,
+            "radial_bins": args.rbins,
+            "temperature_bins": tbins,
+            "log": args.log,
+            "forbid_tree": args.forbid_tree,
+            "ranges": ranges,
+            "core_only": args.core_only,
+        }
+    )
     if args.from_file:
         pipeline = IndividualProfilesFromFilePipeline(**pipeline_config)
     elif args.sim == "TNG-Cluster":

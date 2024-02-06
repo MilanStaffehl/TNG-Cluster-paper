@@ -872,8 +872,7 @@ class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
         # Step 3: Loop through halos
         logging.info("Start processing individual halos.")
         for i, halo_id in enumerate(halo_data["IDs"]):
-            if not self.quiet:
-                logging.info(f"Processing halo {halo_id} ({i}/352).")
+            logging.debug(f"Processing halo {halo_id} ({i}/352).")
             # Step 3.1: Load gas cell data for temperature
             gas_temperatures = gas_daq.get_cluster_temperature(
                 halo_id,

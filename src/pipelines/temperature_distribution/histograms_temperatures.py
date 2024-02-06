@@ -97,7 +97,6 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 callback,
                 halo_data["IDs"],
                 (self.n_temperature_bins, ),
-                quiet=self.quiet,
             )
 
         # Step 5: post-processing - stack histograms per mass bin
@@ -209,7 +208,6 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 tuple(),
                 halo_data[self.config.mass_field],
                 halo_data[self.config.radius_field],
-                quiet=self.quiet,
             )
         logging.info("Finished calculating virial temperatures.")
         # optionally write data to file

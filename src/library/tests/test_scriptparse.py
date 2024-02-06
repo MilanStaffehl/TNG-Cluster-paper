@@ -28,7 +28,6 @@ def test_base_parser_basics(base_parser):
     assert hasattr(args, "to_file")
     assert hasattr(args, "from_file")
     assert hasattr(args, "no_plots")
-    assert hasattr(args, "quiet")
     assert hasattr(args, "figurespath")
     assert hasattr(args, "datapath")
     # assert the default values are set correctly
@@ -37,9 +36,30 @@ def test_base_parser_basics(base_parser):
     assert args.to_file is False
     assert args.from_file is False
     assert args.no_plots is False
-    assert args.quiet is False
     assert args.figurespath is None
     assert args.datapath is None
+    # changes introduced later: quiet is no longer a boolean
+    assert hasattr(args, "quiet")
+    assert args.quiet == 0
+    assert hasattr(args, "verbosity")
+    assert args.verbosity == 0
+
+
+def test_base_parser_verbosity(base_parser):
+    """Change the behavior when setting verbosity flags"""
+    # test stacking of -v flag
+    for level, flag in enumerate(["-v", "-vv", "-vvv"]):
+        args = base_parser.parse_args([flag])
+        assert args.verbosity == level + 1
+        assert args.quiet == 0
+    # test stacking of -q flag
+    for level, flag in enumerate(["-q", "-qq", "-qqq"]):
+        args = base_parser.parse_args([flag])
+        assert args.quiet == level + 1
+        assert args.verbosity == 0
+    # test that args are mutually exclusive
+    with pytest.raises(SystemExit):
+        base_parser.parse_args(["-v", "-q"])
 
 
 def test_base_parser_add_argument(base_parser):
@@ -134,7 +154,7 @@ def mock_config():
 
 def test_assemble_path_dict(mock_config):
     """Test the function to assemble a path dictionary"""
-    output = scriptparse.assemble_path_dict(
+    output = scriptparse._assemble_path_dict(
         milestone="test_milestone",
         cfg=mock_config,
         type_flag="type_flag",
@@ -160,7 +180,7 @@ def test_assemble_path_dict(mock_config):
 def test_assemble_path_dict_custom_dirs(mock_config):
     """Test that custom data and figure homes are respected"""
     # paths must actually exist!
-    output = scriptparse.assemble_path_dict(
+    output = scriptparse._assemble_path_dict(
         milestone="test_milestone",
         cfg=mock_config,
         type_flag="type_flag",
@@ -175,7 +195,7 @@ def test_assemble_path_dict_custom_dirs(mock_config):
 
 def test_assemble_path_dict_invalid_custom_dir(mock_config, caplog):
     """Test that only valid paths are accepted"""
-    output = scriptparse.assemble_path_dict(
+    output = scriptparse._assemble_path_dict(
         milestone="test_milestone",
         cfg=mock_config,
         type_flag="type_flag",
@@ -200,7 +220,7 @@ def test_assemble_path_dict_invalid_custom_dir(mock_config, caplog):
 
 def test_assemble_path_dict_virial_temperature(mock_config):
     """Test that the virial temperature stem can be included"""
-    output = scriptparse.assemble_path_dict(
+    output = scriptparse._assemble_path_dict(
         milestone="test_milestone",
         cfg=mock_config,
         type_flag="type_flag",
@@ -212,7 +232,7 @@ def test_assemble_path_dict_virial_temperature(mock_config):
 
 def test_assemble_path_dict_subdirs(mock_config):
     """Test that subdirectories may be specified"""
-    output = scriptparse.assemble_path_dict(
+    output = scriptparse._assemble_path_dict(
         milestone="test_milestone",
         cfg=mock_config,
         type_flag="type_flag",
@@ -225,3 +245,7 @@ def test_assemble_path_dict_subdirs(mock_config):
     assert output["figures_dir"] == fig_path / "fig_subdir"
     data_path = mock_config.data_home.resolve() / "test_milestone"
     assert output["data_dir"] == data_path / "data_subdir"
+
+
+# TODO: test the parse_namespace function
+# TODO: test the startup function for correct logging setup

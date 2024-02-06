@@ -19,7 +19,6 @@ def process_data_sequentially(
     data: Sequence[int],
     data_shape: tuple[int],
     kwargs: dict[str, Any] | None = None,
-    quiet: bool = False,
 ) -> NDArray:
     """
     Process data sequentially.
@@ -45,7 +44,6 @@ def process_data_sequentially(
     :param data_shape: The shape of the NDArray that ``callback`` returns.
     :param kwargs: A dictionary of keyworded arguments for ``callback``.
         Defaults to None which is equivalent to no further arguments.
-    :param quiet: Whether to suppress progress updates. Defaults to False.
     :return: An array of shape (N, D) where N is the number of halos and
         D is ``data_shape``. Contains the result of ``callback`` for
         every halo.
@@ -55,8 +53,9 @@ def process_data_sequentially(
     logging.info("Start processing halo data sequentially.")
     n_points = len(data)
     results = np.zeros((n_points, ) + data_shape)
+    log_level = logging.getLogger("root").level
     for i, data_point in enumerate(data):
-        if not quiet:
+        if log_level <= 15:
             perc = i / n_points * 100
             print(f"Processing entry {i}/{n_points} ({perc:.1f}%)", end="\r")
         results[i] = callback(data_point, **kwargs)
@@ -68,7 +67,6 @@ def process_data_multiargs(
     callback: Callable[..., NDArray],
     data_shape: tuple[int],
     *input_args: NDArray,
-    quiet: bool = False,
     kwargs: dict[str, Any] | None = None,
 ) -> NDArray | None:
     """
@@ -110,8 +108,6 @@ def process_data_multiargs(
     :param data_shape: The shape of the NDArray that ``callback`` returns.
     :param input_args: One-dimensional NDArrays of the same length. Must
         be as many as ``callback`` takes positional arguments.
-    :param quiet: Whether to suppress status information output. Keyword
-        only arg, defaults to False.
     :param kwargs: Optional keyworded arguments for ``callback`` that remain
         static across different calls.
     :return: Array of the return values of ``callback`` for every column
@@ -140,8 +136,9 @@ def process_data_multiargs(
     logging.info("Start processing halo data sequentially.")
     results = np.zeros((length, ) + data_shape)
     input_data = np.array(input_args).transpose()
+    log_level = logging.getLogger("root").level
     for i in range(length):
-        if not quiet:
+        if log_level <= 15:
             perc = i / length * 100
             print(f"Processing entry {i}/{length} ({perc:.1f}%)", end="\r")
         results[i] = callback(*input_data[i], **kwargs)
