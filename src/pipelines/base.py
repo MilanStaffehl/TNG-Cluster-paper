@@ -61,6 +61,7 @@ class Pipeline:
         :param force: Whether to force the creation of missing directories,
             even if ``self.to_file`` is False.
         """
+        logging.debug("Checking if data directories exist.")
         if not hasattr(self, "to_file"):
             return
         if subdirs is None:
@@ -73,6 +74,7 @@ class Pipeline:
                 )
                 data_path.mkdir(parents=True)
             for subdirectory in subdirs:
+                logging.debug(f"Checking subdirectory {subdirectory}.")
                 additional_path = data_path / subdirectory
                 if not additional_path.exists():
                     logging.info(

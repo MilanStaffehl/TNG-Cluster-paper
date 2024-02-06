@@ -860,7 +860,9 @@ class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
         :return: Exit code.
         """
         # Step 0: create directories, start monitoring, timing
-        self._create_directories(subdirs=["temperature_profiles"], force=True)
+        self._create_directories(
+            subdirs=[f"temperature_profiles{self.suffix}"], force=True
+        )
         tracemalloc.start()
         begin = time.time()
 
