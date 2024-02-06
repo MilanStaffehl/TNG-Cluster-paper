@@ -3,7 +3,7 @@
 #SBATCH -o ./output/out.%j
 #SBATCH -e ./output/err.%j
 #SBATCH -D ./
-#SBATCH -J M3I3DTS
+#SBATCH -J M3I3DCS
 #SBATCH --partition=p.large
 # SBATCH --nodes=1            # request a full node
 #SBATCH --ntasks-per-node=1   # only start 1 task via srun because Python multiprocessing starts more tasks internally

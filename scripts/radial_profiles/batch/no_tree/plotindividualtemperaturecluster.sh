@@ -3,7 +3,7 @@
 #SBATCH -o ./output/out.%j
 #SBATCH -e ./output/err.%j
 #SBATCH -D ./
-#SBATCH -J MS02TI
+#SBATCH -J M3ICTTS
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --time=04:00:00       # maximum time the job is allowed to take
