@@ -367,8 +367,8 @@ def plot_tds_in_one(
         in units of log10(Kelvin).
     :param mass_bin_edges: The edges of the mass bins in units of solar
         masses.
-    :param xlabel: Label for the x axis.
-    :param ylabel: Label for the y axis.
+    :param xlabel: Label for the x-axis.
+    :param ylabel: Label for the y-axis.
     :param colormap: A valid string name for a matplotlib colormap. The
         colors of the different mass bins will be sampled from this map
         by evenly spacing sampling points. Defaults to "cividis".
@@ -377,12 +377,13 @@ def plot_tds_in_one(
         plot drawn onto them.
     """
     logging.info("Plotting all temperature distributions combined.")
-    fig, axes = plt.subplots(figsize=(6, 5))
+    fig, axes = plt.subplots(figsize=(5, 4))
     fig.set_tight_layout(True)
 
     labelsize = 12
     axes.set_xlabel(xlabel, fontsize=labelsize)
     axes.set_ylabel(ylabel, fontsize=labelsize)
+    axes.set_ylim((1e-8, 1.))
 
     # calculate bin positions
     _, bins = np.histogram(
@@ -417,7 +418,7 @@ def plot_tds_in_one(
     axes.legend(
         loc="lower center",
         # bbox_to_anchor=(0.5, 1.1),
-        ncol=len(means) // 2,
+        ncol=2,  # len(means) // 2,
     )
     return fig, axes
 

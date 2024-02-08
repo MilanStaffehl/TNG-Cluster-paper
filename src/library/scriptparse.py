@@ -122,7 +122,7 @@ class BaseScriptParser(argparse.ArgumentParser):
                 "Make the output more verbose. Stackable. Determines the log "
                 "level and whether real-time updates are sent to stdout. If "
                 "not set, the logging level is set to INFO. Setting -v means "
-                "log level MEMORY for diagnostics, -vv means real-time status"
+                "log level MEMORY for diagnostics, -vv means real-time status "
                 "updates in loops are logged (not recommended when piping "
                 "stdout to file!), and -vvv means log level DEBUG."
             ),

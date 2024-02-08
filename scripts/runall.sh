@@ -12,6 +12,10 @@ printf "\n\nRunning: mass trends plots (median):\n"
 python ./mass_trends/plot_mass_trends.py -s TNG300-1 --load-data
 printf "\n\nRunning: mass trends plots (mean):\n"
 python ./mass_trends/plot_mass_trends.py -s TNG300-1 --load-data --use-average
+printf "\n\nRunning: mass trends plots (median, curve):\n"
+python ./mass_trends/plot_mass_trends.py -s TNG300-1 --load-data --running-median
+printf "\n\nRunning: mass trends plots (mean, curve):\n"
+python ./mass_trends/plot_mass_trends.py -s TNG300-1 --load-data --use-average --running-median
 
 printf "\n\nRunning: radial profile plots (TNG300, temperature, mean):\n"
 python ./radial_profiles/stack_individual_radial_profiles.py -s TNG300-1 --what temperature --method mean --log

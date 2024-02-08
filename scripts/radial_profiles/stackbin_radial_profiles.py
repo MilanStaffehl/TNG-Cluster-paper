@@ -1,4 +1,5 @@
 import argparse
+import logging.config
 import sys
 from pathlib import Path
 
@@ -6,8 +7,11 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from library.config import config
-from pipelines.radial_profiles.stacks_binned import StackProfilesBinnedPipeline
+from library.config import config, logging_config
+from pipelines.radial_profiles.stacks_binned import (
+    StackDensityProfilesCombinedPipeline,
+    StackProfilesBinnedPipeline,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -17,6 +21,11 @@ def main(args: argparse.Namespace) -> None:
 
     # config
     cfg = config.get_default_config(sim)
+
+    # logging
+    log_level = scriptparse.parse_verbosity(args)
+    log_cfg = logging_config.get_logging_config(log_level)
+    logging.config.dictConfig(log_cfg)
 
     # paths
     if args.figurespath:
@@ -45,7 +54,10 @@ def main(args: argparse.Namespace) -> None:
         "what": args.what,
         "method": args.method,
     }
-    pipeline = StackProfilesBinnedPipeline(**pipeline_config)
+    if args.combined and args.what == "density":
+        pipeline = StackDensityProfilesCombinedPipeline(**pipeline_config)
+    else:
+        pipeline = StackProfilesBinnedPipeline(**pipeline_config)
     pipeline.run()
 
 
@@ -93,6 +105,17 @@ if __name__ == "__main__":
         help="Plot the figures in log scale instead of linear scale.",
         action="store_true",
         dest="log",
+    )
+    parser.add_argument(
+        "-c",
+        "--combined",
+        help=(
+            "Combine median and mean lines into one plot without error "
+            "regions in the density plot. Has no effect when `-w temperature` "
+            "is set. When using this option, the -m flag has no effect."
+        ),
+        dest="combined",
+        action="store_true",
     )
 
     # parse arguments
