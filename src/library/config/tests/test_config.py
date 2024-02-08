@@ -62,6 +62,34 @@ def test_default_config_generic(mocker):
     assert Path(test_cfg.figures_home).resolve() == root_dir / "figures"
 
 
+def test_default_config_default(mocker):
+    """
+    Test that when the base paths are set to "default", a valid config is generated.
+    """
+    # set global vars to some path
+    mock_config = {
+        "paths":
+            {
+                "data_home": "default",
+                "figures_home": "default",
+                "base_paths": {
+                    "TNG300-1": str(mock_sim_home),
+                }
+            }
+    }  # yapf: disable
+    mock_load = mocker.patch("yaml.full_load")
+    mock_load.return_value = mock_config
+    test_cfg = config.get_default_config("TNG300-1")
+    sim_path = str(mock_sim_home)
+    assert test_cfg.base_path == sim_path
+    assert test_cfg.snap_num == 99
+    assert test_cfg.mass_field == "Group_M_Crit200"
+    assert test_cfg.radius_field == "Group_R_Crit200"
+    root_dir = Path(__file__).parents[4].resolve()
+    assert Path(test_cfg.data_home).resolve() == root_dir / "data"
+    assert Path(test_cfg.figures_home).resolve() == root_dir / "figures"
+
+
 def test_custom_config(mocker):
     """
     Test the config received when specifying parameters.

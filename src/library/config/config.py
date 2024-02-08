@@ -96,8 +96,16 @@ def get_default_config(
     config = yaml.full_load(stream)
 
     # set paths
-    figures_home = Path(config["paths"]["figures_home"]).expanduser()
-    data_home = Path(config["paths"]["data_home"]).expanduser()
+    figures_home = config["paths"]["figures_home"]
+    if figures_home == "default":
+        figures_home = root_dir / "figures"
+    else:
+        figures_home = Path(figures_home).resolve()
+    data_home = config["paths"]["data_home"]
+    if data_home == "default":
+        data_home = root_dir / "data"
+    else:
+        data_home = Path(data_home).resolve()
 
     try:
         base_path = Path(config["paths"]["base_paths"][sim]).expanduser()
