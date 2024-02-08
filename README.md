@@ -5,7 +5,8 @@
 This repository contains the source code for my master thesis about cool gas in
 galaxy clusters at the ITA (University Heidelberg).
 
-> This project is still in development. Expect drastic changes to occur
+> [!WARNING]
+> This project is still in development. Expect drastic changes to occur 
 > between commits.
 
 ## Prerequisites
@@ -25,11 +26,11 @@ local machine. However, there are three major obstacles to using it this way:
 2. The code has third-party dependencies that are not available on PyPI or conda.
 3. The code is written for execution on clusters, not PCs. 
 
-The first two problems can be remedied by "installing" the code. This repository
-comes with an installation Python script that will set up the expected directories. 
-By default, it will place these directories inside the project directory (don't
-worry: they are ignored by git by default). Alternatively, you can specify the 
-location of the required directories manually.
+The first two problems can be remedied by "installing" the repository. This 
+repository comes with an installation Python script that will set up the 
+expected directories. By default, it will place these directories inside the 
+project directory (they are ignored by git by default). Alternatively, you can 
+specify the location of the required directories manually. 
 
 ### Using the install script
 
@@ -44,11 +45,11 @@ new venv). Start by installing the Illustris helper scripts using
 cd external/illustris_python
 git clone git@github.com:illustristng/illustris_python.git
 cd illustris_python
-pip install .
+pip install -e .
 ```
 
-This installs the helper scripts inside the current environment. Then install 
-the remaining dependencies from PyPI using
+This installs the helper scripts inside the current environment in editable mode. 
+Then install the remaining dependencies from PyPI using
 
 ```bash
 cd ../../  # return to project root
@@ -64,44 +65,62 @@ pip install -r requirements-dev.txt
 pre-commit install
 ```
 
-instead. This installs and sets up pre-commit and dependecies. 
+instead. This installs and sets up pre-commit and dependencies. 
 
 ### Specifying custom directories
 
-If you wish to use this code without relying on the expected directory structure,
-you can specify your own directories for data and figures. To do so, set the
-`data_home` and `figures_home` directory paths inside the 
-[`config.yaml`](./config.yaml) file to the desired location, before running the
-install script.
+The install script will create the directories that are specified inside the
+[`config.yaml`](./config.yaml) configuration file. They will be used as the root directory
+for saving data files and figures respectively by the scripts. The default
+location for these directories is within the project directory.
 
-Please note that this will still create a set of subdirectories inside these
-directories that are required to work with the default file paths and names in 
-this project. If you wish to control the location of data and plot files in 
-full, every script also offers the option to specify the directory where to 
-save them.
+If you wish to place the figures and data home directories elsewhere, you can 
+specify your own directories for data and figures. To do so, set the `data_home` 
+and `figures_home` directory paths inside the [`config.yaml`](./config.yaml) file to the 
+desired location, before running the install script.
+
+Please note that this will still create the given home directories if they do
+not yet exist. These directories will also be populated with a substructure of
+subdirectories when running the scripts. Therefore, it is recommended to use
+new directories to avoid conflicts with existing files.
 
 
 ## Executing code
 
 The code is written to be executed on clusters. Execution on PCs is not
-recommended and in some cases impossible: some scripts may use up to 250 GB of 
-memory. 
-
-If you want to use this code outside of the Vera cluster of the MPIA, you will
-need to update the `simulation_home` directory of the simulation data inside 
-the [`config.yaml`](./config.yaml) module to wherever the simulation data is 
-stored. Note that this directory must refer to the parent directory of the
-individual simulation data directories, but to a directory that contains the
-simulation base directories. If you are using this code on the Vera cluster, 
-the default settings should work "out of the box".
+recommended and in some cases impossible: some scripts may use up to 1 TB of 
+memory!
 
 The intended way for this code to be executed is by using the Python scripts
 inside the `scripts` directory. They come alongside batch scripts for submission
 to slurm, in order to make use of the full computational power of the cluster.
 Use either the Python scripts (be careful with RAM and CPU cores usage!) or 
-submit batch jobs using the batch scripts.
+submit batch jobs using the batch scripts. Note that the batch scripts are
+adapted to the Vera cluster of the MPIA and not all of them will work on any
+arbitrary cluster "out of the box".
 
-If you want to know more about one of the Python scripts, use the `-h` flag.
+If you want to know more about one of the Python scripts, use it together with
+the `-h` flag:
+
+```shell
+python <name_of_the_script>.py -h
+```
+
+### Customizing simulation base paths
+
+If you want to use this code outside the Vera cluster of the MPIA, you will
+need to update the `base_paths` dictionary of the simulation data inside 
+the [`config.yaml`](./config.yaml) module to wherever the simulation data of the 
+different simulations are stored. Each entry of the `base_path` dictionary
+should be a key-value pair, with the key being the name of the simulation as, 
+and the value being the full path to the directory in which the `snapdir_XYZ` 
+and `groups_XYZ` snapshot directories are located. Note that the name you give
+to each simulation path can be arbitrary and does not need to match anything
+in particular; it is merely the name by which you can select the simulation
+in most scripts (via the `--sim` flag).
+
+If you are using this code on the Vera cluster, the default settings should 
+work "out of the box".
 
 
 ## Organization
@@ -110,14 +129,14 @@ The repository is organized into the following directories:
 
 - `notebooks`: The notebooks directory contains Jupyter notebooks. The notebooks
   contain primarily test code, some on-the-side experiments and probing plots
-  (that is, plots that are meant to get an overview over simulation data).
+  (that is, plots that are meant to get an overview over simulation data). 
 - `scripts:` The scripts directory contains executable Python scripts that
   can be used to create plots. It also contains batch job scripts for use with
   slurm. The directory is organized into subdirectories. These subdirectories 
   are roughly divided by the plot type the scripts inside them are meant to
   produce. The names of the directories correspond to those of the project
   [milestones](#milestones). You can find out more about what each of these 
-  milestones and subdirectories contain by reading the [ROADMAP](./ROADMAP.md)
+  milestones and subdirectories contain by reading the [Milestones](#milestones)
   or the GitHub milestones. 
 - `src`: The source directory bundles all code that is used to generate plots
   and data for this project. Itis structured into three main packages:
@@ -156,11 +175,13 @@ Alongside these directories tracked by the VC, the install script will also
 create directories that will be populated by the Python and/or batch scripts:
 
 - `data`: The data directory holds processed data produced by the scripts. It
-  is organised into milestones.
+  is organised into milestones. If you change its location in the `config.yaml`
+  it ight not be inside the project directory.
 - `external`: The external directory is used to install external dependencies
   locally, most noticeably the Illustris Python helper package.
 - `figures`: The figures directory holds the finished plots produced by the
-  scripts. It is organised into milestones.
+  scripts. It is organised into milestones. As with the `data` directory, you
+  can change its location by setting it in the `config.yaml`. 
 
 ### Where do I find...?
 
@@ -169,15 +190,17 @@ familiarized oneself with it. If you just want to find something specific
 quickly, you can find some guidance here:
 
 - **Re-usable code snippets:** You are most likely to find code that you might 
-  wish to re-use inside the `library` directory. The modules and packages therein 
-  are more or less intuitively named. Look for the module/package that closest 
-  describes what you are looking for!
+  wish to re-use inside the `src.library` directory. The modules and packages 
+  therein are more or less intuitively named. Look for the module/package that 
+  closest describes what you are looking for!
 - **Batch scripts for slurm:** Batch scripts for the different tasks are 
-  situated in the `scripts` directory. Consult the [ROADMAP](./ROADMAP.md) to
-  find out what job you are looking for and then select the correspond subdir
+  situated in the `scripts` directory. Consult the [Milestones](#milestones) to find 
+  out what job you are looking for and then select the corresponding subdir
   of `scripts`. Here you will then find the scripts in the `batch` directory.
+  Note that outside of the MPIA Vera cluster, you will most likely have to
+  adapt the scripts to your clusters environment.
 - **Scripts to reproduce plots:** Use the Python scripts under `scripts`.
-  Consult the [ROADMAP](./ROADMAP.md) to find out which of the subdirectories
+  Consult the [Milestones](#milestones) to find out which of the subdirectories
   you need to look into. All the Python scripts in `scripts` have a CLI, so
   to find out how to use them, simply run `python <script name>.py -h`.
 - **Code for topic X:** If you are looking for code (or output) of a specific
@@ -197,14 +220,21 @@ You will notice that the directories for figures, data and scripts are divided
 into certain topics such as `temperature_histograms`. These topics are the topics
 of a project milestone. A milestone in the context of this project is a smaller 
 task, usually consisting of a single type of plot to produce. Every milestone 
-aims to answer a small scientific question: how is the temperture in halo gas 
-distributed? How does the cool gas mass change with halo mass? 
+aims to answer a small scientific question: how is the temperature in halo gas 
+distributed? How does the cool gas mass change with halo mass? At what radius 
+of a halo can we find most cool gas?
 
-The milestones are documented in the [ROADMAP](./ROADMAP.md). Here you can find
-a comprehensive list of all milestones, the question they seek to answer and a
-short result. If you run scripts from the `scripts` directory, the output plots
-will be automatically sorted into the corresponding `figures/XYZ` directory of
-the milestone they belong to. 
+The following is a list of existing and tentative milestones:
+
+- `temperature_distributions`: The distribution of gas temperatures in halos of
+  the entire TNG300-1 mass range. These are plotted as 1D-histograms of gas
+  mass fraction vs. temperature.
+- `mass_trends`: The trend of gas fraction with halo mass, split by temperature
+  regime (hot, warm, cool gas).
+- `radial_profiles`: The trend of temperature and density of different gas
+  components with halocentric distance. For temperature, these are shown as a
+  2D histogram temperature vs. halocentric distance out to two times the virial
+  radius. Gor density, these are simple density profiles. 
 
 
 ## Metadata
