@@ -1,4 +1,5 @@
 #!usr/bin/env python3
+import sys
 from pathlib import Path
 
 
@@ -9,8 +10,11 @@ def install():
     root_dir = Path(__file__).parent.resolve()
     with open(root_dir / "config.yaml", "r") as config_file:
         lines = config_file.readlines()
+    data_home = None
+    figures_home = None
     for line in lines:
-        line.lstrip()
+        line = line.lstrip()
+        line = line.rstrip("\n")
         if line.startswith("data_home"):
             data_home = Path(line.removeprefix("data_home: ")).expanduser()
         elif line.startswith("figures_home"):
@@ -19,8 +23,11 @@ def install():
 
     external = root_dir / "external"
 
+    if not all([data_home, figures_home]):
+        print("Could not parse config file, not all paths were found!")
+        sys.exit(1)
+
     # create directories
-    print("Setting up top-level directories.")
     for directory in [data_home, external, figures_home]:
         if not directory.exists():
             print(f"Creating missing directory:{str(directory)}")
