@@ -147,6 +147,7 @@ class Pipeline:
         figure: Figure,
         ident_flag: str = "",
         subdirs: Path | str | None = None,
+        tight_layout: bool = True,
     ) -> None:
         """
         Save the given figure to file.
@@ -169,6 +170,7 @@ class Pipeline:
             to the figures path given in ``self.paths``. Optional,
             defaults to None, which means the figure will be saved in
             the directory specified in ``self.paths``.
+        :param tight_layout: Whether to use tight layout. Defaults to True.
         :return: None
         """
         if self.no_plots:
@@ -189,7 +191,11 @@ class Pipeline:
         if not filepath.exists():
             logging.info("Creating missing figures directory.")
             filepath.mkdir(parents=True)
-        figure.savefig(filepath / filename, bbox_inches="tight")
+
+        if tight_layout:
+            figure.savefig(filepath / filename, bbox_inches="tight")
+        else:
+            figure.savefig(filepath / filename)
         logging.debug(f"Saved a plot to file: {str(filename)}")
 
         # close figure

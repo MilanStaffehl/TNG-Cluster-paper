@@ -40,7 +40,7 @@ def main(args: argparse.Namespace) -> None:
         "processes": -1,
         "to_file": True,
         "no_plots": False,
-        "fig_ext": args.extension,
+        "fig_ext": args.fig_ext,
         "log": args.log,
         "what": args.what,
         "method": args.method,

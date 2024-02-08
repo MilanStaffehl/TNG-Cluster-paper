@@ -4,12 +4,14 @@ python ./temperature_distributions/plot_temperature_distribution.py -s TNG300-1 
 printf "\n\nRunning: temperature distribution plots grid:\n"
 python ./temperature_distributions/plot_temperature_distribution.py -s TNG300-1 --load-data --grid --show-divisions
 printf "\n\nRunning: temperature distribution plots grid (mass weighted):\n"
-python ./temperature_distributions/plot_temperature_distribution.py -s TNG300-1 --load-data --grid --show-divisions --use-mass_trends
+python ./temperature_distributions/plot_temperature_distribution.py -s TNG300-1 --load-data --grid --show-divisions --use-mass
 printf "\n\nRunning: temperature distribution plots grid (temperature normalized):\n"
 python ./temperature_distributions/plot_temperature_distribution.py -s TNG300-1 --load-data --grid --show-divisions --normalize-temperatures
 
-printf "\n\nRunning: mass trends plots:\n"
+printf "\n\nRunning: mass trends plots (median):\n"
 python ./mass_trends/plot_mass_trends.py -s TNG300-1 --load-data
+printf "\n\nRunning: mass trends plots (mean):\n"
+python ./mass_trends/plot_mass_trends.py -s TNG300-1 --load-data --use-average
 
 printf "\n\nRunning: radial profile plots (TNG300, temperature, mean):\n"
 python ./radial_profiles/stack_individual_radial_profiles.py -s TNG300-1 --what temperature --method mean --log

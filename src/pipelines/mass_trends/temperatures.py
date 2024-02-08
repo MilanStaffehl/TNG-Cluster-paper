@@ -363,7 +363,8 @@ class IndividualsMassTrendPipeline(base.Pipeline):
         )
 
         # save figure
-        self._save_fig(f)
+        logging.info(type(f))
+        self._save_fig(f, tight_layout=False)
         logging.info("Successfully saved mass trend plot to file!")
         return
 

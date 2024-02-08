@@ -43,8 +43,6 @@ def main(args: argparse.Namespace) -> None:
 
     # type flag
     type_flag = weight_type
-    if args.combine:
-        type_flag = f"combined_{type_flag}"
     if args.normalize:
         type_flag = f"norm_{type_flag}"
 
