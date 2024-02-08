@@ -5,6 +5,9 @@ paths:
     TNG50-3: /virgotng/universe/IllustrisTNG/TNG50-3/output
     TNG-Cluster: /virgotng/mpia/TNG-Cluster/TNG-Cluster/output
   # Set to 'default' to create directories inside the project directory.
-  # Otherwise, use full paths to data and/or figures home directory.
+  # When set to a path, relative paths will be relative to the project
+  # root dir, while fully qualified paths (starting with a slash) will
+  # be used as-is. Note that you may use the Linux-syntax for paths,
+  # which will be resolved on Windows machines as well.
   data_home: default
   figures_home: default

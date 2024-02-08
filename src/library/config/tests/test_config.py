@@ -24,7 +24,9 @@ def test_default_config_vera():
     Test the default config returned by get_default_config.
     """
     test_cfg = config.get_default_config("TNG300-1")
-    default_sim_path = "/virgotng/universe/IllustrisTNG/TNG300-1/output"
+    # simlinks are resolved, and the TNG300-1 directory is a simlink,
+    # so we get the more cryptic full name here:
+    default_sim_path = "/virgotng/universe/IllustrisTNG/L205n2500TNG/output"
     assert test_cfg.base_path == default_sim_path
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
@@ -52,8 +54,8 @@ def test_default_config_generic(mocker):
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = str(mock_sim_home)
-    assert test_cfg.base_path == sim_path
+    sim_path = mock_sim_home.resolve()
+    assert test_cfg.base_path == str(sim_path)
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
     assert test_cfg.radius_field == "Group_R_Crit200"
@@ -80,8 +82,8 @@ def test_default_config_default(mocker):
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = str(mock_sim_home)
-    assert test_cfg.base_path == sim_path
+    sim_path = mock_sim_home.resolve()
+    assert test_cfg.base_path == str(sim_path)
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
     assert test_cfg.radius_field == "Group_R_Crit200"
@@ -110,8 +112,8 @@ def test_custom_config(mocker):
     test_cfg = config.get_default_config(
         "TNG50-2", 50, "Group_M_Crit500", "Radius"
     )
-    sim_path = str(mock_sim_home)
-    assert test_cfg.base_path == sim_path
+    sim_path = mock_sim_home.resolve()
+    assert test_cfg.base_path == str(sim_path)
     assert test_cfg.snap_num == 50
     assert test_cfg.mass_field == "Group_M_Crit500"
     assert test_cfg.radius_field == "Radius"
@@ -142,12 +144,12 @@ def test_custom_paths_linux(mocker):
     mock_load.return_value = mock_config
     # create and test config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = str(Path.home() / ".local")
-    assert test_cfg.base_path == sim_path
+    sim_path = (Path.home() / ".local").resolve()
+    assert test_cfg.base_path == str(sim_path)
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
     assert test_cfg.radius_field == "Group_R_Crit200"
-    home_dir = Path().home()
+    home_dir = Path().home().resolve()
     assert Path(test_cfg.data_home) == home_dir / ".local"
     assert Path(test_cfg.figures_home) == home_dir / ".local"
 
@@ -192,8 +194,8 @@ def test_invalid_paths(mocker):
     mock_config = {
         "paths":
             {
-                "data_home": "this/path/does/not/exits",
-                "figures_home": "neither/does/this/path",
+                "data_home": "/this/path/does/not/exits",
+                "figures_home": "/neither/does/this/path",
                 "base_paths": {
                     "TNG300-1": str(Path().home() / ".local"),
                 }
@@ -205,7 +207,7 @@ def test_invalid_paths(mocker):
     with pytest.raises(config.InvalidConfigPathError) as e:
         config.get_default_config("TNG300-1")
     # figures home is tested first, so it should raise the exception
-    wrong_path = Path("neither/does/this/path")
+    wrong_path = Path("/neither/does/this/path")
     expected_msg = f"The config path {str(wrong_path)} does not exist"
     assert str(e.value) == expected_msg
 

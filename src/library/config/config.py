@@ -108,7 +108,7 @@ def get_default_config(
         data_home = Path(data_home).resolve()
 
     try:
-        base_path = Path(config["paths"]["base_paths"][sim]).expanduser()
+        base_path = Path(config["paths"]["base_paths"][sim]).resolve()
     except KeyError:
         raise InvalidSimulationNameError(sim)
 
