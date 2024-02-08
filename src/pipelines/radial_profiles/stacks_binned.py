@@ -36,10 +36,17 @@ class StackProfilesBinnedPipeline(Pipeline):
     log: bool
     what: str
     method: Literal["mean", "median"]
+    core_only: bool = False
 
     # edges of mass bins to use (0.2 dex width)
     mass_bins: ClassVar[NDArray] = 10**np.arange(14.0, 15.4, 0.2)
     n_clusters: ClassVar[int] = 632  # total number of clusters
+
+    def __post_init__(self):
+        if self.core_only:
+            self.suffix = "_core"
+        else:
+            self.suffix = ""
 
     def run(self) -> int:
         """
@@ -81,6 +88,9 @@ class StackProfilesBinnedPipeline(Pipeline):
         """
         # Step 0: verify directories
         self._verify_directories()
+
+        if self.core_only:
+            logging.info("Was asked to stack data only for cluster cores.")
 
         # Step 1 - 3: Load data (depends on what type of data, so this
         # task is split):
@@ -161,7 +171,8 @@ class StackProfilesBinnedPipeline(Pipeline):
         """
         # determine shape and edges
         test_path = (
-            self.paths["data_dir"] / "TNG300_1" / "temperature_profiles"
+            self.paths["data_dir"] / "TNG300_1"
+            / f"temperature_profiles{self.suffix}"
         )
         filepath = list(test_path.iterdir())[0]
         with np.load(filepath.resolve()) as test_file:
@@ -181,7 +192,8 @@ class StackProfilesBinnedPipeline(Pipeline):
 
         # load TNG300-1 data
         load_generator = load_radial_profiles.load_individuals_2d_profile(
-            self.paths["data_dir"] / "TNG300_1" / "temperature_profiles",
+            self.paths["data_dir"] / "TNG300_1"
+            / f"temperature_profiles{self.suffix}",
             shape,  # automatically validates shapes
         )
         n_tng300_clusters = 0
@@ -192,7 +204,8 @@ class StackProfilesBinnedPipeline(Pipeline):
 
         # load TNG Cluster data and verify it
         load_generator = load_radial_profiles.load_individuals_2d_profile(
-            self.paths["data_dir"] / "TNG_Cluster" / "temperature_profiles",
+            self.paths["data_dir"] / "TNG_Cluster"
+            / f"temperature_profiles{self.suffix}",
             shape,  # automatically validates shapes
         )
         for i, halo_data in enumerate(load_generator):
@@ -240,7 +253,10 @@ class StackProfilesBinnedPipeline(Pipeline):
             all clusters of TNG300-1 and TNG Cluster.
         """
         # determine shape and edges
-        test_path = (self.paths["data_dir"] / "TNG300_1" / "density_profiles")
+        test_path = (
+            self.paths["data_dir"] / "TNG300_1"
+            / f"density_profiles{self.suffix}"
+        )
         filepath = list(test_path.iterdir())[0]
         with np.load(filepath.resolve()) as test_file:
             shape = test_file["total_histogram"].shape
@@ -252,7 +268,8 @@ class StackProfilesBinnedPipeline(Pipeline):
 
         # load TNG300-1 data
         load_generator = load_radial_profiles.load_individuals_1d_profile(
-            self.paths["data_dir"] / "TNG300_1" / "density_profiles",
+            self.paths["data_dir"] / "TNG300_1"
+            / f"density_profiles{self.suffix}",
             shape,  # automatically validates shapes
         )
         n_tng300_clusters = 0
@@ -264,7 +281,8 @@ class StackProfilesBinnedPipeline(Pipeline):
 
         # load TNG Cluster data and verify it
         load_generator = load_radial_profiles.load_individuals_1d_profile(
-            self.paths["data_dir"] / "TNG_Cluster" / "density_profiles",
+            self.paths["data_dir"] / "TNG_Cluster"
+            / f"density_profiles{self.suffix}",
             shape,  # automatically validates shapes
         )
         for i, halo_data in enumerate(load_generator):
@@ -382,14 +400,15 @@ class StackProfilesBinnedPipeline(Pipeline):
         fig.supxlabel(r"Distance from halo center [$R_{200c}$]")
         fig.supylabel(r"Temperature [$\log K$]")
 
+        xrange = edges[1] - edges[0]
         if self.log:
             clabel = r"Normalized mean gas fraction ($\log_{10}$)"
             value_range = (-4, np.log10(np.max(stacks)))
-            text_pos = (0.1, 3.3)
+            text_pos = (0.05 * xrange, 3.3)
         else:
             clabel = "Normalized mean gas fraction"
             value_range = (np.min(stacks), np.max(stacks))
-            text_pos = (0, 0)
+            text_pos = (0.05 * xrange, 1e5)
 
         for i in range(len(stacks)):
             # plot histograms
@@ -424,7 +443,7 @@ class StackProfilesBinnedPipeline(Pipeline):
             else:
                 label = (
                     rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
-                    rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}}$"
+                    rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}} M_\odot$"
                 )
             flat_axes[i].text(*text_pos, label, color="white")
 
@@ -708,7 +727,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
                 color = pltutil.sample_cmap("jet", len(stacks) - 1, i)
                 label = (
                     rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
-                    rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}}$"
+                    rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}} M_\odot$"
                 )
 
             # error config

@@ -36,11 +36,13 @@ def main(args: argparse.Namespace) -> None:
         data_path = Path(args.datapath)
     else:
         data_path = cfg.data_home / "radial_profiles" / "individuals"
+
+    core = "_core" if args.core_only else ""
     file_data = {
         "figures_dir": figure_path.resolve(),
         "data_dir": data_path.resolve(),
-        "figures_file_stem": f"radial_profiles_{args.what}_clusters",
-        "data_file_stem": f"radial_profiles_{args.what}_clusters",
+        "figures_file_stem": f"radial_profiles_{args.what}{core}_clusters",
+        "data_file_stem": f"radial_profiles_{args.what}{core}_clusters",
     }
 
     pipeline_config = {
@@ -53,6 +55,7 @@ def main(args: argparse.Namespace) -> None:
         "log": args.log,
         "what": args.what,
         "method": args.method,
+        "core_only": args.core_only,
     }
     if args.combined and args.what == "density":
         pipeline = StackDensityProfilesCombinedPipeline(**pipeline_config)
@@ -116,6 +119,16 @@ if __name__ == "__main__":
         ),
         dest="combined",
         action="store_true",
+    )
+    parser.add_argument(
+        "-cc",
+        "--cluster-core",
+        help=(
+            "Plot the core region of the cluster only. This will restrict the "
+            "radial range of the plot to around 50 kpc physical size."
+        ),
+        action="store_true",
+        dest="core_only",
     )
 
     # parse arguments
