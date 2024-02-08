@@ -16,16 +16,23 @@ def install():
         line = line.lstrip()
         line = line.rstrip("\n")
         if line.startswith("data_home"):
-            data_home = Path(line.removeprefix("data_home: ")).expanduser()
+            data_home = line.removeprefix("data_home: ")
         elif line.startswith("figures_home"):
-            figures_home = Path(line.removeprefix("figures_home: ")
-                                ).expanduser()
-
-    external = root_dir / "external"
+            figures_home = line.removeprefix("figures_home: ")
 
     if not all([data_home, figures_home]):
         print("Could not parse config file, not all paths were found!")
         sys.exit(1)
+
+    external = root_dir / "external"
+    if data_home == "default":
+        data_home = root_dir / "data"
+    else:
+        data_home = Path(data_home).resolve()
+    if figures_home == "default":
+        figures_home = root_dir / "figures"
+    else:
+        figures_home = Path(figures_home).resolve()
 
     # create directories
     for directory in [data_home, external, figures_home]:

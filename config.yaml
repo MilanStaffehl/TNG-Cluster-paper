@@ -4,5 +4,7 @@ paths:
     TNG50-4: /virgotng/universe/IllustrisTNG/TNG50-4/output
     TNG50-3: /virgotng/universe/IllustrisTNG/TNG50-3/output
     TNG-Cluster: /virgotng/mpia/TNG-Cluster/TNG-Cluster/output
-  data_home: ~/thesisProject/data/
-  figures_home: ~/thesisProject/figures/
+  # Set to 'default' to create directories inside the project directory.
+  # Otherwise, use full paths to data and/or figures home directory.
+  data_home: default
+  figures_home: default
