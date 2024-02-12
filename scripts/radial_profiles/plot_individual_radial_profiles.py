@@ -103,7 +103,7 @@ if __name__ == "__main__":
         dest="log",
     )
     parser.add_argument(
-        "-c",
+        "-cc",
         "--cluster-core",
         help=(
             "Plot the core region of the cluster only. This will restrict the "

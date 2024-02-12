@@ -712,7 +712,10 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
         fig, axes = plt.subplots(figsize=(4.5, 4.5))
         axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
         axes.set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
-        axes.set_ylim((1e-2, 1e6))
+        if self.core_only:
+            axes.set_ylim((1e1, 1e8))
+        else:
+            axes.set_ylim((1e-2, 1e6))
         if self.log:
             axes.set_yscale("log")
 
