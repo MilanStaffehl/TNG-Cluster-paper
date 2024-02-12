@@ -6,7 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.mass_trends.temperatures import (
+from pipelines.mass_trends.temperatures_all import (
     FromFilePipeline,
     IndividualsMassTrendPipeline,
 )
