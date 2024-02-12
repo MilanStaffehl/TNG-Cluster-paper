@@ -4,8 +4,7 @@ Tools to select data entries from a larger data set.
 from __future__ import annotations
 
 import logging
-import warnings
-from typing import TYPE_CHECKING, Iterator, Sequence
+from typing import TYPE_CHECKING, Iterator
 
 import numpy as np
 import numpy.ma as ma
@@ -142,3 +141,43 @@ def mask_quantity(
     if len(quantity.shape) > 1:
         masked_indices = masked_indices.reshape(-1, *quantity.shape[1:])
     return masked_indices
+
+
+def select_clusters(
+    halo_data: dict[str, NDArray],
+    mass_field: str,
+    mass_threshold: float = 1e14,
+) -> dict[str, NDArray]:
+    """
+    Return the halo data, restricted to halos above mass threshold.
+
+    The function creates a new dictionary with the same fields, but with
+    values only for those halos that are above the mass threshold. The
+    halo data dictionary must contain a mass field (as specified by
+    ``mass_field``) which will be used to determine which halos lie
+    above the threshold.
+
+    :param halo_data: Dictionary of halo data, consisting of field names
+        as keys and arrays of corresponding values as dict values.
+    :param mass_field: The name of the mass field to use for the
+        restriction. Must be one of the keys in the halo data dictionary.
+    :param mass_threshold: The value below which to clip the data in
+        units of the given mass field.
+    :return: The halo data dictionary, but with values only for those
+        halos above the mass threshold.
+    """
+    logging.info(
+        f"Restricting halo data to halos with mass log M > "
+        f"{np.log10(mass_threshold)}"
+    )
+    mask = np.digitize(halo_data[mass_field], [0, mass_threshold, 1e25])
+    restricted_data = {}
+    for key, value in halo_data.items():
+        if key == "count":
+            continue
+        restricted_data[key] = mask_quantity(
+            halo_data[key], mask, index=2, compress=True
+        )
+    # update count
+    restricted_data["count"] = len(restricted_data[mass_field])
+    return restricted_data
