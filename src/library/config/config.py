@@ -140,3 +140,27 @@ def get_supported_simulations() -> list[str]:
         stream = config_file.read()
     config = yaml.full_load(stream)
     return list(config["paths"]["base_paths"].keys())
+
+
+def get_simulation_base_path(sim: str) -> str:
+    """
+    Return the base path of the given simulation as specified in config.
+
+    :param sim: Name of the sim as given in the config.yaml.
+    :raises InvalidSimulationNameError: When the given simulation name
+        is not known/not present in the config.
+    :return: The path to the base path of the simulation as string,
+        fully resolved.
+    """
+    # find directories for data and figures
+    cur_dir = Path(__file__).parent.resolve()
+    root_dir = cur_dir.parents[2]
+    with open(root_dir / "config.yaml", "r") as config_file:
+        stream = config_file.read()
+    config = yaml.full_load(stream)
+    try:
+        base_path = config["paths"]["base_paths"][sim]
+    except KeyError:
+        raise InvalidSimulationNameError(sim)
+    # resolve path and return it
+    return str(Path(base_path).resolve())
