@@ -162,7 +162,7 @@ def get_gas_properties(
         avoid loading filler particles and particles from other zooms.
         If not set, even when using TNG-Cluster, this function will load
         all particles of the simulation. Setting this to anything other
-        than None for any simulation except TNG-cluster will cause an
+        than None for any simulation except TNG-Cluster will cause an
         error.
     :raises UnsupportedUnitError: If one of the fields has a unit that
         cannot be converted into physical units.
@@ -202,3 +202,40 @@ def get_gas_properties(
     if cluster is None:
         logging.info("Finished loading gas particle properties.")
     return gas_data_physical
+
+
+def get_gas_temperatures(
+    base_path: str,
+    snap_num: int,
+) -> NDArray:
+    """
+    Return the temperatures for all gas cells of a simulation.
+
+    Function loads gas cell data required for temperature calculation
+    (internal energy, electron abundance, SFR) for all gas particles in
+    a simulation and calculates the temperature for all cells. Returns
+    the array of temperature in units of Kelvin for all gas cells, in
+    the order they were loaded in.
+
+    :param base_path: Base path of the simulation.
+    :param snap_num: The snapshot number from which to load data.
+    :return: The array of gas cell temperatures in Kelvin. Ordered the
+        same way as the gas data when loaded from a snapshot.
+    """
+    logging.info("Loading gas cell data for all gas particles.")
+    fields = ["InternalEnergy", "ElectronAbundance", "StarFormationRate"]
+    gas_data = il.snapshot.loadSubset(
+        base_path, snap_num, partType=0, fields=fields
+    )
+
+    # Step 5: Calculate temperature of every gas cell
+    part_shape = gas_data["InternalEnergy"].shape
+    logging.info(f"Calculating temperature for {part_shape[0]:,} gas cells.")
+    temperatures = compute.get_temperature(
+        gas_data["InternalEnergy"],
+        gas_data["ElectronAbundance"],
+        gas_data["StarFormationRate"],
+    )
+    # clean up unneeded data
+    del gas_data
+    return temperatures
