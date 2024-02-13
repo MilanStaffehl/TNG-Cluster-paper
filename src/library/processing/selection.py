@@ -147,6 +147,7 @@ def select_clusters(
     halo_data: dict[str, NDArray],
     mass_field: str,
     mass_threshold: float = 1e14,
+    expected_number: int | None = None,
 ) -> dict[str, NDArray]:
     """
     Return the halo data, restricted to halos above mass threshold.
@@ -163,6 +164,10 @@ def select_clusters(
         restriction. Must be one of the keys in the halo data dictionary.
     :param mass_threshold: The value below which to clip the data in
         units of the given mass field.
+    :param expected_number: The expected number of clusters after
+        restriction. When given, the function will raise an exception
+        if the restricted data does not have the expected number of
+        entries.
     :return: The halo data dictionary, but with values only for those
         halos above the mass threshold.
     """
@@ -180,4 +185,11 @@ def select_clusters(
         )
     # update count
     restricted_data["count"] = len(restricted_data[mass_field])
+    if expected_number is not None:
+        if restricted_data["count"] != expected_number:
+            raise RuntimeError(
+                f"Selected an unexpected number of clusters: expected "
+                f"{expected_number} clusters but got "
+                f"{restricted_data['count']} instead."
+            )
     return restricted_data
