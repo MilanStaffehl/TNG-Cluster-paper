@@ -50,6 +50,7 @@ class UnitConverter:
                 "Coordinates",
             ],
         "sfrLike": ["GroupSFR"],
+        "massFlowLike": ["GroupBHMdot"],
         "unitless": ["count", "IDs"]
     }
 
@@ -78,6 +79,8 @@ class UnitConverter:
             return cls.convert_masslike(quantity)
         elif field in cls.fields["distanceLike"]:
             return cls.convert_distancelike(quantity)
+        elif field in cls.fields["massFlowLike"]:
+            return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:
             return quantity
         elif field in cls.fields["unitless"]:
@@ -104,3 +107,13 @@ class UnitConverter:
         :return: Distance-like quantity in ckpc.
         """
         return quantity / constants.HUBBLE
+
+    @staticmethod
+    def convert_massflowlike(quantity: N) -> N:
+        """
+        Return the mass-flow-like quantity in solar masses per Gyr.
+
+        :param quantity: Mass-flow-like quantity in code units.
+        :return: Mass-flow-like quantity in solar masses per Gyr.
+        """
+        return quantity * 1e10 / 0.978
