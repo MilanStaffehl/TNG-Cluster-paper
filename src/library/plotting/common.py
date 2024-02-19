@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Sequence
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
-    from matplotlib.colors import Colormap
+    from matplotlib.colors import Colormap, Normalize
     from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
@@ -140,6 +140,7 @@ def plot_scatterplot(
     marker_size: int | NDArray = 8,
     legend_label: str | None = None,
     alpha: float = 1.0,
+    norm: Normalize | None = None,
     cbar_label: str = "Color",
     cbar_range: Sequence[float, float] | None = None,
     suppress_colorbar: bool = False
@@ -174,6 +175,9 @@ def plot_scatterplot(
     :param legend_label: A label for the plot legend. Note that no legend
         will be created, the label is merely added to the paths collection.
     :param alpha: The opacity of the data points. Defaults to 1.
+    :param norm: A norm object to use to define range and norm of the
+        colors in the scatter plot. When given, the ``cbar_range``
+        parameter has no effect.
     :param cbar_label: The label of the colorbar.
     :param cbar_range: The minimum and maximum value between which the
         colored values will lie. Has no effect when ``colored_quantity``
@@ -183,6 +187,13 @@ def plot_scatterplot(
         drawn onto them. Returned for convenience, the objects are
         altered in place.
     """
+    if norm is not None and cbar_range is not None:
+        logging.warning(
+            "Cannot use both a norm object and a range. Will ignore value "
+            "range and use only norm."
+        )
+        cbar_range = None
+
     scatter_config = {
         "c": color,
         "s": marker_size,
@@ -192,15 +203,22 @@ def plot_scatterplot(
     # overwrite color if a color quantity is given
     if color_quantity is not None:
         scatter_config.update({"c": color_quantity, "cmap": cmap})
-    # limit ranges if required
-    if cbar_range:
-        if len(cbar_range) > 2:
-            logging.warning(
-                f"Expected a colorbar and value range of length 2, got length "
-                f"{len(cbar_range)} instead. The first two entries will be "
-                f"used as vmin and vmax respectively. This may cause issues."
+        if norm is not None:
+            scatter_config.update({"norm": norm})
+        # limit ranges if required
+        if cbar_range:
+            if len(cbar_range) > 2:
+                logging.warning(
+                    f"Expected a colorbar and value range of length 2, got "
+                    f"length {len(cbar_range)} instead. The first two entries "
+                    f"will be used as vmin and vmax respectively. This may "
+                    f"cause issues."
+                )
+            scatter_config.update(
+                {
+                    "vmin": cbar_range[0], "vmax": cbar_range[1]
+                }
             )
-        scatter_config.update({"vmin": cbar_range[0], "vmax": cbar_range[1]})
     # add a legend label if given
     if legend_label:
         scatter_config.update({"label": legend_label})

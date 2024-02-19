@@ -7,10 +7,12 @@ import logging
 import time
 import tracemalloc
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, ClassVar
+from typing import Any, Callable, ClassVar, TypeAlias
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.colors import BoundaryNorm
+from numpy.typing import NDArray
 
 from library.config import config
 from library.data_acquisition import gas_daq, halos_daq
@@ -19,8 +21,7 @@ from library.plotting import common
 from library.processing import selection
 from pipelines.base import DiagnosticsPipeline
 
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
+ColorData: TypeAlias = tuple[NDArray, dict[str, Any]]
 
 
 @dataclass
@@ -61,9 +62,10 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
         # list of supported fields to color the data with and the methods
         # that can generate them
-        self.field_generators: dict[str, Callable[[], tuple[NDArray, str]]] = {
+        self.field_generators: dict[str, Callable[[], ColorData]] = {
             "SFR": self._get_cluster_sfr,
             "BHMass": self._get_cluster_bh_mass,
+            "BHMdot": self._get_cluster_bh_mdot,
         }
 
     def run(self) -> int:
@@ -106,6 +108,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # Step 1: acquire base halo data
         base_file = self.paths["data_dir"] / self.base_filename
         if base_file.exists():
+            logging.info("Loading base data from file.")
             with np.load(base_file) as base_data:
                 halo_masses = base_data["halo_masses"]
                 cool_gas_fracs = base_data["cool_gas_fracs"]
@@ -116,14 +119,14 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         # Step 2: acquire data to color the points with
         try:
-            color_quantity, label = self.field_generators[self.color_field]()
+            color_quantity, kwargs = self.field_generators[self.color_field]()
         except KeyError:
             logging.error(
                 f"Unknown or unsupported field name for color field: "
                 f"{self.color_field}. Will plot uncolored plot."
             )
             color_quantity = None
-            label = None
+            kwargs = {}
             self.color_field = None  # plot only black dots
         else:
             # since there is color data, save it to file
@@ -133,11 +136,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         # Step 3: plot data
         if self.color_field is None:
-            self._plot(halo_masses, cool_gas_fracs, None, None)
+            self._plot(halo_masses, cool_gas_fracs, None, kwargs)
         else:
             if self.color_log:
                 color_quantity = np.log10(color_quantity)
-            self._plot(halo_masses, cool_gas_fracs, color_quantity, label)
+            self._plot(halo_masses, cool_gas_fracs, color_quantity, kwargs)
 
         return 0
 
@@ -228,6 +231,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         # Step 6: Load halo data from TNG-Cluster
         logging.info("Loading halo data for TNG-Cluster.")
+        fields.append("GroupPos")
         cluster_data = halos_daq.get_halo_properties(
             self.tngclstr_basepath,
             self.config.snap_num,
@@ -314,6 +318,9 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         data_path = self.config.data_home / "radial_profiles" / "individuals"
 
+        edges = np.linspace(0, 2, num=51, endpoint=True)
+        shell_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+
         # load data for TNG300-1
         logging.info("Loading data for TNG300-1.")
         halo_loader = load_radial_profiles.load_individuals_1d_profile(
@@ -322,8 +329,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         idx = 0
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
-            cool_gas = np.sum(halo_data["cool_histogram"])
-            total_gas = np.sum(halo_data["total_histogram"])
+            cool_gas = np.sum(halo_data["cool_histogram"] * shell_volumes)
+            total_gas = np.sum(halo_data["total_histogram"] * shell_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
             idx += 1
 
@@ -334,8 +341,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
-            cool_gas = np.sum(halo_data["cool_histogram"])
-            total_gas = np.sum(halo_data["total_histogram"])
+            cool_gas = np.sum(halo_data["cool_histogram"] * shell_volumes)
+            total_gas = np.sum(halo_data["total_histogram"] * shell_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
             idx += 1
 
@@ -346,7 +353,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         halo_masses: NDArray,
         gas_fraction: NDArray,
         colored_quantity: NDArray | None,
-        label: str | None
+        additional_kwargs: dict[str, Any],
     ) -> None:
         """
         Plot the cool gas fraction vs. halo mass plot.
@@ -361,6 +368,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             this to None. There will be nor transformation applied to
             this data, i.e. if you wish to plot it in log scale, you
             must pass it already in log scale.
+        :param additional_kwargs: A dictionary containing additional
+            keywords for the :fucn:`plot_scatterplot` function.
         :return: None, figure is saved to file.
         """
         logging.info("Plotting cool gas fraction mass trend for clusters.")
@@ -378,7 +387,10 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             # determine min and max of colorbar values
             cbar_min = np.min(colored_quantity)
             cbar_max = np.max(colored_quantity)
-            if label is None:
+            try:
+                label = additional_kwargs.pop("cbar_label")
+            except KeyError:
+                logging.warning("Received no color bar label!")
                 label = self.color_field
             # plot TNG300 data
             common.plot_scatterplot(
@@ -391,6 +403,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 marker_style="o",
                 cbar_label=label,
                 cbar_range=[cbar_min, cbar_max],
+                **additional_kwargs,
             )
             # plot TNG-Cluster data
             common.plot_scatterplot(
@@ -403,6 +416,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 marker_style="D",
                 suppress_colorbar=True,
                 cbar_range=[cbar_min, cbar_max],
+                **additional_kwargs
             )
         else:
             # plot TNG300 data
@@ -429,13 +443,14 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             handle.set_color("black")
         self._save_fig(fig)
 
-    def _get_cluster_sfr(self) -> tuple[NDArray, str]:
+    def _get_cluster_sfr(self) -> ColorData:
         """
-        Return the SFR of all clusters in TNG300-1 and TNG-Cluster
+        Return the SFR of all clusters in TNG300-1 and TNG-Cluster.
 
         :return: Array of shape (632, ) of SFRs, and an appropriate
-            color bar label for it.
+            color bar label for it and plot kwargs.
         """
+        logging.info("Loading SFR for TNG300-1 and TNG-Cluster.")
         sfrs = np.zeros(self.n_clusters)
 
         # load and restrict TNG300-1 SFRs
@@ -468,15 +483,16 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             label = r"SFR [$M_\odot / yr$]"
 
-        return sfrs, label
+        return sfrs, {"cbar_label": label}
 
-    def _get_cluster_bh_mass(self) -> tuple[NDArray, str]:
+    def _get_cluster_bh_mass(self) -> ColorData:
         """
-        Return the black hole mass in all clusters.
+        Return the black hole mass in all clusters, plus aux data.
 
         :return: Array of shape (632, ) of black hole masses per cluster,
-            and an appropriate color bar label.
+            and an appropriate color bar label and plot kwargs.
         """
+        logging.info("Loading BH masses for TNG300-1 and TNG-Cluster.")
         bh_masses = np.zeros(self.n_clusters)
 
         # load and restrict TNG300-1 BH masses
@@ -504,7 +520,50 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             label = r"BH mass [$M_\odot$]"
 
-        return bh_masses, label
+        return bh_masses, {"cbar_label": label}
+
+    def _get_cluster_bh_mdot(self) -> ColorData:
+        """
+        Return mass accretion of all clusters, plus aux data.
+
+        :return: Array of shape (632, ) of black hole mass accretion
+            rate per cluster, and an appropriate color bar label and
+            plot kwargs.
+        """
+        logging.info("Loading BH accretion rate for TNG300-1 and TNG-Cluster.")
+        bh_mdots = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 BH accretion rates
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            ["GroupBHMdot", self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        bh_mdots[:self.n300] = cluster_data["GroupBHMdot"]
+
+        # load TNG-Cluster BH accretion rates
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            ["GroupBHMdot"],
+            cluster_restrict=True,
+        )
+        bh_mdots[self.n300:] = halo_data["GroupBHMdot"]
+
+        boundaries = np.array([np.min(bh_mdots), 1, np.max(bh_mdots)])
+        if self.color_log:
+            label = r"BH accretion rate [$\log (M_\odot / Gyr)$]"
+            # set boundaries to scale
+            boundaries = np.log10(boundaries)
+        else:
+            label = r"BH accretion rate [$M_\odot / Gyr$]"
+
+        norm = BoundaryNorm(boundaries, ncolors=2)
+
+        return bh_mdots, {"cbar_label": label, "norm": norm}
 
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
@@ -514,6 +573,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
 
     def run(self) -> int:
         """Load data from file"""
+        raise NotImplementedError("Currently unavailable.")
         self._verify_directories()
 
         # load base data
@@ -542,6 +602,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             return 2
         color_data = np.load(color_file)
 
+        # TODO: fix this: label and norm must be retrieved differently
         label = self._get_cbar_label(self.color_field)
         self._plot(halo_masses, cool_gas_fracs, color_data, label=label)
         return 0
