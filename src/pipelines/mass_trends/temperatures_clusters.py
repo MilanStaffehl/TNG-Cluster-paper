@@ -43,6 +43,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     color_field: str | None
     field_idx: int = -1
     log: bool = False
+    color_log: bool = False
     forbid_recalculation: bool = True
 
     n_clusters: ClassVar[int] = 632
@@ -60,7 +61,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
         # list of supported fields to color the data with and the methods
         # that can generate them
-        self.field_generators: dict[str, Callable[[], NDArray]] = {
+        self.field_generators: dict[str, Callable[[], tuple[NDArray, str]]] = {
             "SFR": self._get_cluster_sfr,
             "BHMass": self._get_cluster_bh_mass,
         }
@@ -115,25 +116,26 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         # Step 2: acquire data to color the points with
         try:
-            color_quantity = self.field_generators[self.color_field]()
+            color_quantity, label = self.field_generators[self.color_field]()
         except KeyError:
             logging.error(
                 f"Unknown or unsupported field name for color field: "
                 f"{self.color_field}. Will plot uncolored plot."
             )
             color_quantity = None
+            label = None
             self.color_field = None  # plot only black dots
         else:
             # since there is color data, save it to file
-            filename = f"{self.paths['data_file_stem']}.npy"
+            logging.info(f"Writing color data {self.color_field} to file.")
+            filename = f"{self.paths['data_file_stem']}_{self.color_field}.npy"
             np.save(self.paths["data_dir"] / filename, color_quantity)
 
         # Step 3: plot data
         if self.color_field is None:
             self._plot(halo_masses, cool_gas_fracs, None, None)
         else:
-            label = self._get_cbar_label(self.color_field)
-            if self.log:
+            if self.color_log:
                 color_quantity = np.log10(color_quantity)
             self._plot(halo_masses, cool_gas_fracs, color_quantity, label)
 
@@ -365,8 +367,13 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
         axes.set_ylabel("Cool gas fraction")
+        if self.log:
+            axes.set_yscale("log")
+            logging.debug(f"Smallest gas frac value: {np.min(gas_fraction)}")
+            # make zero-values visible
+            gas_fraction[gas_fraction == 0] = 1e-7
 
-        if colored_quantity:
+        if colored_quantity is not None:
             logging.info(f"Coloring scatter points by {self.color_field}.")
             # determine min and max of colorbar values
             cbar_min = np.min(colored_quantity)
@@ -416,36 +423,18 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 legend_label="TNG-Cluster",
                 marker_style="D",
             )
-        axes.legend()
-        ident_flag = self.color_field.lower() if self.color_field else ""
-        self._save_fig(fig, ident_flag=ident_flag)
+        legend = axes.legend()
+        # make dots black
+        for handle in legend.legend_handles:
+            handle.set_color("black")
+        self._save_fig(fig)
 
-    def _get_cbar_label(self, field: str) -> str:
-        """
-        Translate a known field into a cbar label.
-
-        :param field: The name of the field.
-        :return: An appropriate colorbar label.
-        """
-        if field not in self.field_generators.keys():
-            logging.warning(
-                f"Unknown field {field}. Label will be only field name."
-            )
-            return field
-        # give back an appropriate label
-        match field:
-            case "SFR":
-                return r"SFR [$M_\odot / yr$]"
-            case "BHMass":
-                return r"BH mass [$\log M_\odot$]"
-            case _:
-                return field
-
-    def _get_cluster_sfr(self) -> NDArray:
+    def _get_cluster_sfr(self) -> tuple[NDArray, str]:
         """
         Return the SFR of all clusters in TNG300-1 and TNG-Cluster
 
-        :return: Array of shape (632, ) of SFRs.
+        :return: Array of shape (632, ) of SFRs, and an appropriate
+            color bar label for it.
         """
         sfrs = np.zeros(self.n_clusters)
 
@@ -469,13 +458,24 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         sfrs[self.n300:] = halo_data["GroupSFR"]
 
-        return sfrs
+        # adjust for zero-SFR when plotting it in log scale
+        if self.color_log:
+            sfrs[sfrs == 0] = 0.1
 
-    def _get_cluster_bh_mass(self) -> NDArray:
+        # label
+        if self.color_log:
+            label = r"SFR [$\log(M_\odot / yr)$]"
+        else:
+            label = r"SFR [$M_\odot / yr$]"
+
+        return sfrs, label
+
+    def _get_cluster_bh_mass(self) -> tuple[NDArray, str]:
         """
         Return the black hole mass in all clusters.
 
-        :return: Array of shape (632, ) of black hole masses per cluster.
+        :return: Array of shape (632, ) of black hole masses per cluster,
+            and an appropriate color bar label.
         """
         bh_masses = np.zeros(self.n_clusters)
 
@@ -488,7 +488,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         cluster_data = selection.select_clusters(
             halo_data, self.config.mass_field, expected_number=self.n300
         )
-        bh_masses[:self.n300] = cluster_data["GroupMassType"][5]
+        bh_masses[:self.n300] = cluster_data["GroupMassType"][:, 5]
 
         # load TNG-Cluster BH masses
         halo_data = halos_daq.get_halo_properties(
@@ -497,9 +497,14 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             ["GroupMassType"],
             cluster_restrict=True,
         )
-        bh_masses[self.n300:] = halo_data["GroupMassType"][5]
+        bh_masses[self.n300:] = halo_data["GroupMassType"][:, 5]
 
-        return bh_masses
+        if self.color_log:
+            label = r"BH mass [$\log M_\odot$]"
+        else:
+            label = r"BH mass [$M_\odot$]"
+
+        return bh_masses, label
 
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
@@ -527,8 +532,8 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             return 0
 
         # Load color data
-        color_filename = f"{self.paths['data_file_stem']}.npy"
-        color_file = self.paths["data_dir"] / color_filename
+        color_fname = f"{self.paths['data_file_stem']}_{self.color_field}.npy"
+        color_file = self.paths["data_dir"] / color_fname
         if not color_file.exists():
             logging.fatal(
                 f"File for color data {color_file} does not exist yet. Run "

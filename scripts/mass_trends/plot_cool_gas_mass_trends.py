@@ -14,6 +14,7 @@ from pipelines.mass_trends.temperatures_clusters import (
 
 def main(args: argparse.Namespace) -> None:
     """Create plot of gas mass trends for individual halos"""
+    args.sim = "TNG-Cluster"
     # find type flag depending on field name
     if args.color_field is None:
         type_flag = "clusters"
@@ -31,6 +32,7 @@ def main(args: argparse.Namespace) -> None:
     pipeline_config.update(
         {
             "log": args.log,
+            "color_log": args.color_log,
             "color_field": args.color_field,
             "forbid_recalculation": args.forbid_recalculation,
         }
@@ -53,10 +55,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--log",
         help=(
+            "When used, the y-axis (cool gas fraction) will be plotted in "
+            "log scale."
+        ),
+        dest="log",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--color-log",
+        help=(
             "When used, the given field will be plotted in log scale in "
             "color space. Has no effect when --field is not set."
         ),
-        dest="log",
+        dest="color_log",
         action="store_true",
     )
     parser.add_argument(

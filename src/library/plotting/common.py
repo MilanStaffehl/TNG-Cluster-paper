@@ -137,7 +137,7 @@ def plot_scatterplot(
     color: str = "black",
     cmap: str | Colormap = "viridis",
     marker_style: str = "o",
-    marker_size: int | NDArray = 4,
+    marker_size: int | NDArray = 8,
     legend_label: str | None = None,
     alpha: float = 1.0,
     cbar_label: str = "Color",
