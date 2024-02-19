@@ -222,7 +222,10 @@ def get_gas_temperatures(
     :return: The array of gas cell temperatures in Kelvin. Ordered the
         same way as the gas data when loaded from a snapshot.
     """
-    logging.info("Loading gas cell data for all gas particles.")
+    logging.info(
+        "Loading gas cell data required for temperature calculation for "
+        "all gas particles."
+    )
     fields = ["InternalEnergy", "ElectronAbundance", "StarFormationRate"]
     gas_data = il.snapshot.loadSubset(
         base_path, snap_num, partType=0, fields=fields

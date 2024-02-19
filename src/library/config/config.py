@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -163,4 +164,6 @@ def get_simulation_base_path(sim: str) -> str:
     except KeyError:
         raise InvalidSimulationNameError(sim)
     # resolve path and return it
-    return str(Path(base_path).resolve())
+    full_path = str(Path(base_path).resolve())
+    logging.debug(f"Returning path to simulation {sim}: {full_path}")
+    return full_path

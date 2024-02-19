@@ -7,14 +7,14 @@ import logging
 import time
 import tracemalloc
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Callable, ClassVar
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from library.config import config
 from library.data_acquisition import gas_daq, halos_daq
-from library.loading import load_mass_trends
+from library.loading import load_radial_profiles
 from library.plotting import common
 from library.processing import selection
 from pipelines.base import DiagnosticsPipeline
@@ -41,11 +41,14 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     """
 
     color_field: str | None
+    field_idx: int = -1
     log: bool = False
+    forbid_recalculation: bool = True
 
     n_clusters: ClassVar[int] = 632
     n300: ClassVar[int] = 280  # number of clusters in TNG300-1
     nclstr: ClassVar[int] = 352  # number of clusters in TNG-Cluster
+    base_filename: ClassVar[str] = "mass_trends_clusters_base_data.npz"
 
     def __post_init__(self):
         data_root = self.config.data_home
@@ -55,8 +58,12 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         self.tng300_basepath = config.get_simulation_base_path("TNG300-1")
         self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
-        # default label
-        self.label = self._get_cbar_label(self.color_field)
+        # list of supported fields to color the data with and the methods
+        # that can generate them
+        self.field_generators: dict[str, Callable[[], NDArray]] = {
+            "SFR": self._get_cluster_sfr,
+            "BHMass": self._get_cluster_bh_mass,
+        }
 
     def run(self) -> int:
         """
@@ -64,51 +71,95 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         Steps:
 
-        1. Allocate memory space for the halo gas fraction, masses and
-           optional third quantity.
-        2. Load halo data for TNG300-1, restrict to clusters. Place mass
-           into allocated space. Place third quantity into allocated
-           space.
-        3. Get gas cell temperatures for TNG300-1.
-        4. Get gas cell masses for TNG300-1.
-        5. For every halo in TNG300-1:
-           1. Select cells within 2R_vir using particle ID filed, mask
-              masses and temperatures.
-           2. Sum their masses.
-           3. Mask masses to cool gas only, sum cool gas mass.
-           4. Calculate cool gas fraction, place into allocated array.
-           5. Clean-up.
-        6. Load halo data for TNG-Cluster, restrict to zoom-ins. Place
-           mass into allocated space. Place third quantity into allocated
-           array.
-        7. For every cluster in TNG-Cluster:
-           1. Load gas cell data for the cluster (positions, mass, all
-              data required for temperature)
-           2. Calculate distances, restrict temperature and masses to
-              only cells within 2R_vir
-           3. Sum masses of gas cells.
-           4. Mask masses to cool gas only, sum cool gas mass.
-           5. Calculate cool gas fraction, place into allocated array.
-           6. Clean-up.
-        8. Plot scatter plot of the data; save data to file.
+        1. Get the halo masses and gas fractions either from file or,
+           if not created yet, by following these following steps:
+            1. Allocate memory space for the halo gas fraction, masses.
+            2. Load halo data for TNG300-1, restrict to clusters.
+            3. Get gas cell temperatures for TNG300-1.
+            4. Get gas cell masses for TNG300-1.
+            5. For every halo in TNG300-1:
+               1. Select cells within 2R_vir using particle ID filed, mask
+                  masses and temperatures.
+               2. Sum their masses.
+               3. Mask masses to cool gas only, sum cool gas mass.
+               4. Calculate cool gas fraction.
+               5. Clean-up.
+            6. Load halo data for TNG-Cluster, restrict to zoom-ins.
+            7. For every cluster in TNG-Cluster:
+               1. Load gas cell data for the cluster (positions, mass, all
+                  data required for temperature)
+               2. Calculate distances, restrict temperature and masses to
+                  only cells within 2R_vir
+               3. Sum masses of gas cells.
+               4. Mask masses to cool gas only, sum cool gas mass.
+               5. Calculate cool gas fraction, place into allocated array.
+               6. Clean-up.
+        3. Acquire third quantity for all clusters.
+        4. Plot scatter plot of the data; save it to file.
 
         :return: Exit code.
         """
         # Step 0: create directories, start memory monitoring, timing
         self._create_directories()
+
+        # Step 1: acquire base halo data
+        base_file = self.paths["data_dir"] / self.base_filename
+        if base_file.exists():
+            with np.load(base_file) as base_data:
+                halo_masses = base_data["halo_masses"]
+                cool_gas_fracs = base_data["cool_gas_fracs"]
+        elif self.forbid_recalculation:
+            halo_masses, cool_gas_fracs = self._load_base_data()
+        else:
+            halo_masses, cool_gas_fracs = self._get_base_data()
+
+        # Step 2: acquire data to color the points with
+        try:
+            color_quantity = self.field_generators[self.color_field]()
+        except KeyError:
+            logging.error(
+                f"Unknown or unsupported field name for color field: "
+                f"{self.color_field}. Will plot uncolored plot."
+            )
+            color_quantity = None
+            self.color_field = None  # plot only black dots
+        else:
+            # since there is color data, save it to file
+            filename = f"{self.paths['data_file_stem']}.npy"
+            np.save(self.paths["data_dir"] / filename, color_quantity)
+
+        # Step 3: plot data
+        if self.color_field is None:
+            self._plot(halo_masses, cool_gas_fracs, None, None)
+        else:
+            label = self._get_cbar_label(self.color_field)
+            if self.log:
+                color_quantity = np.log10(color_quantity)
+            self._plot(halo_masses, cool_gas_fracs, color_quantity, label)
+
+        return 0
+
+    def _get_base_data(self) -> tuple[NDArray, NDArray]:
+        """
+        Generate the base data for the plot.
+
+        Function requires the particle IDs of particles associated with
+        all clusters in TNG300-1 to already exist. These can be generated
+        with the :mod:`~pipelines.radial_profiles.individuals` pipelines.
+
+        :return: The tuple of arrays of length 632 of the halo masses
+            and their corresponding cool gas fraction.
+        """
         tracemalloc.start()
         begin = time.time()
 
         # Step 1: allocate memory for plot data
         halo_masses = np.zeros(self.n_clusters)
         cool_gas_fracs = np.zeros(self.n_clusters)
-        color_quantity = np.ones(self.n_clusters)
 
         # Step 2: load halo data for TNG300-1, restrict to clusters
         logging.info("Loading halo data for TNG300-1.")
         fields = [self.config.mass_field, self.config.radius_field]
-        if self.color_field is not None:
-            fields.append(self.color_field)
         halo_data = halos_daq.get_halo_properties(
             self.tng300_basepath,
             self.config.snap_num,
@@ -119,8 +170,6 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         # assign halo masses and third quantity
         halo_masses[:self.n300] = cluster_data[self.config.mass_field]
-        if self.color_field is not None:
-            color_quantity[:self.n300] = cluster_data[self.color_field]
         # clean-up
         del halo_data
         timepoint = self._diagnostics(
@@ -145,8 +194,10 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         # Step 5: Loop through clusters in TNG300-1
         logging.info("Begin processing TNG300-1 halos to get gas fraction.")
+        log_level = logging.getLogger("root").level
         for i, halo_id in enumerate(cluster_data["IDs"]):
-            logging.debug(f"Processing halo {halo_id} ({i+ 1} / 280).")
+            if log_level <= 15:
+                print(f"Processing halo {halo_id} ({i + 1} / 280).", end="\r")
             # Step 5.1: Select cells within 2R_vir, mask masses & temps
             neighbors = np.load(
                 self.part_id_dir / f"particles_halo_{halo_id}.npy"
@@ -176,14 +227,12 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # Step 6: Load halo data from TNG-Cluster
         logging.info("Loading halo data for TNG-Cluster.")
         cluster_data = halos_daq.get_halo_properties(
-            self.tng300_basepath,
+            self.tngclstr_basepath,
             self.config.snap_num,
             fields=fields,
             cluster_restrict=True,
         )
         halo_masses[self.n300:] = cluster_data[self.config.mass_field]
-        if self.color_field is not None:
-            color_quantity[self.n300:] = cluster_data[self.color_field]
         timepoint = self._diagnostics(
             timepoint, "loading TNG-Cluster halo data"
         )
@@ -191,7 +240,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # Step 7: Loop through clusters
         logging.info("Begin processing TNG-Cluster halos to get gas fraction.")
         for i, halo_id in enumerate(cluster_data["IDs"]):
-            logging.debug(f"Processing halo {halo_id} ({i + 1}/352).")
+            if log_level <= 15:
+                print(f"Processing halo {halo_id} ({i + 1}/352).", end="\r")
             # Step 7.1: Load gas cell data for temperature
             cluster_temperatures = gas_daq.get_cluster_temperature(
                 halo_id,
@@ -201,7 +251,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
             # Step 7.2: Load gas cell positions, calculate distance
             gas_data = gas_daq.get_gas_properties(
-                self.config.base_path,
+                self.tngclstr_basepath,
                 self.config.snap_num,
                 fields=["Coordinates", "Masses"],
                 cluster=halo_id,
@@ -232,23 +282,62 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             # Step 7.7: Clean-up
             del gas_data, cool_gas_masses
 
+        self._diagnostics(timepoint, "processing all TNG-Cluster halos")
+
         # Step 8: Save data to file and plot it
         if self.to_file:
-            filename = f"{self.paths['data_file_stem']}.npz"
             np.savez(
-                self.paths["data_dir"] / filename,
+                self.paths["data_dir"] / self.base_filename,
                 halo_masses=halo_masses,
                 cool_gas_fracs=cool_gas_fracs,
-                color_quantity=color_quantity,
             )
+        self._timeit(begin, "entire base data acquisition")
+        return halo_masses, cool_gas_fracs
 
-        if self.color_field is None:
-            self._plot(halo_masses, cool_gas_fracs, None, None)
-        else:
-            if self.log:
-                color_quantity = np.log10(color_quantity)
-            self._plot(halo_masses, cool_gas_fracs, color_quantity, self.label)
-        return 0
+    def _load_base_data(self):
+        """
+        Load the halo masses and cool gas fraction from the density profiles.
+
+        .. attention:: The order of the halos is not preserved with this
+            method. Halos may appear in the array in arbitrary order, not
+            in the order of their IDs. They are however still split by
+            simulation (i.e. first 280 halos are guaranteed to be from
+            TNG300, the last 352 are from TNG-Cluster)
+
+        :return: The tuple of arrays of length 632 of the halo masses
+            and their corresponding cool gas fraction.
+        """
+        halo_masses = np.zeros(self.n_clusters)
+        cool_gas_fracs = np.zeros(self.n_clusters)
+
+        data_path = self.config.data_home / "radial_profiles" / "individuals"
+
+        # load data for TNG300-1
+        logging.info("Loading data for TNG300-1.")
+        halo_loader = load_radial_profiles.load_individuals_1d_profile(
+            data_path / "TNG300_1" / "density_profiles", (50, )
+        )
+        idx = 0
+        for halo_data in halo_loader:
+            halo_masses[idx] = halo_data["halo_mass"]
+            cool_gas = np.sum(halo_data["cool_histogram"])
+            total_gas = np.sum(halo_data["total_histogram"])
+            cool_gas_fracs[idx] = cool_gas / total_gas
+            idx += 1
+
+        # load data for TNG-Cluster
+        logging.info("Loading data for TNG-Cluster.")
+        halo_loader = load_radial_profiles.load_individuals_1d_profile(
+            data_path / "TNG_Cluster" / "density_profiles", (50, )
+        )
+        for halo_data in halo_loader:
+            halo_masses[idx] = halo_data["halo_mass"]
+            cool_gas = np.sum(halo_data["cool_histogram"])
+            total_gas = np.sum(halo_data["total_histogram"])
+            cool_gas_fracs[idx] = cool_gas / total_gas
+            idx += 1
+
+        return halo_masses, cool_gas_fracs
 
     def _plot(
         self,
@@ -331,19 +420,86 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         ident_flag = self.color_field.lower() if self.color_field else ""
         self._save_fig(fig, ident_flag=ident_flag)
 
-    @staticmethod
-    def _get_cbar_label(field: str) -> str:
+    def _get_cbar_label(self, field: str) -> str:
         """
-        Translate a TNG group catalogue field name into a cbar label.
+        Translate a known field into a cbar label.
 
         :param field: The name of the field.
         :return: An appropriate colorbar label.
         """
+        if field not in self.field_generators.keys():
+            logging.warning(
+                f"Unknown field {field}. Label will be only field name."
+            )
+            return field
+        # give back an appropriate label
         match field:
-            case "GroupSFR":
+            case "SFR":
                 return r"SFR [$M_\odot / yr$]"
+            case "BHMass":
+                return r"BH mass [$\log M_\odot$]"
             case _:
                 return field
+
+    def _get_cluster_sfr(self) -> NDArray:
+        """
+        Return the SFR of all clusters in TNG300-1 and TNG-Cluster
+
+        :return: Array of shape (632, ) of SFRs.
+        """
+        sfrs = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            ["GroupSFR", self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        sfrs[:self.n300] = cluster_data["GroupSFR"]
+
+        # load TNG-Cluster SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            ["GroupSFR"],
+            cluster_restrict=True,
+        )
+        sfrs[self.n300:] = halo_data["GroupSFR"]
+
+        return sfrs
+
+    def _get_cluster_bh_mass(self) -> NDArray:
+        """
+        Return the black hole mass in all clusters.
+
+        :return: Array of shape (632, ) of black hole masses per cluster.
+        """
+        bh_masses = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 BH masses
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            ["GroupMassType", self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        bh_masses[:self.n300] = cluster_data["GroupMassType"][5]
+
+        # load TNG-Cluster BH masses
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            ["GroupMassType"],
+            cluster_restrict=True,
+        )
+        bh_masses[self.n300:] = halo_data["GroupMassType"][5]
+
+        return bh_masses
 
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
@@ -353,10 +509,34 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
 
     def run(self) -> int:
         """Load data from file"""
-        filename = f"{self.paths['data_file_stem']}.npz"
-        data = load_mass_trends.load_cool_gas_mass_trend_data(
-            self.paths["data_dir"] / filename,
-            self.n_clusters,
-        )
-        self._plot(*data, label=self.label)
+        self._verify_directories()
+
+        # load base data
+        base_file = self.paths["data_dir"] / self.base_filename
+        if not base_file.exists():
+            logging.fatal(f"Base data file {base_file} does not exist!")
+            return 1
+
+        with np.load(base_file) as base_data:
+            halo_masses = base_data["halo_masses"]
+            cool_gas_fracs = base_data["cool_gas_fracs"]
+
+        # check if any color data is loaded
+        if self.color_field is None:
+            self._plot(halo_masses, cool_gas_fracs, None, None)
+            return 0
+
+        # Load color data
+        color_filename = f"{self.paths['data_file_stem']}.npy"
+        color_file = self.paths["data_dir"] / color_filename
+        if not color_file.exists():
+            logging.fatal(
+                f"File for color data {color_file} does not exist yet. Run "
+                f"the pipeline without the --load flag first to generate it."
+            )
+            return 2
+        color_data = np.load(color_file)
+
+        label = self._get_cbar_label(self.color_field)
+        self._plot(halo_masses, cool_gas_fracs, color_data, label=label)
         return 0

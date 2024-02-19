@@ -5,12 +5,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
 
 
 def load_mass_trend_data(
@@ -111,53 +107,3 @@ def load_mass_trend_data(
         warm_by_mass,
         hot_by_mass,
     )
-
-
-def load_cool_gas_mass_trend_data(
-    filepath: str | Path, n_halos: int | None
-) -> tuple[NDArray, NDArray, NDArray | None] | None:
-    """
-    Load and verify the data for cool gas fraction mass trends in clusters.
-
-    :param filepath:
-    :param n_halos:
-    :return: Tuple containing the arrays for halo masses, cool gas
-        fraction and color quantity respectively. If the colored
-        quantity is not set, the last entry is None instead of an
-        array.
-    """
-    logging.info("Loading saved cool gas fraction mass trend data from file.")
-
-    if not isinstance(filepath, Path):
-        filepath = Path(filepath)
-
-    if not filepath.is_file():
-        logging.error(f"The given file {str(filepath)} is not a valid file.")
-        return
-
-    # load the file
-    with np.load(filepath) as data:
-        halo_masses = data["halo_masses"]
-        gas_fraction = data["cool_gas_fracs"]
-        colored_quantity = data["color_quantity"]
-
-    # check if the colored quantity is set
-    if np.all(colored_quantity == 1):
-        colored_quantity = None
-
-    if n_halos is None:
-        logging.info("Returning unverified cool gas mass trend data.")
-        return halo_masses, gas_fraction, colored_quantity
-
-    # verify data
-    results = halo_masses, gas_fraction, colored_quantity
-    for arr in results:
-        if arr is None:
-            continue  # skip empty colored quantity results
-        if not arr.shape == (n_halos, ):
-            logging.error(
-                f"One of the loaded arrays has unexpected shape: {arr.shape}."
-            )
-            return
-
-    return results

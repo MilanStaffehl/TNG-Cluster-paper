@@ -16,14 +16,15 @@ def main(args: argparse.Namespace) -> None:
     """Create plot of gas mass trends for individual halos"""
     # find type flag depending on field name
     if args.color_field is None:
-        type_flag = ""
+        type_flag = "clusters"
     else:
-        type_flag = args.color_field.lower()
+        type_flag = f"clusters_{args.color_field.lower()}"
 
     pipeline_config = scriptparse.startup(
         args,
         "mass_trends",
         type_flag,
+        figures_subdirectory="./.."  # use base directory of milestone
     )
 
     # add custom parameters
@@ -31,6 +32,7 @@ def main(args: argparse.Namespace) -> None:
         {
             "log": args.log,
             "color_field": args.color_field,
+            "forbid_recalculation": args.forbid_recalculation,
         }
     )
 
@@ -65,8 +67,18 @@ if __name__ == "__main__":
             "If set, it must be a valid TNG group catalogue field name."
         ),
         dest="color_field",
-        metavar="GROUPCAT_FIELD",
+        metavar="FIELD",
         default=None,
+    )
+    parser.add_argument(
+        "-r",
+        "--forbid-recalculation",
+        help=(
+            "Forbid recalculation of cool gas fraction and instead load it "
+            "from the radial density profile histograms."
+        ),
+        dest="forbid_recalculation",
+        action="store_true",
     )
 
     # parse arguments
@@ -74,9 +86,5 @@ if __name__ == "__main__":
         args = parser.parse_args()
         main(args)
     except KeyboardInterrupt:
-        print(
-            "Execution forcefully stopped. Some subprocesses might still be "
-            "running and need to be killed manually if multiprocessing was "
-            "used."
-        )
+        print("Execution forcefully stopped.")
         sys.exit(1)
