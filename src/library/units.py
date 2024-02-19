@@ -49,6 +49,7 @@ class UnitConverter:
                 "GroupPos",
                 "Coordinates",
             ],
+        "sfrLike": ["GroupSFR"],
         "unitless": ["count", "IDs"]
     }
 
@@ -77,6 +78,8 @@ class UnitConverter:
             return cls.convert_masslike(quantity)
         elif field in cls.fields["distanceLike"]:
             return cls.convert_distancelike(quantity)
+        elif field in cls.fields["sfrLike"]:
+            return quantity
         elif field in cls.fields["unitless"]:
             return quantity
         else:
