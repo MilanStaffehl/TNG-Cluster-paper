@@ -22,4 +22,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG-Cluster --cluster-core -f --log -v
+srun python3 ~/thesisProject/scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG-Cluster --cluster-core -f --log -vv --absolute-distances
