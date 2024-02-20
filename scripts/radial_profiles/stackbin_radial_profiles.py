@@ -38,11 +38,12 @@ def main(args: argparse.Namespace) -> None:
         data_path = cfg.data_home / "radial_profiles" / "individuals"
 
     core = "_core" if args.core_only else ""
+    ab = "_absolute_dist" if not args.normalize else ""
     file_data = {
         "figures_dir": figure_path.resolve(),
         "data_dir": data_path.resolve(),
-        "figures_file_stem": f"radial_profiles_{args.what}{core}_clusters",
-        "data_file_stem": f"radial_profiles_{args.what}{core}_clusters",
+        "figures_file_stem": f"radial_profiles_{args.what}{core}{ab}_clusters",
+        "data_file_stem": f"radial_profiles_{args.what}{core}{ab}_clusters",
     }
 
     pipeline_config = {
@@ -56,6 +57,7 @@ def main(args: argparse.Namespace) -> None:
         "what": args.what,
         "method": args.method,
         "core_only": args.core_only,
+        "normalize": args.normalize,
     }
     if args.combined and args.what == "density":
         pipeline = StackDensityProfilesCombinedPipeline(**pipeline_config)
@@ -129,6 +131,17 @@ if __name__ == "__main__":
         ),
         action="store_true",
         dest="core_only",
+    )
+    parser.add_argument(
+        "-a",
+        "--absolute-distances",
+        help=(
+            "Instead of loading the data where halocentric distances are "
+            "normalized to the virial radius, use the data where distance is "
+            "measured in kpc."
+        ),
+        dest="normalize",
+        action="store_false",
     )
 
     # parse arguments

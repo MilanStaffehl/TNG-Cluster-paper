@@ -45,9 +45,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     radial_bins: int
     temperature_bins: int
     log: bool
-    forbid_tree: bool = True  # whether KDTree construction is allowed
+    forbid_tree: bool = True  # whether KDTree constructionp.savezn is allowed
     ranges: NDArray = np.array([[0, 2], [3, 8.5]])  # hist ranges
     core_only: bool = False
+    normalize: bool = True
 
     divisions: ClassVar[NDArray] = np.array([4.5, 5.5])  # in log K
 
@@ -57,13 +58,23 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             self.group_name = "cluster"
         else:
             self.group_name = "halo"
-        # particle id directory
+        # particle id directory and file suffix
         if self.core_only:
+            logging.info(
+                f"Received instruction to plot {self.what} profile of core "
+                f"only."
+            )
             pid_dir = Path(self.paths["data_dir"]) / "particle_ids_core"
             self.suffix = "_core"
         else:
+            logging.info(
+                f"Received instructions to plot {self.what} profile for full "
+                f"halo."
+            )
             pid_dir = Path(self.paths["data_dir"]) / "particle_ids"
             self.suffix = ""
+        if not self.normalize:
+            self.suffix += "_absolute"
         self.part_id_dir = pid_dir
 
     def run(self) -> int:
@@ -100,8 +111,6 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             ],
             force=True
         )
-        if self.core_only:
-            logging.info("Received instructions to only plot halo cores.")
         tracemalloc.start()
         begin = time.time()
 
@@ -250,6 +259,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :return: The tuple of the number of workers and the KDTree, if
             construction of it is required.
         """
+        logging.debug(f"Searching particle ID directory: {self.part_id_dir}")
         try:
             available_ids = set([f.stem for f in self.part_id_dir.iterdir()])
         except IOError:
@@ -260,7 +270,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             available_ids = set()
         required_ids = set(
             [
-                f"particles_halo_{i}{self.suffix}"
+                f"particles_halo_{i}{self.suffix.removesuffix('_absolute')}"
                 for i in selected_halos["ids"]
             ]
         )
@@ -274,6 +284,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             self.use_tree = False
             positions_tree = None
         else:
+            logging.debug(f"Missing files: {required_ids - available_ids}")
             # if the user explicitly forbade tree creation, cancel execution
             if self.forbid_tree:
                 logging.fatal(
@@ -552,11 +563,12 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         # calculate distances
         part_distances = np.linalg.norm(
             restricted_gas_data["Coordinates"] - halo_pos, axis=1
-        ) / halo_radius
-        assert np.max(part_distances) <= 2.0
+        )
+        if self.normalize:
+            part_distances /= halo_radius
+            assert np.max(part_distances) <= self.ranges[0, 1]
 
         restricted_gas_data.update({"Distances": part_distances})
-
         return restricted_gas_data
 
     def _query_for_neighbors(
@@ -596,8 +608,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             )
             if self.to_file:
                 logging.debug(
-                    f"Saving particle indices and distances of halo {halo_id} "
-                    "to file."
+                    f"Saving particle indices of halo {halo_id} to file."
                 )
                 np.save(
                     self.part_id_dir
@@ -636,6 +647,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
+        if self.normalize:
+            xlabel = r"Distance from halo center [$R_{200c}$]"
+        else:
+            xlabel = r"Distance from halo center [$Mpc$]"
         with np.errstate(invalid="ignore", divide="ignore"):
             if self.log:
                 plot_radial_profiles.plot_2d_radial_profile(
@@ -644,6 +659,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                     histogram,
                     ranges,
                     title=title,
+                    xlabel=xlabel,
                     cbar_label="Normalized gas mass fraction (log10)",
                     cbar_limits=[-4.2, None],
                     scale="log",
@@ -656,6 +672,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                     histogram,
                     ranges,
                     title=title,
+                    xlabel=xlabel,
                     cbar_label="Normalized gas mass fraction"
                 )
         # virial temperature and temperature divisions
@@ -719,6 +736,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             rf"($10^{{{np.log10(halo_mass):.2f}}} M_\odot$)"
         )
         ranges = np.array([edges[0], edges[-1]])
+        if self.normalize:
+            xlabel = r"Distance from halo center [$R_{200c}$]"
+        else:
+            xlabel = r"Distance from halo center [$Mpc$]"
 
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
@@ -727,6 +748,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             xlims=ranges,
             log=self.log,
             title=title,
+            xlabel=xlabel,
         )
         # Removed: hot line is visually indistinguishable from total
         # plot_radial_profiles.plot_1d_radial_profile(
@@ -746,6 +768,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             log=self.log,
             label=r"Warm ($10^{4.5} - 10^{5.5} K$)",
             color=common.temperature_colors_named["warm"],
+            xlabel=xlabel,
         )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
@@ -755,6 +778,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             log=self.log,
             label=r"Cool ($< 10^{4.5} K$)",
             color=common.temperature_colors_named["cool"],
+            xlabel=xlabel,
         )
         axes.legend(fontsize=10, frameon=False)
 
@@ -824,9 +848,9 @@ class IndividualProfilesFromFilePipeline(IndividualRadialProfilePipeline):
         logging.info("Done! Finished plotting individual halo profiles.")
 
 
-class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
+class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
     """
-    Pipeline to create radial temperature profiles for TNG Cluster.
+    Pipeline to create radial profiles for TNG Cluster.
 
     Pipeline creates 2D histograms of the temperature distribution with
     radial distance to the center of the halo, including particles not
@@ -860,8 +884,6 @@ class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
         :return: Exit code.
         """
         # Step 0: create directories, start monitoring, timing
-        if self.core_only:
-            logging.info("Was asked to plot only core region of clusters.")
         self._create_directories(
             subdirs=[f"{self.what}_profiles{self.suffix}"], force=True
         )
@@ -907,7 +929,9 @@ class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
             )
             gas_distances = np.linalg.norm(
                 gas_data["Coordinates"] - halo_data["GroupPos"][i], axis=1
-            ) / halo_data[self.config.radius_field][i]
+            )
+            if self.normalize:
+                gas_distances /= halo_data[self.config.radius_field][i]
 
             # Step 3.3: Create histogram
             gas_data.update(
@@ -939,9 +963,6 @@ class IndivTemperatureTNGClusterPipeline(IndividualRadialProfilePipeline):
                 logging.fatal(f"Unrecognized plot type {self.what}.")
                 return 3
 
-            # Step 3.4: Save data to file and plot it
-
-            # Step 3.5: Cleanup
             timepoint = self._diagnostics(
                 timepoint, f"processing halo {halo_id} ({i}/352)"
             )

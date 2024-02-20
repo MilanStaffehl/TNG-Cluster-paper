@@ -37,6 +37,7 @@ class StackProfilesBinnedPipeline(Pipeline):
     what: str
     method: Literal["mean", "median"]
     core_only: bool = False
+    normalize: bool = True
 
     # edges of mass bins to use (0.2 dex width)
     mass_bins: ClassVar[NDArray] = 10**np.arange(14.0, 15.4, 0.2)
@@ -47,6 +48,8 @@ class StackProfilesBinnedPipeline(Pipeline):
             self.suffix = "_core"
         else:
             self.suffix = ""
+        if not self.normalize:
+            self.suffix += "_absolute"
 
     def run(self) -> int:
         """

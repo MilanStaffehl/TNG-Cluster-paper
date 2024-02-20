@@ -10,8 +10,8 @@ sys.path.insert(0, str(root_dir / "src"))
 from library import scriptparse
 from pipelines.radial_profiles.individuals import (
     IndividualProfilesFromFilePipeline,
+    IndividualProfilesTNGClusterPipeline,
     IndividualRadialProfilePipeline,
-    IndivTemperatureTNGClusterPipeline,
 )
 
 
@@ -22,6 +22,8 @@ def main(args: argparse.Namespace) -> None:
         type_flag = f"{args.what}_core"  # prevent overwriting
     else:
         type_flag = args.what
+    if not args.normalize:
+        type_flag += "_absolute_dist"
 
     pipeline_config = scriptparse.startup(
         args,
@@ -39,10 +41,14 @@ def main(args: argparse.Namespace) -> None:
         tbins = np.array([0, 4.5, 5.5, np.inf])
 
     # if only the core is to be shown, restrict radial range
-    if args.core_only:
+    if args.core_only and args.normalize:
         ranges = np.array([[0, 0.05], [3, 8.5]])  # units: R_vir, log K
-    else:
+    elif args.core_only and not args.normalize:
+        ranges = np.array([[0, 100], [3, 8.5]])  # units: kpc, log K
+    elif args.normalize:
         ranges = np.array([[0, 2], [3, 8.5]])  # units: R_vir, log K
+    else:
+        ranges = np.array([[0, 2000], [3, 8.5]])  # units: kpc, log K
 
     pipeline_config.update(
         {
@@ -53,12 +59,13 @@ def main(args: argparse.Namespace) -> None:
             "forbid_tree": args.forbid_tree,
             "ranges": ranges,
             "core_only": args.core_only,
+            "normalize": args.normalize,
         }
     )
     if args.from_file:
         pipeline = IndividualProfilesFromFilePipeline(**pipeline_config)
     elif args.sim == "TNG-Cluster":
-        pipeline = IndivTemperatureTNGClusterPipeline(**pipeline_config)
+        pipeline = IndividualProfilesTNGClusterPipeline(**pipeline_config)
     else:
         pipeline = IndividualRadialProfilePipeline(**pipeline_config)
     pipeline.run()
@@ -111,6 +118,16 @@ if __name__ == "__main__":
         ),
         dest="core_only",
         action="store_true",
+    )
+    parser.add_argument(
+        "-a",
+        "--absolute-distances",
+        help=(
+            "Instead of normalizing all halocentric distances to the virial "
+            "radius of the cluster, use absolute distances in units of kpc."
+        ),
+        dest="normalize",
+        action="store_false",
     )
     parser.add_argument(
         "-tb",
