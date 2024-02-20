@@ -51,7 +51,7 @@ class UnitConverter:
             ],
         "sfrLike": ["GroupSFR"],
         "massFlowLike": ["GroupBHMdot"],
-        "unitless": ["count", "IDs"]
+        "unitless": ["count", "IDs", "GroupGasMetallicity"]
     }
 
     @classmethod

@@ -12,6 +12,7 @@ from typing import Any, Callable, ClassVar, TypeAlias
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import BoundaryNorm
+from matplotlib.lines import Line2D
 from numpy.typing import NDArray
 
 from library.config import config
@@ -66,6 +67,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             "SFR": self._get_cluster_sfr,
             "BHMass": self._get_cluster_bh_mass,
             "BHMdot": self._get_cluster_bh_mdot,
+            "GasMetallicity": self._get_cluster_gas_metallicity,
         }
 
     def run(self) -> int:
@@ -108,7 +110,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # Step 1: acquire base halo data
         base_file = self.paths["data_dir"] / self.base_filename
         if base_file.exists():
-            logging.info("Loading base data from file.")
+            logging.info("Found base data on file, loading it from there.")
             with np.load(base_file) as base_data:
                 halo_masses = base_data["halo_masses"]
                 cool_gas_fracs = base_data["cool_gas_fracs"]
@@ -437,10 +439,24 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 legend_label="TNG-Cluster",
                 marker_style="D",
             )
-        legend = axes.legend()
-        # make dots black
-        for handle in legend.legend_handles:
-            handle.set_color("black")
+        # set handles manually to avoid coloring them
+        tng300_handle = Line2D(
+            [], [],
+            color="black",
+            marker="o",
+            ls="",
+            markersize=3,
+            label="TNG300-1"
+        )
+        tngclstr_handle = Line2D(
+            [], [],
+            color="black",
+            marker="D",
+            ls="",
+            markersize=3,
+            label="TNG-Cluster"
+        )
+        axes.legend(handles=[tng300_handle, tngclstr_handle])
         self._save_fig(fig)
 
     def _get_cluster_sfr(self) -> ColorData:
@@ -522,14 +538,15 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         return bh_masses, {"cbar_label": label}
 
-    def _get_cluster_bh_mdot(self) -> ColorData:
+    def _get_cluster_bh_mode(self) -> ColorData:
         """
-        Return mass accretion of all clusters, plus aux data.
+        Return BH mode of all clusters, plus aux data.
 
         :return: Array of shape (632, ) of black hole mass accretion
             rate per cluster, and an appropriate color bar label and
             plot kwargs.
         """
+        raise NotImplementedError("Function for BH mode not finished yet.")
         logging.info("Loading BH accretion rate for TNG300-1 and TNG-Cluster.")
         bh_mdots = np.zeros(self.n_clusters)
 
@@ -564,6 +581,89 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         norm = BoundaryNorm(boundaries, ncolors=2)
 
         return bh_mdots, {"cbar_label": label, "norm": norm}
+
+    def _get_cluster_bh_mdot(self) -> ColorData:
+        """
+        Return mass accretion of all clusters, plus aux data.
+
+        :return: Array of shape (632, ) of black hole mass accretion
+            rate per cluster, and an appropriate color bar label and
+            plot kwargs.
+        """
+        logging.info("Loading BH accretion rate for TNG300-1 and TNG-Cluster.")
+        bh_mdots = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 BH accretion rates
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            ["GroupBHMdot", self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        bh_mdots[:self.n300] = cluster_data["GroupBHMdot"]
+
+        # load TNG-Cluster BH accretion rates
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            ["GroupBHMdot"],
+            cluster_restrict=True,
+        )
+        bh_mdots[self.n300:] = halo_data["GroupBHMdot"]
+
+        if self.color_log:
+            label = r"BH accretion rate [$\log (M_\odot / Gyr)$]"
+        else:
+            label = r"BH accretion rate [$M_\odot / Gyr$]"
+
+        return bh_mdots, {"cbar_label": label}
+
+    def _get_cluster_gas_metallicity(self) -> ColorData:
+        """
+        Return the gas matallicity of all clusters in TNG300-1 and TNG-Cluster.
+
+        Note that the metallicity will be returned in units of solar
+        metallicities, not in code units, which simply give the ratio
+        M_Z / M_tot.
+
+        :return: Array of shape (632, ) of SFRs, and an appropriate
+            color bar label for it and plot kwargs.
+        """
+        logging.info("Loading gas metallicity for TNG300-1 and TNG-Cluster.")
+        gas_z = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            ["GroupGasMetallicity", self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        gas_z[:self.n300] = cluster_data["GroupGasMetallicity"]
+
+        # load TNG-Cluster SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            ["GroupGasMetallicity"],
+            cluster_restrict=True,
+        )
+        gas_z[self.n300:] = halo_data["GroupGasMetallicity"]
+
+        # adjust units to solar units
+        gas_z /= 0.0127  # convert to solar units
+
+        # label
+        if self.color_log:
+            label = r"Gas metallicity [$\log Z_\odot$]"
+        else:
+            label = r"Gas metallicity [$Z_\odot$]"
+
+        return gas_z, {"cbar_label": label}
 
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
