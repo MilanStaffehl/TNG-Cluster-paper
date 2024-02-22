@@ -45,7 +45,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     radial_bins: int
     temperature_bins: int
     log: bool
-    forbid_tree: bool = True  # whether KDTree constructionp.savezn is allowed
+    forbid_tree: bool = True  # whether KDTree construction is allowed
     ranges: NDArray = np.array([[0, 2], [3, 8.5]])  # hist ranges
     core_only: bool = False
     normalize: bool = True
@@ -53,6 +53,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
     divisions: ClassVar[NDArray] = np.array([4.5, 5.5])  # in log K
 
     def __post_init__(self):
+        super().__post_init__()
         self.use_tree = not self.forbid_tree
         if self.config.sim_name == "TNG-Cluster":
             self.group_name = "cluster"
@@ -60,16 +61,26 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             self.group_name = "halo"
         # particle id directory and file suffix
         if self.core_only:
-            logging.info(
-                f"Received instruction to plot {self.what} profile of core "
-                f"only."
-            )
-            pid_dir = Path(self.paths["data_dir"]) / "particle_ids_core"
-            self.suffix = "_core"
+            if self.normalize:
+                logging.info(
+                    f"Received instruction to plot {self.what} profile of "
+                    f"core only."
+                )
+                pid_dir = Path(self.paths["data_dir"]) / "particle_ids_core"
+                self.suffix = "_core"
+            else:
+                logging.info(
+                    f"Received instructions to plot {self.what} profile of "
+                    f"core only, in absolute units."
+                )
+                # use full halo particles, since for low-mass clusters
+                # the 100kpc extend beyond 5% of the virial radius:
+                pid_dir = Path(self.paths["data_dir"]) / "particle_ids"
+                self.suffix = "_core"
         else:
             logging.info(
                 f"Received instructions to plot {self.what} profile for full "
-                f"halo."
+                f"halo (possibly in absolute distance units)."
             )
             pid_dir = Path(self.paths["data_dir"]) / "particle_ids"
             self.suffix = ""
@@ -600,6 +611,9 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             the chosen halo, i.e. are within 2 R_vir of the halo center.
         """
         suffix = self.suffix.removesuffix("_absolute")
+        if self.core_only and not self.normalize:
+            # also remove the "_core" suffix as all particles are used
+            suffix = suffix.removesuffix("_core")
         # find all particles within 2 * R_vir
         if self.use_tree:
             neighbors = positions_tree.query_ball_point(
@@ -650,7 +664,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         if self.normalize:
             xlabel = r"Distance from halo center [$R_{200c}$]"
         else:
-            xlabel = r"Distance from halo center [$Mpc$]"
+            xlabel = r"Distance from halo center [$kpc$]"
         with np.errstate(invalid="ignore", divide="ignore"):
             if self.log:
                 plot_radial_profiles.plot_2d_radial_profile(
