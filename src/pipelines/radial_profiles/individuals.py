@@ -279,11 +279,13 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                 f"{self.part_id_dir}. Did you delete or move the directory?"
             )
             available_ids = set()
+
+        suffix = self.suffix.removesuffix("_absolute")
+        if self.core_only and not self.normalize:
+            # also remove the "_core" suffix as all particles are used:
+            suffix = suffix.removesuffix("_core")
         required_ids = set(
-            [
-                f"particles_halo_{i}{self.suffix.removesuffix('_absolute')}"
-                for i in selected_halos["ids"]
-            ]
+            [f"particles_halo_{i}{suffix}" for i in selected_halos["ids"]]
         )
 
         # check whether all halos have particle ID files available
