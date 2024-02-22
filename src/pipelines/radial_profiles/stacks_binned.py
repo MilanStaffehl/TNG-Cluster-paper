@@ -44,6 +44,7 @@ class StackProfilesBinnedPipeline(Pipeline):
     n_clusters: ClassVar[int] = 632  # total number of clusters
 
     def __post_init__(self):
+        super().__post_init__()
         if self.core_only:
             self.suffix = "_core"
         else:

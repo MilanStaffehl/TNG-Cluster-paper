@@ -3,12 +3,12 @@ Base classes for pipelines.
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 import logging.config
 import time
 import tracemalloc
 from abc import abstractmethod
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, Sequence
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from library.config import config  # noqa: F401
 
 
-@dataclass
+@dataclasses.dataclass
 class Pipeline:
     """
     Base class for pipelines.
@@ -43,6 +43,14 @@ class Pipeline:
     to_file: bool
     no_plots: bool
     fig_ext: Literal["pdf", "svg", "png", "jpeg", "jpg", "tif", "esp", "ps"]
+
+    def __post_init__(self):
+        # diagnostic log of all params
+        args = [f"{f}: {v}" for f, v in dataclasses.asdict(self).items()]
+        args_as_list = "\n".join(args)
+        logging.debug(
+            f"Received the following pipeline parameters:\n{args_as_list}"
+        )
 
     @abstractmethod
     def run(self) -> int:
@@ -210,6 +218,9 @@ class DiagnosticsPipeline(Pipeline):
     logging level MEMLOG of severity 18. It also offers a handy method
     that combines timing and memory usage information.
     """
+
+    def __post_init__(self):
+        return super().__post_init__()
 
     @abstractmethod
     def run(self) -> int:
