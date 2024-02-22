@@ -47,17 +47,21 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     log: bool = False
     color_log: bool = False
     forbid_recalculation: bool = True
+    core_only: bool = False
 
     n_clusters: ClassVar[int] = 632
     n300: ClassVar[int] = 280  # number of clusters in TNG300-1
     nclstr: ClassVar[int] = 352  # number of clusters in TNG-Cluster
-    base_filename: ClassVar[str] = "mass_trends_clusters_base_data.npz"
 
     def __post_init__(self):
+        # file paths
+        core = "_core" if self.core_only else ""
+        self.base_filename = f"mass_trends_clusters{core}_base_data.npz"
         data_root = self.config.data_home
+        id_subdir = "particle_ids_core" if self.core_only else "particle_ids"
         self.part_id_dir = (
             data_root / "radial_profiles" / "individuals" / "TNG300_1"
-            / "particle_ids"
+            / id_subdir
         )
         self.tng300_basepath = config.get_simulation_base_path("TNG300-1")
         self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
@@ -202,12 +206,13 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # Step 5: Loop through clusters in TNG300-1
         logging.info("Begin processing TNG300-1 halos to get gas fraction.")
         log_level = logging.getLogger("root").level
+        core = "_core" if self.core_only else ""
         for i, halo_id in enumerate(cluster_data["IDs"]):
             if log_level <= 15:
                 print(f"Processing halo {halo_id} ({i + 1} / 280).", end="\r")
             # Step 5.1: Select cells within 2R_vir, mask masses & temps
             neighbors = np.load(
-                self.part_id_dir / f"particles_halo_{halo_id}.npy"
+                self.part_id_dir / f"particles_halo_{halo_id}{core}.npy"
             )
             cur_masses = masses[neighbors]
             cur_temps = temperatures[neighbors]
@@ -268,9 +273,10 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 gas_data["Coordinates"] - cluster_data["GroupPos"][i], axis=1
             ) / cluster_data[self.config.radius_field][i]
 
-            # Step 7.3: Restrict masses and temperatures to 2R_vir
-            cur_masses = gas_data["Masses"][gas_distances <= 2.0]
-            cur_temps = cluster_temperatures[gas_distances <= 2.0]
+            # Step 7.3: Restrict masses and temperatures
+            limit = 0.05 if self.core_only else 2.0
+            cur_masses = gas_data["Masses"][gas_distances <= limit]
+            cur_temps = cluster_temperatures[gas_distances <= limit]
             # TODO: check if gas_data can be deleted here already
             del cluster_temperatures, gas_distances  # clean-up
 
@@ -319,14 +325,18 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         cool_gas_fracs = np.zeros(self.n_clusters)
 
         data_path = self.config.data_home / "radial_profiles" / "individuals"
+        subdir_name = "density_profiles"
+        if self.core_only:
+            subdir_name += "_core"
 
-        edges = np.linspace(0, 2, num=51, endpoint=True)
+        limit = 0.05 if self.core_only else 2.0
+        edges = np.linspace(0, limit, num=51, endpoint=True)
         shell_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
 
         # load data for TNG300-1
         logging.info("Loading data for TNG300-1.")
         halo_loader = load_radial_profiles.load_individuals_1d_profile(
-            data_path / "TNG300_1" / "density_profiles", (50, )
+            data_path / "TNG300_1" / subdir_name, (50, )
         )
         idx = 0
         for halo_data in halo_loader:
@@ -339,7 +349,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # load data for TNG-Cluster
         logging.info("Loading data for TNG-Cluster.")
         halo_loader = load_radial_profiles.load_individuals_1d_profile(
-            data_path / "TNG_Cluster" / "density_profiles", (50, )
+            data_path / "TNG_Cluster" / subdir_name, (50, )
         )
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]

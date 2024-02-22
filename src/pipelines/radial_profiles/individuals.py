@@ -599,6 +599,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :return: The array of list indices of particles which belong to
             the chosen halo, i.e. are within 2 R_vir of the halo center.
         """
+        suffix = self.suffix.removesuffix("_absolute")
         # find all particles within 2 * R_vir
         if self.use_tree:
             neighbors = positions_tree.query_ball_point(
@@ -611,13 +612,12 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                     f"Saving particle indices of halo {halo_id} to file."
                 )
                 np.save(
-                    self.part_id_dir
-                    / f"particles_halo_{halo_id}{self.suffix}.npy",
+                    self.part_id_dir / f"particles_halo_{halo_id}{suffix}.npy",
                     neighbors
                 )
         else:
             neighbors = np.load(
-                self.part_id_dir / f"particles_halo_{halo_id}{self.suffix}.npy"
+                self.part_id_dir / f"particles_halo_{halo_id}{suffix}.npy"
             )
         return neighbors
 
