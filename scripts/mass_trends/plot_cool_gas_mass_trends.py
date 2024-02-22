@@ -20,6 +20,8 @@ def main(args: argparse.Namespace) -> None:
         type_flag = "clusters"
     else:
         type_flag = f"clusters_{args.color_field.lower()}"
+    if args.core_only:
+        type_flag += "_core"
 
     pipeline_config = scriptparse.startup(
         args,
@@ -35,6 +37,7 @@ def main(args: argparse.Namespace) -> None:
             "color_log": args.color_log,
             "color_field": args.color_field,
             "forbid_recalculation": args.forbid_recalculation,
+            "core_only": args.core_only,
         }
     )
 
@@ -89,6 +92,16 @@ if __name__ == "__main__":
             "from the radial density profile histograms."
         ),
         dest="forbid_recalculation",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-cc",
+        "--cluster-core",
+        help=(
+            "Limit the cool gas fraction to only consider gas in the cluster "
+            "core (that is within 5%% of the virial radius)."
+        ),
+        dest="core_only",
         action="store_true",
     )
 

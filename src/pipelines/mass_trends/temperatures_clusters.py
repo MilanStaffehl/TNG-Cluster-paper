@@ -43,7 +43,6 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     """
 
     color_field: str | None
-    field_idx: int = -1
     log: bool = False
     color_log: bool = False
     forbid_recalculation: bool = True
@@ -54,6 +53,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     nclstr: ClassVar[int] = 352  # number of clusters in TNG-Cluster
 
     def __post_init__(self):
+        super().__post_init__()
         # file paths
         core = "_core" if self.core_only else ""
         self.base_filename = f"mass_trends_clusters{core}_base_data.npz"
@@ -387,12 +387,19 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         logging.info("Plotting cool gas fraction mass trend for clusters.")
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
-        axes.set_ylabel("Cool gas fraction")
+        if self.core_only:
+            axes.set_ylabel(r"Cool gas fraction within $0.05R_{200c}$")
+        else:
+            axes.set_ylabel(r"Cool gas fraction within $2R_{200c}$")
+
         if self.log:
             axes.set_yscale("log")
             logging.debug(f"Smallest gas frac value: {np.min(gas_fraction)}")
-            # make zero-values visible
-            gas_fraction[gas_fraction == 0] = 1e-7
+            # make zero-values visible; scatter them a little
+            rng = np.random.default_rng(42)
+            n_zeros = len(gas_fraction) - np.count_nonzero(gas_fraction)
+            randnums = np.power(5, rng.random(n_zeros))
+            gas_fraction[gas_fraction == 0] = 1e-7 * randnums
 
         if colored_quantity is not None:
             logging.info(f"Coloring scatter points by {self.color_field}.")
