@@ -68,7 +68,8 @@ if __name__ == "__main__":
         "--color-log",
         help=(
             "When used, the given field will be plotted in log scale in "
-            "color space. Has no effect when --field is not set."
+            "color space. Has no effect when --field is not set or when using "
+            "--load-data."
         ),
         dest="color_log",
         action="store_true",

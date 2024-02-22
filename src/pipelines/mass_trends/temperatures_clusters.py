@@ -137,7 +137,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             # since there is color data, save it to file
             logging.info(f"Writing color data {self.color_field} to file.")
-            filename = f"{self.paths['data_file_stem']}_{self.color_field}.npy"
+            filename = f"{self.paths['data_file_stem']}.npy"
             np.save(self.paths["data_dir"] / filename, color_quantity)
 
         # Step 3: plot data
@@ -688,12 +688,15 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
     Pipeline to plot the gas fraction vs. mass trend from file.
     """
 
+    def __post_init__(self):
+        super().__post_init__()
+
     def run(self) -> int:
         """Load data from file"""
-        raise NotImplementedError("Currently unavailable.")
         self._verify_directories()
 
         # load base data
+        logging.info("Loading base data from file.")
         base_file = self.paths["data_dir"] / self.base_filename
         if not base_file.exists():
             logging.fatal(f"Base data file {base_file} does not exist!")
@@ -703,23 +706,85 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             halo_masses = base_data["halo_masses"]
             cool_gas_fracs = base_data["cool_gas_fracs"]
 
-        # check if any color data is loaded
-        if self.color_field is None:
-            self._plot(halo_masses, cool_gas_fracs, None, None)
-            return 0
+        # adjust zero-values
+        if self.log:
+            # make zero-values visible; scatter them a little
+            rng = np.random.default_rng(42)
+            n_zeros = len(cool_gas_fracs) - np.count_nonzero(cool_gas_fracs)
+            randnums = np.power(5, rng.random(n_zeros))
+            cool_gas_fracs[cool_gas_fracs == 0] = 1e-7 * randnums
 
-        # Load color data
-        color_fname = f"{self.paths['data_file_stem']}_{self.color_field}.npy"
-        color_file = self.paths["data_dir"] / color_fname
-        if not color_file.exists():
-            logging.fatal(
-                f"File for color data {color_file} does not exist yet. Run "
-                f"the pipeline without the --load flag first to generate it."
+        # create a figure and plot the data
+        logging.info("Plotting scatter plots.")
+        fig, axes = plt.subplots(figsize=(10, 6), ncols=2, nrows=2, sharex=True, sharey=True)
+        flat_axes = axes.flatten()
+        # axes config
+        if self.core_only:
+            ylabel = r"Cool gas fraction within $0.05 R_{200c}$"
+        else:
+            ylabel = r"Cool gas fraction within $2 R_{200c}$"
+        axes[0, 0].set_ylabel(ylabel)
+        axes[1, 0].set_ylabel(ylabel)
+        axes[1, 0].set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
+        axes[1, 1].set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
+        if self.log:
+            for axes in flat_axes:
+                axes.set_yscale("log")
+
+        # config for the fields
+        cbar_conf = {
+            # values pairs: cbar_label, whether to plot color in log scale
+            "SFR": (r"SFR [$\log(M_\odot / yr)$]", True),
+            "GasMetallicity": (r"Gas metallicity [$Z_\odot$]", False),
+            "BHMass": (r"BH mass [$\log M_\odot$]", True),
+            "BHMdot": (r"BH accretion rate [$\log (M_\odot / Gyr)$]", True),
+        }
+
+        for i, fieldname in enumerate(self.field_generators.keys()):
+            # load the quantity to plot
+            logging.info(f"Loading field {fieldname} data.")
+            stem = self.paths["data_file_stem"].replace(
+                "clusters", f"clusters_{fieldname.lower()}"
             )
-            return 2
-        color_data = np.load(color_file)
+            filename = f"{stem}.npy"
+            filepath = self.paths["data_dir"] / filename
+            if not filepath.exists():
+                logging.error(
+                    f"Could not find the data for field {fieldname} under "
+                    f"{filepath}. Skipping."
+                )
+                continue
+            colored_quantity = np.load(filepath)
+            if cbar_conf[fieldname][1]:
+                colored_quantity = np.log10(colored_quantity)
 
-        # TODO: fix this: label and norm must be retrieved differently
-        label = self._get_cbar_label(self.color_field)
-        self._plot(halo_masses, cool_gas_fracs, color_data, label=label)
-        return 0
+            # determine min and max of colorbar values
+            cbar_min = np.min(colored_quantity)
+            cbar_max = np.max(colored_quantity)
+
+            # plot TNG300 data
+            common.plot_scatterplot(
+                fig,
+                flat_axes[i],
+                np.log10(halo_masses[:self.n300]),
+                cool_gas_fracs[:self.n300],
+                colored_quantity[:self.n300],
+                legend_label="TNG300-1",
+                marker_style="o",
+                cbar_label=cbar_conf[fieldname][0],
+                cbar_range=[cbar_min, cbar_max],
+            )
+            # plot TNG-Cluster data
+            common.plot_scatterplot(
+                fig,
+                flat_axes[i],
+                np.log10(halo_masses[self.n300:]),
+                cool_gas_fracs[self.n300:],
+                colored_quantity[self.n300:],
+                legend_label="TNG-Cluster",
+                marker_style="D",
+                suppress_colorbar=True,
+                cbar_range=[cbar_min, cbar_max],
+            )
+
+        self._save_fig(fig, ident_flag="combined")
