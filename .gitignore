@@ -43,7 +43,8 @@ scripts/**/batch/output/
 
 # temporary scripts
 scripts/tmp*.py
-scripts/*tmp.py
+scripts/*tmp.*
+scripts/**/*tmp.*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
