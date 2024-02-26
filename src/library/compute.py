@@ -17,7 +17,7 @@ def get_temperature_vectorized(
     internal_energy: float | NDArray,
     electron_abundance: float | NDArray,
     star_formation_rate: float | NDArray
-) -> NDArray:
+) -> float | NDArray:
     """
     Return the temperature of the cell(s) given.
 
@@ -78,7 +78,7 @@ def get_temperature(
 @np.vectorize
 def get_virial_temperature(
     mass: float | NDArray, radius: float | NDArray
-) -> NDArray:
+) -> float | NDArray:
     """
     Return the virial temperature of a halo with the given mass and radius.
 
