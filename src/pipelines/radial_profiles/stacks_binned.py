@@ -401,7 +401,10 @@ class StackProfilesBinnedPipeline(Pipeline):
         # fig.set_tight_layout(True)
         flat_axes = axes.flatten()
         # common axes labels
-        fig.supxlabel(r"Distance from halo center [$R_{200c}$]")
+        if self.normalize:
+            fig.supxlabel(r"Distance from halo center [$R_{200c}$]")
+        else:
+            fig.supxlabel("Distance from halo center [kpc]")
         fig.supylabel(r"Temperature [$\log K$]")
 
         xrange = edges[1] - edges[0]
@@ -481,7 +484,10 @@ class StackProfilesBinnedPipeline(Pipeline):
         :return: The figure and axes with the plot.
         """
         fig, axes = plt.subplots(figsize=(5, 5))
-        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        if self.normalize:
+            axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        else:
+            axes.set_xlabel("Distance from halo center [kpc]")
         axes.set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
         if self.log:
             axes.set_yscale("log")
@@ -714,7 +720,10 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
         :return: The figure and axes with the plot.
         """
         fig, axes = plt.subplots(figsize=(4.5, 4.5))
-        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        if self.normalize:
+            axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        else:
+            axes.set_xlabel("Distance from halo center [kpc]")
         axes.set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
         if self.core_only:
             axes.set_ylim((1e1, 1e8))

@@ -716,17 +716,17 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
 
         # create a figure and plot the data
         logging.info("Plotting scatter plots.")
-        fig, axes = plt.subplots(figsize=(10, 6), ncols=2, nrows=2, sharex=True, sharey=True)
+        fig, axes = plt.subplots(figsize=(10, 6), ncols=2, nrows=2)
+        fig.set_tight_layout(True)
         flat_axes = axes.flatten()
         # axes config
         if self.core_only:
-            ylabel = r"Cool gas fraction within $0.05 R_{200c}$"
+            ylabel = r"Cool gas fraction($< 0.05 R_{200c}$)"
         else:
-            ylabel = r"Cool gas fraction within $2 R_{200c}$"
-        axes[0, 0].set_ylabel(ylabel)
-        axes[1, 0].set_ylabel(ylabel)
-        axes[1, 0].set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
-        axes[1, 1].set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
+            ylabel = r"Cool gas fraction ($< 2 R_{200c}$)"
+        for ax in flat_axes:
+            ax.set_ylabel(ylabel)
+            ax.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
         if self.log:
             for axes in flat_axes:
                 axes.set_yscale("log")
