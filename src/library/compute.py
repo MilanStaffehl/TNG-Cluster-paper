@@ -118,3 +118,30 @@ def get_virial_temperature_only_mass(mass: float | NDArray) -> NDArray:
     :return: virial temperature of the halo in K
     """
     return 4e5 * (mass / (1e11 * HUBBLE**(-1)))**(2 / 3) / 3
+
+
+def get_radial_velocities(
+    center: NDArray, positions: NDArray, velocities: NDArray
+) -> NDArray:
+    """
+    Calcuate the radial velocities in direction of ``center``.
+
+    The returned array is the radial velocities. Positive value denote
+    velocities towards the center, negative velocities denote velocities
+    away from the center.
+
+    :param center: Position vector of the center of the sphere, shape
+        (3, ).
+    :param positions: Array of position vectors of the objects whose
+        radial velocity to find. Shape (N, 3).
+    :param velocities: Array of velocity vectors of the objects for
+        which to find the radial velocity w.r.t. center. Shape (N, 3).
+    :return: Array of shape (N, ) of velocity components of the given
+        velocities in direction of the center. Positive values denote
+        velocity towards center, negative values denote velocity away
+        from center.
+    """
+    radial_vectors = center - positions
+    norms = np.linalg.norm(radial_vectors, axis=1)
+    unit_vectors = np.divide(radial_vectors, norms[:, np.newaxis])
+    return np.sum(velocities * unit_vectors, axis=1)  # pair-wise dot product

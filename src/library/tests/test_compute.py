@@ -82,3 +82,16 @@ def test_compute_get_temperature_vectorized_non_zero_sfr():
 
 
 # TODO: tests for virial temperature function
+
+
+def test_compute_get_radial_velocities():
+    """
+    Test the function that returns radial velocities
+    """
+    test_center = np.array([1, 2])
+    pos = np.array([[2, 2], [2, 3], [2, 1], [1, 1], [1, 3]])
+    vel = np.array([[0, 1], [1, 1], [-1, 1], [1, -1], [1, -1]])
+    expected = np.array([0, -np.sqrt(2), np.sqrt(2), -1, 1])
+
+    output = compute.get_radial_velocities(test_center, pos, vel)
+    np.testing.assert_allclose(output, expected, rtol=1e-4)

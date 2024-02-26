@@ -26,6 +26,7 @@ def plot_1d_radial_profile(
     xlims: tuple[float, float] = (0, 2),
     color: str | Sequence[float] = "black",
     label: str | None = None,
+    linestyle: str = "solid",
 ) -> Axes:
     """
     Plot and return a radial profile given as a histogram.
@@ -53,6 +54,7 @@ def plot_1d_radial_profile(
     :param label: A label for the plot. Not that the legend will not
         be created by default and must be created on the axes by
         calling ``axes.legend()``.
+    :param linestyle: The linestyle for the histogram.
     :return: The axes with the histogrm added to it; returned for
         convenience, axes is altered in place.
     """
@@ -70,6 +72,7 @@ def plot_1d_radial_profile(
         "histtype": "step",
         "color": color,
         "log": log,
+        "linestyle": linestyle,
     }
     if label:
         plot_config.update({"label": label})

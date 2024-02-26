@@ -125,6 +125,14 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         tracemalloc.start()
         begin = time.time()
 
+        # Step zero-and-a-half: warn if memory intensive
+        if self.what == "density" and not self.forbid_tree:
+            logging.warning(
+                "Was instructed to plot density while tree construction was "
+                "not explicitly forbidden. If a tree needs to be constructed, "
+                "this will lead to more than 1.5 GB memory use!"
+            )
+
         # Step 1: acquire halo data
         fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
         halo_data = halos_daq.get_halo_properties(
@@ -207,10 +215,13 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         )
 
         # Step 6: Load gas cell position and mass data
+        fields = ["Coordinates", "Masses"]
+        if self.what == "density":
+            fields.append("Velocities")
         gas_data = gas_daq.get_gas_properties(
             self.config.base_path,
             self.config.snap_num,
-            fields=["Coordinates", "Masses"],
+            fields=fields,
         )
         gas_data["Temperatures"] = temps
         # diagnostics
@@ -424,18 +435,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         positions_tree: KDTree | None,
     ) -> None:
         """
-        Process a single halo into a density radial profile.
-
-        Steps:
-
-        1. Query gas cells for neighbors (either using KDTree or pre-
-           saved particle IDs)
-        2. Bin gas by temperature.
-        3. Create a histogram of mass vs. distance for total and for
-           binned gas.
-        4. Normalize every bin by the shell volume to get density.
-        5. Save figure and data to file.
-        6. Discard data in memory.
+        Process a single halo into a density profile, split by radial velocity.
 
         :param halo_id: The ID of the halo.
         :param halo_position: The 3D vector pointing to the position
@@ -450,6 +450,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             simulation. Otherwise, it can be set to None.
         :return: None
         """
+        logging.debug(f"Processing halo {halo_id} into plot.")
         restricted_gas_data = self._restrict_gas_data_to_halo(
             gas_data, halo_id, halo_position, virial_radius, positions_tree
         )
@@ -459,40 +460,87 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             np.log10(restricted_gas_data["Temperatures"]),
             self.temperature_bins,
         )
+        cool_gas_data = selection.mask_data_dict(
+            restricted_gas_data, mask, index=1
+        )
+        warm_gas_data = selection.mask_data_dict(
+            restricted_gas_data, mask, index=2
+        )
+        hot_gas_data = selection.mask_data_dict(
+            restricted_gas_data, mask, index=3
+        )
 
-        # create a total density profile
-        total, edges = statistics.volume_normalized_radial_profile(
-            restricted_gas_data["Distances"],
-            restricted_gas_data["Masses"],
+        # create a total density profile of infalling gas
+        infall_mask = restricted_gas_data["RadialVelocities"] >= 0
+        outflow_mask = restricted_gas_data["RadialVelocities"] < 0
+        total_in, edges = statistics.volume_normalized_radial_profile(
+            restricted_gas_data["Distances"][infall_mask],
+            restricted_gas_data["Masses"][infall_mask],
+            self.radial_bins,
+            virial_radius if self.normalize else None,
+            radial_range=self.ranges[0],
+        )
+        total_out, _ = statistics.volume_normalized_radial_profile(
+            restricted_gas_data["Distances"][outflow_mask],
+            restricted_gas_data["Masses"][outflow_mask],
             self.radial_bins,
             virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
 
         # create density profile for cool gas
-        masses = restricted_gas_data["Masses"]
-        cool, _ = statistics.volume_normalized_radial_profile(
-            selection.mask_quantity(restricted_gas_data["Distances"], mask, index=1),
-            selection.mask_quantity(masses, mask, index=1),
+        infall_mask = cool_gas_data["RadialVelocities"] >= 0
+        outflow_mask = cool_gas_data["RadialVelocities"] < 0
+        cool_in, _ = statistics.volume_normalized_radial_profile(
+            cool_gas_data["Distances"][infall_mask],
+            cool_gas_data["Masses"][infall_mask],
             self.radial_bins,
             virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
-        warm, _ = statistics.volume_normalized_radial_profile(
-            selection.mask_quantity(restricted_gas_data["Distances"], mask, index=2),
-            selection.mask_quantity(masses, mask, index=2),
+        cool_out, _ = statistics.volume_normalized_radial_profile(
+            cool_gas_data["Distances"][outflow_mask],
+            cool_gas_data["Masses"][outflow_mask],
             self.radial_bins,
             virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
-        hot, _ = statistics.volume_normalized_radial_profile(
-            selection.mask_quantity(restricted_gas_data["Distances"], mask, index=3),
-            selection.mask_quantity(masses, mask, index=3),
+
+        # create density profile for warm gas
+        infall_mask = warm_gas_data["RadialVelocities"] >= 0
+        outflow_mask = warm_gas_data["RadialVelocities"] < 0
+        warm_in, _ = statistics.volume_normalized_radial_profile(
+            warm_gas_data["Distances"][infall_mask],
+            warm_gas_data["Masses"][infall_mask],
             self.radial_bins,
             virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
-        # np.testing.assert_allclose(total, hot + cool + warm, rtol=0.03)
+        warm_out, _ = statistics.volume_normalized_radial_profile(
+            warm_gas_data["Distances"][outflow_mask],
+            warm_gas_data["Masses"][outflow_mask],
+            self.radial_bins,
+            virial_radius if self.normalize else None,
+            radial_range=self.ranges[0],
+        )
+
+        # create density profile for hot gas
+        infall_mask = hot_gas_data["RadialVelocities"] >= 0
+        outflow_mask = hot_gas_data["RadialVelocities"] < 0
+        hot_in, _ = statistics.volume_normalized_radial_profile(
+            hot_gas_data["Distances"][infall_mask],
+            hot_gas_data["Masses"][infall_mask],
+            self.radial_bins,
+            virial_radius if self.normalize else None,
+            radial_range=self.ranges[0],
+        )
+        hot_out, _ = statistics.volume_normalized_radial_profile(
+            hot_gas_data["Distances"][outflow_mask],
+            hot_gas_data["Masses"][outflow_mask],
+            self.radial_bins,
+            virial_radius if self.normalize else None,
+            radial_range=self.ranges[0],
+        )
 
         # write data to file
         if self.to_file:
@@ -506,24 +554,31 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             )
             np.savez(
                 filepath / filename,
-                total_histogram=total,
+                total_inflow=total_in,
+                total_outflow=total_out,
+                cool_inflow=cool_in,
+                cool_outflow=cool_out,
+                warm_inflow=warm_in,
+                warm_outflow=warm_out,
+                hot_inflow=hot_in,
+                hot_outflow=hot_out,
                 edges=edges,
-                cool_histogram=cool,
-                warm_histogram=warm,
-                hot_histogram=hot,
                 halo_id=halo_id,
                 halo_mass=halo_mass,
+                halo_position=halo_position,
             )
 
         # plot
         self._plot_density_profile(
             halo_id,
             halo_mass,
-            total,
             edges,
-            hot,
-            warm,
-            cool,
+            total_in,
+            total_out,
+            cool_in,
+            cool_out,
+            warm_in,
+            warm_out,
         )
 
     def _restrict_gas_data_to_halo(
@@ -582,6 +637,27 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             assert np.max(part_distances) <= self.ranges[0, 1]
 
         restricted_gas_data.update({"Distances": part_distances})
+
+        # update with radial velocities
+        if "Velocities" in gas_data.keys():
+            # calculate radial velocities
+            radial_vel = compute.get_radial_velocities(
+                halo_pos,
+                restricted_gas_data["Coordinates"],
+                restricted_gas_data["Velocities"]
+            )
+            restricted_gas_data.update({"RadialVelocities": radial_vel})
+            if self.to_file:
+                logging.debug(
+                    f"Writing radial velocities of halo {halo_id} to file."
+                )
+                filename = f"radial_velocity_halo_{halo_id}.npy"
+                filepath = (
+                    self.config.data_home / "particle_velocities"
+                    / self.config.sim_path
+                )
+                np.save(filepath / filename, radial_vel)
+
         return restricted_gas_data
 
     def _query_for_neighbors(
@@ -722,26 +798,26 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         self,
         halo_id: int,
         halo_mass: float,
-        total_histogram: NDArray,
         edges: NDArray,
-        hot_histogram: NDArray,
-        warm_histogram: NDArray,
-        cool_histogram: NDArray,
+        total_inflow: NDArray,
+        total_outflow: NDArray,
+        cool_inflow: NDArray,
+        cool_outflow: NDArray,
+        warm_inflow: NDArray,
+        warm_outflow: NDArray,
     ) -> None:
         """
-        Plot the density histogram of a single halo.
+        Plot the density profile of a halo split by radial velocity.
 
         :param halo_id: ID of the halo to plot.
         :param halo_mass: Mass of the halo in solar masses.
-        :param total_histogram: The histogram of density vs distance for
-            all gas particles of the halo.
-        :param edges: The edges of the histogram bins.
-        :param hot_histogram: The histogram of density vs. distance only
-            for the hot gas.
-        :param warm_histogram: The histogram of density vs. distance only
-            for the warm gas.
-        :param cool_histogram: The histogram of density vs. distance only
-            for the cool gas.
+        :param edges: The bin edges of the radial bins.
+        :param total_inflow: Density histogram of the total inflowing gas.
+        :param total_outflow: Density histogram of the total outflowing gas.
+        :param cool_inflow: Density histogram of the cool inflowing gas.
+        :param cool_outflow: Density histogram of the cool outflowing gas.
+        :param warm_inflow: Density histogram of the warm inflowing gas.
+        :param warm_outflow: Density histogram of the warm outflowing gas.
         :return: None
         """
         fig, axes = plt.subplots(figsize=(4, 4))
@@ -757,47 +833,93 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         else:
             xlabel = r"Distance from halo center [$kpc$]"
 
+        # total gas content, both split and summed
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
-            total_histogram,
+            total_inflow + total_outflow,
             edges,
             xlims=ranges,
             log=self.log,
             title=title,
             xlabel=xlabel,
         )
-        # Removed: hot line is visually indistinguishable from total
-        # plot_radial_profiles.plot_1d_radial_profile(
-        #     axes,
-        #     hot_histogram,
-        #     edges,
-        #     xlims=ranges,
-        #     log=self.log,
-        #     label=r"Hot ($> 10^{5.5} K$)",
-        #     color=common.temperature_colors_named["hot"],
-        # )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
-            warm_histogram,
+            total_inflow,
+            edges,
+            xlims=ranges,
+            log=self.log,
+            linestyle="dotted",
+        )
+        plot_radial_profiles.plot_1d_radial_profile(
+            axes,
+            total_outflow,
+            edges,
+            xlims=ranges,
+            log=self.log,
+            linestyle="dashed",
+        )
+
+        # Warm gas, total, in- and outflow
+        plot_radial_profiles.plot_1d_radial_profile(
+            axes,
+            warm_inflow + warm_outflow,
             edges,
             xlims=ranges,
             log=self.log,
             label=r"Warm ($10^{4.5} - 10^{5.5} K$)",
             color=common.temperature_colors_named["warm"],
-            xlabel=xlabel,
         )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
-            cool_histogram,
+            warm_inflow,
+            edges,
+            xlims=ranges,
+            log=self.log,
+            color=common.temperature_colors_named["warm"],
+            linestyle="dotted",
+        )
+        plot_radial_profiles.plot_1d_radial_profile(
+            axes,
+            warm_outflow,
+            edges,
+            xlims=ranges,
+            log=self.log,
+            color=common.temperature_colors_named["warm"],
+            linestyle="dashed"
+        )
+
+        # Plot cool gas total, in- and outflow
+        plot_radial_profiles.plot_1d_radial_profile(
+            axes,
+            cool_inflow + cool_outflow,
             edges,
             xlims=ranges,
             log=self.log,
             label=r"Cool ($< 10^{4.5} K$)",
             color=common.temperature_colors_named["cool"],
-            xlabel=xlabel,
         )
-        axes.legend(fontsize=10, frameon=False)
+        plot_radial_profiles.plot_1d_radial_profile(
+            axes,
+            cool_inflow,
+            edges,
+            xlims=ranges,
+            log=self.log,
+            color=common.temperature_colors_named["cool"],
+            linestyle="dotted",
+        )
+        plot_radial_profiles.plot_1d_radial_profile(
+            axes,
+            cool_outflow,
+            edges,
+            xlims=ranges,
+            log=self.log,
+            color=common.temperature_colors_named["cool"],
+            xlabel=xlabel,
+            linestyle="dashed",
+        )
 
+        axes.legend(fontsize=10, frameon=False)
         # save
         supplementary = f"{self.group_name}_{halo_id}"
         self._save_fig(
@@ -860,6 +982,10 @@ class IndividualProfilesFromFilePipeline(IndividualRadialProfilePipeline):
         for halo_data in load_generator:
             if self.what == "temperature":
                 halo_data.pop("original_histogram")
+            elif self.what == "density":
+                halo_data.pop("halo_position")
+                halo_data.pop("hot_inflow")
+                halo_data.pop("hot_outflow")
             plotting_func(**halo_data)
         logging.info("Done! Finished plotting individual halo profiles.")
 
@@ -926,9 +1052,9 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
         )
 
         # Step 3: Loop through halos
-        logging.info("Start processing individual halos.")
+        logging.info("Start processing individual clusters.")
         for i, halo_id in enumerate(halo_data["IDs"]):
-            logging.debug(f"Processing halo {halo_id} ({i}/352).")
+            logging.debug(f"Processing cluster {halo_id} ({i}/352).")
             # Step 3.1: Load gas cell data for temperature
             gas_temperatures = gas_daq.get_cluster_temperature(
                 halo_id,
@@ -937,10 +1063,13 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
             )
 
             # Step 3.2: Load gas cell position data, calculate distance
+            fields = ["Coordinates", "Masses"]
+            if self.what == "density":
+                fields.append("Velocities")
             gas_data = gas_daq.get_gas_properties(
                 self.config.base_path,
                 self.config.snap_num,
-                fields=["Coordinates", "Masses"],
+                fields=fields,
                 cluster=halo_id,
             )
             gas_distances = np.linalg.norm(
@@ -967,6 +1096,17 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
                     None,
                 )
             elif self.what == "density":
+                # add in the radial velocities
+                logging.debug(
+                    f"Calculating radial velocity for "
+                    f"{len(gas_data['Velocities'])} gas cells."
+                )
+                radial_velocities = compute.get_radial_velocities(
+                    halo_data["GroupPos"][i],
+                    gas_data["Coordinates"],
+                    gas_data["Velocities"],
+                )
+                gas_data.update({"RadialVelocities": radial_velocities})
                 self._process_halo_density_profile(
                     halo_id,
                     halo_data["GroupPos"][i],

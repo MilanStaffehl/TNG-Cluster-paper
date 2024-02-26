@@ -251,13 +251,18 @@ def load_individuals_1d_profile(
         with np.load(filename) as data_file:
             # construct dictionary
             halo_data = {
-                "total_histogram": data_file["total_histogram"],
-                "hot_histogram": data_file["hot_histogram"],
-                "warm_histogram": data_file["warm_histogram"],
-                "cool_histogram": data_file["cool_histogram"],
+                "total_inflow": data_file["total_inflow"],
+                "total_outflow": data_file["total_outflow"],
+                "cool_inflow": data_file["cool_inflow"],
+                "cool_outflow": data_file["cool_outflow"],
+                "warm_inflow": data_file["warm_inflow"],
+                "warm_outflow": data_file["warm_outflow"],
+                "hot_inflow": data_file["hot_inflow"],
+                "hot_outflow": data_file["hot_outflow"],
                 "edges": data_file["edges"],
                 "halo_id": data_file["halo_id"],
                 "halo_mass": data_file["halo_mass"],
+                "halo_position": data_file["halo_position"],
             }
 
         # if data verification is undesired, yield data right away
@@ -269,11 +274,13 @@ def load_individuals_1d_profile(
         if isinstance(expected_shape, int):
             expected_shape = (expected_shape, )
         any_failures = False
-        for hist in ["total", "hot", "warm", "cool"]:
-            if (s := halo_data[f"{hist}_histogram"].shape) != expected_shape:
+        for field, hist in halo_data.items():
+            if field in ["edges", "halo_id", "halo_mass", "halo_position"]:
+                continue
+            if (s := hist.shape) != expected_shape:
                 logging.error(
-                    f"Halo {halo_data['halo_id']} has {hist} histogram data "
-                    f"not matching the expected shape: Expected shape "
+                    f"Halo {halo_data['halo_id']} has {field} data not "
+                    f"matching the expected shape: Expected shape "
                     f"{expected_shape} but got {s} instead."
                 )
                 if fail_fast:

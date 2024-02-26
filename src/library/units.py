@@ -49,6 +49,7 @@ class UnitConverter:
                 "GroupPos",
                 "Coordinates",
             ],
+        "velocityLike": ["Velocities"],
         "sfrLike": ["GroupSFR"],
         "massFlowLike": ["GroupBHMdot"],
         "unitless": ["count", "IDs", "GroupGasMetallicity"]
@@ -79,6 +80,8 @@ class UnitConverter:
             return cls.convert_masslike(quantity)
         elif field in cls.fields["distanceLike"]:
             return cls.convert_distancelike(quantity)
+        elif field in cls.fields["velocityLike"]:
+            return quantity
         elif field in cls.fields["massFlowLike"]:
             return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:

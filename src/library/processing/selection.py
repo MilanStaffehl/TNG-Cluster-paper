@@ -55,9 +55,11 @@ def select_halos_from_mass_bins(
     return selected_halo_ids
 
 
-def bin_quantity(quantity: NDArray,
-                 bin_mask: NDArray,
-                 n_bins: int = -1) -> Iterator[NDArray]:
+def bin_quantity(
+    quantity: NDArray,
+    bin_mask: NDArray,
+    n_bins: int = -1,
+) -> Iterator[NDArray]:
     """
     Sort ``quantity`` into mass bins according to ``bin_mask``.
 
@@ -141,6 +143,41 @@ def mask_quantity(
     if len(quantity.shape) > 1:
         masked_indices = masked_indices.reshape(-1, *quantity.shape[1:])
     return masked_indices
+
+
+def mask_data_dict(
+    data: dict[str, NDArray],
+    mask: NDArray,
+    index: int = 0,
+) -> dict[str, NDArray]:
+    """
+    Mask contents of a data dictionary.
+
+    Function masks every entry of a data dictionary as used by the
+    illustris_python helper scripts given a mask and an index from that
+    mask. Only entries matching the selected index in the mask will be
+    kept. The function also updates the ``count`` of the dictionary
+    appropriately.
+
+    :param data: Data dictionary; a mapping of field names as string to
+        values as NDArrays.
+    :param mask: The mask to use. Must be an NDArray of integers of the
+        same length as the first axis of the data arrays in the dictionary.
+    :param index: The index whose entries to select. See
+        :func:`mask_quantity` for details.
+    :return: The dictionary but with its data entries restricted to the
+        selected non-masked values and with an updated ``count`` value.
+    """
+    restricted_data = {}
+    for field, value in data.items():
+        if field == "count":
+            continue
+        restricted_data[field] = mask_quantity(
+            value, mask, index, compress=True
+        )
+
+    restricted_data["count"] = len(list(restricted_data.values())[0])
+    return restricted_data
 
 
 def select_clusters(
