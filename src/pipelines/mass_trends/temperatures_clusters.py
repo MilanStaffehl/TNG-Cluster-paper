@@ -57,12 +57,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # file paths
         core = "_core" if self.core_only else ""
         self.base_filename = f"mass_trends_clusters{core}_base_data.npz"
-        data_root = self.config.data_home
         id_subdir = "particle_ids_core" if self.core_only else "particle_ids"
-        self.part_id_dir = (
-            data_root / "radial_profiles" / "individuals" / "TNG300_1"
-            / id_subdir
-        )
+        self.part_id_dir = self.config.data_home / id_subdir / "TNG300_1"
         self.tng300_basepath = config.get_simulation_base_path("TNG300-1")
         self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
         # list of supported fields to color the data with and the methods

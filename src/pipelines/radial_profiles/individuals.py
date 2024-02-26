@@ -66,7 +66,9 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                     f"Received instruction to plot {self.what} profile of "
                     f"core only."
                 )
-                pid_dir = Path(self.paths["data_dir"]) / "particle_ids_core"
+                pid_dir = (
+                    self.config.data_home / "particle_ids_core" / "TNG300_1"
+                )
                 self.suffix = "_core"
             else:
                 logging.info(
@@ -75,14 +77,14 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
                 )
                 # use full halo particles, since for low-mass clusters
                 # the 100kpc extend beyond 5% of the virial radius:
-                pid_dir = Path(self.paths["data_dir"]) / "particle_ids"
+                pid_dir = (self.config.data_home / "particle_ids" / "TNG300_1")
                 self.suffix = "_core"
         else:
             logging.info(
                 f"Received instructions to plot {self.what} profile for full "
                 f"halo (possibly in absolute distance units)."
             )
-            pid_dir = Path(self.paths["data_dir"]) / "particle_ids"
+            pid_dir = (self.config.data_home / "particle_ids" / "TNG300_1")
             self.suffix = ""
         if not self.normalize:
             self.suffix += "_absolute"
@@ -115,8 +117,6 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         # Step 0: create directories, start memory monitoring, timing
         self._create_directories(
             subdirs=[
-                "particle_ids",
-                "particle_ids_core",
                 f"temperature_profiles{self.suffix}",
                 f"density_profiles{self.suffix}",
             ],
