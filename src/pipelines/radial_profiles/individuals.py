@@ -465,7 +465,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             restricted_gas_data["Distances"],
             restricted_gas_data["Masses"],
             self.radial_bins,
-            virial_radius,
+            virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
 
@@ -475,21 +475,21 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             selection.mask_quantity(restricted_gas_data["Distances"], mask, index=1),
             selection.mask_quantity(masses, mask, index=1),
             self.radial_bins,
-            virial_radius,
+            virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
         warm, _ = statistics.volume_normalized_radial_profile(
             selection.mask_quantity(restricted_gas_data["Distances"], mask, index=2),
             selection.mask_quantity(masses, mask, index=2),
             self.radial_bins,
-            virial_radius,
+            virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
         hot, _ = statistics.volume_normalized_radial_profile(
             selection.mask_quantity(restricted_gas_data["Distances"], mask, index=3),
             selection.mask_quantity(masses, mask, index=3),
             self.radial_bins,
-            virial_radius,
+            virial_radius if self.normalize else None,
             radial_range=self.ranges[0],
         )
         # np.testing.assert_allclose(total, hot + cool + warm, rtol=0.03)
@@ -755,7 +755,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         if self.normalize:
             xlabel = r"Distance from halo center [$R_{200c}$]"
         else:
-            xlabel = r"Distance from halo center [$Mpc$]"
+            xlabel = r"Distance from halo center [$kpc$]"
 
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
