@@ -7,6 +7,7 @@
 #SBATCH --partition=p.large
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
+#SBATCH --mem=400GB
 #SBATCH --time=5:00:00       # maximum time the job is allowed to take
 
 module purge
@@ -24,4 +25,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/mass_trends/plot_cool_gas_mass_trends.py --to-file -v --log
+srun python3 ~/thesisProject/scripts/mass_trends/plot_cool_gas_mass_trends.py --to-file -vv --log -cc
