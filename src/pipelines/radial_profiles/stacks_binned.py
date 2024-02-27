@@ -263,7 +263,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         )
         filepath = list(test_path.iterdir())[0]
         with np.load(filepath.resolve()) as test_file:
-            shape = test_file["total_histogram"].shape
+            shape = test_file["total_inflow"].shape
             edges = np.array(test_file["edges"])
 
         # allocate memory
@@ -279,8 +279,9 @@ class StackProfilesBinnedPipeline(Pipeline):
         n_tng300_clusters = 0
         for i, halo_data in enumerate(load_generator):
             masses[i] = halo_data["halo_mass"]
-            hists[i][0] = halo_data["total_histogram"]
-            hists[i][1] = halo_data["cool_histogram"]
+            hists[i][0
+                     ] = halo_data["total_inflow"] + halo_data["total_outflow"]
+            hists[i][1] = halo_data["cool_inflow"] + halo_data["cool_outflow"]
             n_tng300_clusters += 1
 
         # load TNG Cluster data and verify it
@@ -299,8 +300,12 @@ class StackProfilesBinnedPipeline(Pipeline):
                     )
                     sys.exit(2)
             masses[i + n_tng300_clusters] = halo_data["halo_mass"]
-            hists[i + n_tng300_clusters][0] = halo_data["total_histogram"]
-            hists[i + n_tng300_clusters][1] = halo_data["cool_histogram"]
+            hists[i + n_tng300_clusters][0] = (
+                halo_data["total_inflow"] + halo_data["total_outflow"]
+            )
+            hists[i + n_tng300_clusters][1] = (
+                halo_data["cool_inflow"] + halo_data["cool_outflow"]
+            )
 
         # construct and return mapping
         return {"masses": masses, "histograms": hists, "edges": edges}
@@ -620,11 +625,8 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
 
         # Step 5: allocate memory for mean/median histograms
         stacks = np.zeros(
-            (
-                n_mass_bins + 1,
-                3,
-            ) + cluster_histograms[0, 0].shape
-        )
+            (n_mass_bins + 1, 3, ) + cluster_histograms[0, 0].shape
+        )  # yapf:disable
         """Axes: mass bin, total/mean cool/median cool, histogram bins"""
         errors = np.zeros(
             (n_mass_bins + 1, 3, 2, ) + cluster_histograms[0, 0].shape
@@ -792,6 +794,329 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
             )
 
         axes.legend(
+            loc="upper right",
+            # bbox_to_anchor=(0.5, 1.1),
+            ncol=2,
+            prop={"size": 8},
+        )
+        return fig, axes
+
+
+class StackDensityProfilesByVelocityPipeline(
+        StackDensityProfilesCombinedPipeline):
+    """
+    Pipeline to create stacks of radial profiles, split by in-/outflow.
+
+    Pipeline produces a plot with the mean split by radial velocity and
+    binned into 0.2 dex mass bins.
+
+    Requires the data files for profiles of TNG300-1 and TNG Cluster to
+    already exist, since they will be loaded.
+    """
+
+    def run(self) -> int:
+        """
+        Create stacks of density profile split by velocity.
+
+        Plots only the cool gas mean, split by in- and outflowing gas.
+
+        Steps:
+
+        1. Allocate space in memory for histogram data.
+        2. Load halo data for TNG300-1
+        3. Load halo data for TNG Cluster
+        4. Create a mass bin mask.
+        5. Allocate memory space for mean histograms per mass
+           bin and a total over all mass bins (8 histograms)
+        6. For every mass bin:
+           1. Mask histogram data
+           2. Calculate mean profile with errors
+           3. Place data in allocated memory
+        7. Create a total mean/median histogram with errors; place it
+           into allocated memory.
+        8. Plot the data according to chosen type.
+
+        :return: Exit code.
+        """
+        # Step 0: verify directories
+        self._verify_directories()
+
+        # Step 1 - 3: Load data (depends on what type of data, so this
+        # task is split):
+        logging.info("Loading halo data from TNG300-1 and TNG Cluster.")
+        cluster_data = self._load_density_hists()
+
+        # unpack
+        cluster_masses = cluster_data["masses"]
+        # Shape: (H, 2, N) for H = number of halos, N = number of radial bins:
+        cluster_histograms = cluster_data["histograms"]
+        edges = cluster_data["edges"]
+
+        # Step 4: create mass bin mask
+        logging.info("Creating a mass bin mask.")
+        n_mass_bins = len(self.mass_bins) - 1
+        mask = np.digitize(cluster_masses, self.mass_bins)
+
+        # Step 5: allocate memory for mean/median histograms
+        stacks = np.zeros(
+            (n_mass_bins + 1, 3, ) + cluster_histograms[0, 0].shape
+        )  # yapf: disable
+        """Axes: mass bin, cool inflow/outflow/total, histogram bins"""
+        errors = np.zeros(
+            (n_mass_bins + 1, 3, 2,) + cluster_histograms[0, 0].shape
+        )  # yapf: disable
+        """
+        Axes: mass bin, total/mean cool/median cool, lower/upper error, values
+        """
+
+        # Step 6: loop over mass bins and create stacks
+        logging.info("Start stacking histograms per mass bin.")
+        # loop over mass bins
+        for i in range(n_mass_bins):
+            # mask histogram data
+            hists_in_bin = selection.mask_quantity(
+                cluster_histograms, mask, index=(i + 1)
+            )
+            stacks[i], errors[i] = self._stack_density_hists(hists_in_bin)
+
+        # Step 7: create a total mean/median profile
+        stacks[-1], errors[-1] = self._stack_density_hists(cluster_histograms)
+
+        # Step 8: plot the data
+        logging.info("Plotting combined density stacks.")
+        f, _ = self._plot_density_stacks(stacks, errors, edges)
+        logging.info("Saving combined radial density profile to file.")
+        self._save_fig(f, ident_flag="split_by_flow")
+
+        return 0
+
+    def _load_density_hists(self) -> dict[str, NDArray]:
+        """
+        Load density histograms, edges and halo masses.
+
+        The returned values are a concatenation of TNG300-1 and TNG
+        Cluster data, in that order (meaning the first 280 entries of
+        the data arrays of the 'masses' and 'histograms' fields belong
+        to TNG300-1, the remaining 352 belong to TNG Cluster).
+
+        .. attention::
+            The field 'histograms' perhaps unexpectedly has shape (2, N).
+            This is due to the fact that the first entry of this array
+            is the inflow histogram for cool gas and the second entry is
+            the outflow histogram of the cool gas only!
+
+        :return: Mapping of loaded data. Has as keys 'masses', 'histograms',
+            and 'edges', with the values representing the cluster masses,
+            the density histograms and the edges of the histograms for
+            all clusters of TNG300-1 and TNG Cluster.
+        """
+        # determine shape and edges
+        test_path = (
+            self.paths["data_dir"] / "TNG300_1"
+            / f"density_profiles{self.suffix}"
+        )
+        filepath = list(test_path.iterdir())[0]
+        with np.load(filepath.resolve()) as test_file:
+            shape = test_file["total_inflow"].shape
+            edges = np.array(test_file["edges"])
+
+        # allocate memory
+        masses = np.zeros(self.n_clusters)
+        hists = np.zeros((self.n_clusters, 2,) + shape)  # yapf: disable
+
+        # load TNG300-1 data
+        load_generator = load_radial_profiles.load_individuals_1d_profile(
+            self.paths["data_dir"] / "TNG300_1"
+            / f"density_profiles{self.suffix}",
+            shape,  # automatically validates shapes
+        )
+        n_tng300_clusters = 0
+        for i, halo_data in enumerate(load_generator):
+            masses[i] = halo_data["halo_mass"]
+            hists[i][0] = halo_data["cool_inflow"]
+            hists[i][1] = halo_data["cool_outflow"]
+            n_tng300_clusters += 1
+
+        # load TNG Cluster data and verify it
+        load_generator = load_radial_profiles.load_individuals_1d_profile(
+            self.paths["data_dir"] / "TNG_Cluster"
+            / f"density_profiles{self.suffix}",
+            shape,  # automatically validates shapes
+        )
+        for i, halo_data in enumerate(load_generator):
+            if i == 0:
+                if not np.allclose(halo_data["edges"], edges):
+                    logging.fatal(
+                        f"Density histograms for TNG300-1 and TNG-Cluster "
+                        f"have different bin edges:\nTNG300: {edges}\n"
+                        f"TNG-Cluster: {halo_data['edges']}"
+                    )
+                    sys.exit(2)
+            masses[i + n_tng300_clusters] = halo_data["halo_mass"]
+            hists[i + n_tng300_clusters][0] = halo_data["cool_inflow"]
+            hists[i + n_tng300_clusters][1] = halo_data["cool_outflow"]
+
+        # construct and return mapping
+        return {"masses": masses, "histograms": hists, "edges": edges}
+
+    def _stack_density_hists(self,
+                             histograms: NDArray) -> tuple[NDArray, NDArray]:
+        """
+        Return the mean of the density histograms for in- and outflow.
+
+        :param histograms: The array of histograms of shape (H, 2, X) to
+            stack. Along the first axis, the first entry must be the
+            cool gas density profile of inflowing gas, the second entry
+            must be the cool gas density profile for outflowing gas.
+        :return: Tuple of the stacked histogram (shape (2, Y)) and the
+            error (shape (2, 2, X)). For the error, the axes are
+            assigned as (total/cool gas, lower/upper error, bins).
+        """
+        # splice input array [all halos, inflow/outflow, full histogram]
+        inflow = histograms[:, 0, :]
+        outflow = histograms[:, 1, :]
+        # stack arrays separately
+        total_stack, total_std, _ = statistics.stack_histograms(
+            inflow + outflow, "mean"
+        )
+        inflow_mean, inflow_std, _ = statistics.stack_histograms(
+            inflow, "mean"
+        )
+        outflow_mean, outflow_std, _ = statistics.stack_histograms(
+            outflow, "mean"
+        )
+        # construct expected return array shape
+        stack = np.array([total_stack, inflow_mean, outflow_mean])
+        errors = np.array(
+            [
+                [total_std, total_std],
+                [inflow_std, inflow_std],
+                [outflow_std, outflow_std],
+            ]
+        )
+        return stack, errors
+
+    def _plot_density_stacks(
+        self, stacks: NDArray, errors: NDArray, edges: NDArray
+    ) -> tuple[Figure, Axes]:
+        """
+        Plot the density profiles, split by velocity.
+
+        :param stacks: The stacks of the density profile, split into
+            mass bins. Shape (N + 1, 3, B) where N is the number of
+            mass bins (last entry is the total) and B is the number of
+            radial bins.
+        :param errors: The errors on the density profiles, of shape
+            (N + 1, 3, 2, B) where the third axis holds lower and
+            upper error respectively.
+        :param edges: The edges of the radial bins, shape (B + 1, ).
+        :return: Tuple of figure and axes.
+        """
+        fig, axes = plt.subplots(
+            figsize=(8, 4),
+            ncols=2,
+            sharey=True,
+            gridspec_kw={"hspace": 0, "wspace": 0},
+        )
+        fig.set_tight_layout(True)
+        if self.normalize:
+            xlabel = r"Distance from halo center [$R_{200c}$]"
+        else:
+            xlabel = "Distance from halo center [kpc]"
+        axes[0].set_xlabel(xlabel)
+        axes[1].set_xlabel(xlabel)
+        axes[0].set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
+
+        if self.core_only:
+            ylim = (1e1, 1e7)
+        else:
+            ylim = (1e-2, 1e5)
+        axes[0].set_ylim(ylim)
+        axes[1].set_ylim(ylim)
+        if self.log:
+            axes[0].set_yscale("log")
+            axes[1].set_yscale("log")
+
+        # x-data
+        xs = (edges[:-1] + edges[1:]) / 2
+
+        # left plot: total over all mass bins, with error
+        common.plot_curve_with_error_region(
+            xs,
+            stacks[-1][0],
+            None,
+            errors[-1][0],
+            axes[0],
+            linestyle="solid",
+            label="Both",
+            suppress_error_region=False,
+            suppress_error_line=True,
+        )
+        common.plot_curve_with_error_region(
+            xs,
+            stacks[-1][1],
+            None,
+            errors[-1][1],
+            axes[0],
+            linestyle="solid",
+            label="Inflowing",
+            color="dodgerblue",
+            suppress_error_region=False,
+            suppress_error_line=True,
+        )
+        common.plot_curve_with_error_region(
+            xs,
+            stacks[-1][2],
+            None,
+            errors[-1][2],
+            axes[0],
+            linestyle="solid",
+            label="Outflowing",
+            color="crimson",
+            suppress_error_region=False,
+            suppress_error_line=True,
+        )
+
+        # right plot: gas flows in different mass bins
+        for i in range(len(stacks)):
+            if i == len(stacks) - 1:
+                color = "black"
+                label = "Total"
+            else:
+                color = pltutil.sample_cmap("jet", len(stacks) - 1, i)
+                label = (
+                    rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
+                    rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}} M_\odot$"
+                )
+
+            # inflowing mean
+            common.plot_curve_with_error_region(
+                xs,
+                stacks[i][1],
+                x_err=None,
+                y_err=errors[i][1],
+                axes=axes[1],
+                linestyle="solid",
+                color=color,
+                label=label,
+                suppress_error_line=True,
+                suppress_error_region=True,
+            )
+            # outflowing mean
+            common.plot_curve_with_error_region(
+                xs,
+                stacks[i][2],
+                x_err=None,
+                y_err=errors[i][2],
+                axes=axes[1],
+                linestyle="dashed",
+                color=color,
+                suppress_error_line=True,
+                suppress_error_region=True,
+            )
+
+        axes[0].legend(loc="upper right", prop={"size": 8})
+        axes[1].legend(
             loc="upper right",
             # bbox_to_anchor=(0.5, 1.1),
             ncol=2,

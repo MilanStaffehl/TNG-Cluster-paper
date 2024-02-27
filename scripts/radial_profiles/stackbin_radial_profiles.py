@@ -9,6 +9,7 @@ sys.path.insert(0, str(root_dir / "src"))
 from library import scriptparse
 from library.config import config, logging_config
 from pipelines.radial_profiles.stacks_binned import (
+    StackDensityProfilesByVelocityPipeline,
     StackDensityProfilesCombinedPipeline,
     StackProfilesBinnedPipeline,
 )
@@ -61,6 +62,8 @@ def main(args: argparse.Namespace) -> None:
     }
     if args.combined and args.what == "density":
         pipeline = StackDensityProfilesCombinedPipeline(**pipeline_config)
+    elif args.split:
+        pipeline = StackDensityProfilesByVelocityPipeline(**pipeline_config)
     else:
         pipeline = StackProfilesBinnedPipeline(**pipeline_config)
     pipeline.run()
@@ -112,22 +115,12 @@ if __name__ == "__main__":
         dest="log",
     )
     parser.add_argument(
-        "-c",
-        "--combined",
-        help=(
-            "Combine median and mean lines into one plot without error "
-            "regions in the density plot. Has no effect when `-w temperature` "
-            "is set. When using this option, the -m flag has no effect."
-        ),
-        dest="combined",
-        action="store_true",
-    )
-    parser.add_argument(
         "-cc",
         "--cluster-core",
         help=(
             "Plot the core region of the cluster only. This will restrict the "
-            "radial range of the plot to around 50 kpc physical size."
+            "radial range of the plot to around 50 kpc physical size. Might "
+            "not work with the -c or -b flags."
         ),
         action="store_true",
         dest="core_only",
@@ -138,10 +131,33 @@ if __name__ == "__main__":
         help=(
             "Instead of loading the data where halocentric distances are "
             "normalized to the virial radius, use the data where distance is "
-            "measured in kpc."
+            "measured in kpc. Might not work with the -c or -b flags."
         ),
         dest="normalize",
         action="store_false",
+    )
+    exclusive_group = parser.add_mutually_exclusive_group(required=False)
+    exclusive_group.add_argument(
+        "-c",
+        "--combined",
+        help=(
+            "Combine median and mean lines into one plot without error "
+            "regions in the density plot. Has no effect when `-w temperature` "
+            "is set. When using this option, the -m flag has no effect."
+        ),
+        dest="combined",
+        action="store_true",
+    )
+    exclusive_group.add_argument(
+        "-b",
+        "--split-by-velocity",
+        help=(
+            "Split the density profiles by velocity instead of plotting the "
+            "total profile. Only works for density, has no effect when used "
+            "with temperature. When used, the -m flag has no effect."
+        ),
+        dest="split",
+        action="store_true",
     )
 
     # parse arguments

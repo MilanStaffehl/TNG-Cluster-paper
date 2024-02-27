@@ -549,7 +549,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             label = r"BH mass [$M_\odot$]"
 
-        return bh_masses, {"cbar_label": label}
+        return bh_masses, {"cbar_label": label, "cmap": "cividis"}
 
     def _get_cluster_bh_mode(self) -> ColorData:
         """
@@ -631,7 +631,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             label = r"BH accretion rate [$M_\odot / Gyr$]"
 
-        return bh_mdots, {"cbar_label": label}
+        return bh_mdots, {"cbar_label": label, "cmap": "magma"}
 
     def _get_cluster_gas_metallicity(self) -> ColorData:
         """
@@ -676,7 +676,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             label = r"Gas metallicity [$Z_\odot$]"
 
-        return gas_z, {"cbar_label": label}
+        return gas_z, {"cbar_label": label, "cmap": "plasma"}
 
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
