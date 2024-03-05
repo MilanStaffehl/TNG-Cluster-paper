@@ -13,6 +13,25 @@ from numpy.typing import NDArray
 
 RGBAColor: TypeAlias = Sequence[float]
 
+# custom colormap
+_color_dict = {
+    'red': (
+        (0.0, 0.0, 0.0),
+        (0.5, 0.0, 0.1),
+        (1.0, 1.0, 1.0),
+    ),
+    'green': (
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+    ),
+    'blue': (
+        (0.0, 0.0, 1.0),
+        (0.5, 0.1, 0.0),
+        (1.0, 0.0, 0.0),
+    )
+}
+BlackSeismic = cl.LinearSegmentedColormap("BlackSeismic", _color_dict)
+
 
 def sample_cmap(colormap: str, samples: int, index: int | None) -> RGBAColor:
     """

@@ -39,6 +39,7 @@ class UnitConverter:
                 "Group_M_Mean200",
                 "Group_M_TopHat200",
                 "Masses",
+                "BH_Mass",
             ],
         "distanceLike":
             [
@@ -51,7 +52,7 @@ class UnitConverter:
             ],
         "velocityLike": ["Velocities"],
         "sfrLike": ["GroupSFR"],
-        "massFlowLike": ["GroupBHMdot"],
+        "massFlowLike": ["GroupBHMdot", "BH_Mdot"],
         "unitless": ["count", "IDs", "GroupGasMetallicity"]
     }
 

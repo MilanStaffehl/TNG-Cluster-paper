@@ -9,16 +9,18 @@ import tracemalloc
 from dataclasses import dataclass
 from typing import Any, Callable, ClassVar, TypeAlias
 
+import illustris_python as il
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import BoundaryNorm
+from matplotlib.colors import CenteredNorm, SymLogNorm
 from matplotlib.lines import Line2D
 from numpy.typing import NDArray
 
+from library import units
 from library.config import config
 from library.data_acquisition import gas_daq, halos_daq
 from library.loading import load_radial_profiles
-from library.plotting import common
+from library.plotting import common, pltutil
 from library.processing import selection
 from pipelines.base import DiagnosticsPipeline
 
@@ -68,6 +70,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             "BHMass": self._get_cluster_bh_mass,
             "BHMdot": self._get_cluster_bh_mdot,
             "GasMetallicity": self._get_cluster_gas_metallicity,
+            "BHMode": self._get_cluster_bh_mode,
         }
 
     def run(self) -> int:
@@ -549,7 +552,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             label = r"BH mass [$M_\odot$]"
 
-        return bh_masses, {"cbar_label": label, "cmap": "cividis"}
+        return bh_masses, {"cbar_label": label, "cmap": "plasma"}
 
     def _get_cluster_bh_mode(self) -> ColorData:
         """
@@ -559,41 +562,97 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             rate per cluster, and an appropriate color bar label and
             plot kwargs.
         """
-        raise NotImplementedError("Function for BH mode not finished yet.")
-        logging.info("Loading BH accretion rate for TNG300-1 and TNG-Cluster.")
-        bh_mdots = np.zeros(self.n_clusters)
 
-        # load and restrict TNG300-1 BH accretion rates
+        # helper func
+        def get_black_hole_mode_index(base_path: str, hid: int) -> float:
+            """
+            Return the black hole mode index.
+
+            Index is given as the difference between the accretion rate
+            MDot and the threshold at which the BH switches over from
+            kinetic to thermal mode (the threshold is mass dependent).
+            See Weinberger et al. (2017) for details.
+
+            :param base_path: Sim base path.
+            :param hid: Halo ID.
+            :return: The value of MDot - Chi.
+            """
+            logging.debug(f"Finding black hole mode for halo {hid}.")
+            # load all required data
+            bh_data = il.snapshot.loadHalo(
+                base_path,
+                self.config.snap_num,
+                hid,
+                5,
+                fields=["BH_Mass", "BH_Mdot", "BH_MdotEddington"],
+            )
+            # determine index of most massive BH, extract its data
+            central_idx = np.argmax(bh_data["BH_Mass"])
+            # convert units of most massive BH
+            mass = units.UnitConverter.convert(
+                bh_data["BH_Mass"][central_idx],
+                "BH_Mass",
+            )
+            # no conversion needed for the ratio
+            mdot = bh_data["BH_Mdot"][central_idx]
+            eddington_limit = bh_data["BH_MdotEddington"][central_idx]
+            # calculate the threshold for mode switchover
+            chi = min(0.002 * (mass / 1e8)**2, 0.1)
+            # calculate actual ratio
+            eddington_ratio = mdot / eddington_limit
+            return eddington_ratio - chi
+
+        logging.info("Calculating BH mode for TNG300-1 and TNG-Cluster.")
+        bh_mode_index = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 mass data (required for restriction)
         halo_data = halos_daq.get_halo_properties(
             self.tng300_basepath,
             self.config.snap_num,
-            ["GroupBHMdot", self.config.mass_field],
+            [self.config.mass_field],
         )
         cluster_data = selection.select_clusters(
             halo_data, self.config.mass_field, expected_number=self.n300
         )
-        bh_mdots[:self.n300] = cluster_data["GroupBHMdot"]
+        # load the black hole data for every halo
+        i = 0
+        for halo_id in cluster_data["IDs"]:
+            mdot_index = get_black_hole_mode_index(
+                self.tng300_basepath, halo_id
+            )
+            # place the difference between the actual ratio and xi
+            bh_mode_index[i] = mdot_index
+            i += 1
 
-        # load TNG-Cluster BH accretion rates
+        # load TNG-Cluster IDs
         halo_data = halos_daq.get_halo_properties(
             self.tngclstr_basepath,
             self.config.snap_num,
-            ["GroupBHMdot"],
+            [self.config.mass_field],
             cluster_restrict=True,
         )
-        bh_mdots[self.n300:] = halo_data["GroupBHMdot"]
+        # load the black hole data for every halo
+        for halo_id in halo_data["IDs"]:
+            mdot_index = get_black_hole_mode_index(
+                self.tngclstr_basepath, halo_id
+            )
+            # place the difference between the actual ratio and xi
+            bh_mode_index[i] = mdot_index
+            i += 1
 
-        boundaries = np.array([np.min(bh_mdots), 1, np.max(bh_mdots)])
         if self.color_log:
-            label = r"BH accretion rate [$\log (M_\odot / Gyr)$]"
-            # set boundaries to scale
-            boundaries = np.log10(boundaries)
+            label = r"BH mode [$\dot{M} - \chi$]"
+            norm = SymLogNorm(linthresh=0.0001)
         else:
-            label = r"BH accretion rate [$M_\odot / Gyr$]"
+            label = r"BH mode [$\dot{M} - \chi$]"
+            norm = CenteredNorm()
 
-        norm = BoundaryNorm(boundaries, ncolors=2)
-
-        return bh_mdots, {"cbar_label": label, "norm": norm}
+        config_dict = {
+            "cbar_label": label,
+            "norm": norm,
+            "cmap": pltutil.BlackSeismic,
+        }
+        return bh_mode_index, config_dict
 
     def _get_cluster_bh_mdot(self) -> ColorData:
         """
@@ -676,7 +735,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         else:
             label = r"Gas metallicity [$Z_\odot$]"
 
-        return gas_z, {"cbar_label": label, "cmap": "plasma"}
+        return gas_z, {"cbar_label": label, "cmap": "cividis"}
 
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
@@ -729,11 +788,13 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
 
         # config for the fields
         cbar_conf = {
-            # values pairs: cbar_label, whether to plot color in log scale
-            "SFR": (r"SFR [$\log(M_\odot / yr)$]", True),
-            "GasMetallicity": (r"Gas metallicity [$Z_\odot$]", False),
-            "BHMass": (r"BH mass [$\log M_\odot$]", True),
-            "BHMdot": (r"BH accretion rate [$\log (M_\odot / Gyr)$]", True),
+            # values pairs: cbar_label, whether to plot color in log scale, cmap
+            "SFR": (r"SFR [$\log(M_\odot / yr)$]", True, "viridis"),
+            "GasMetallicity":
+                (r"Gas metallicity [$Z_\odot$]", False, "cividis"),
+            "BHMass": (r"BH mass [$\log M_\odot$]", True, "plasma"),
+            "BHMdot":
+                (r"BH accretion rate [$\log (M_\odot / Gyr)$]", True, "magma"),
         }
 
         for i, fieldname in enumerate(self.field_generators.keys()):
@@ -767,6 +828,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
                 colored_quantity[:self.n300],
                 legend_label="TNG300-1",
                 marker_style="o",
+                cmap=cbar_conf[fieldname][2],
                 cbar_label=cbar_conf[fieldname][0],
                 cbar_range=[cbar_min, cbar_max],
             )
@@ -779,6 +841,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
                 colored_quantity[self.n300:],
                 legend_label="TNG-Cluster",
                 marker_style="D",
+                cmap=cbar_conf[fieldname][2],
                 suppress_colorbar=True,
                 cbar_range=[cbar_min, cbar_max],
             )
