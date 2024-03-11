@@ -141,7 +141,7 @@ def get_radial_velocities(
         velocity towards center, negative values denote velocity away
         from center.
     """
-    radial_vectors = center - positions
+    radial_vectors = positions - center
     norms = np.linalg.norm(radial_vectors, axis=1)
     unit_vectors = np.divide(radial_vectors, norms[:, np.newaxis])
     return np.sum(velocities * unit_vectors, axis=1)  # pair-wise dot product
