@@ -11,6 +11,7 @@ import matplotlib.colors as cl
 import numpy as np
 from numpy.typing import NDArray
 
+# types
 RGBAColor: TypeAlias = Sequence[float]
 
 # custom colormap

@@ -1,0 +1,385 @@
+"""
+Pipeline for velocity distribution plots, binned by cluster mass.
+"""
+from __future__ import annotations
+
+import logging
+import sys
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar, Literal
+
+import matplotlib.cm
+import matplotlib.colors
+import matplotlib.pyplot as plt
+import numpy as np
+
+from library import compute
+from library.config import config
+from library.data_acquisition import gas_daq, halos_daq
+from library.loading import load_velocity_distributions
+from library.plotting import plot_gas_velocites
+from library.processing import selection
+from pipelines.base import DiagnosticsPipeline
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
+    from numpy.typing import NDArray
+
+
+@dataclass
+class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
+    """
+    Plot the velocity distribution in clusters binned by mass.
+
+    Pipeline creates the velocity distribution histograms for all clusters
+    in TNG300-1 and TNG-Cluster by binning them into 0.2 dex mass bins
+    and in every nin determining the histogram of velocity distribution
+    and plotting it.
+    """
+
+    regime: Literal["cool", "warm", "hot"] = "cool"
+
+    velocity_bins: ClassVar[int] = 50  # number of velocity bins
+    velocity_edges: ClassVar[tuple[float, float]] = (-3000, 3000)  # in km/s
+    # edges of mass bins to use (0.2 dex width)
+    mass_bin_edges: ClassVar[NDArray] = 10**np.arange(14.0, 15.4, 0.2)
+    temperature_regimes: ClassVar[NDArray] = 10**np.array([0, 4.5, 5.5, 50])
+    n_clusters: ClassVar[int] = 632  # total number of clusters
+    n300: ClassVar[int] = 280  # number of clusters in TNG300-1
+    nclstr: ClassVar[int] = 352  # number of clusters in TNG-Cluster
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.tng300_basepath = config.get_simulation_base_path("TNG300-1")
+        self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
+        # translate regime
+        if self.regime == "cool":
+            self.regime_index = 1
+        elif self.regime == "warm":
+            self.regime_index = 2
+        elif self.regime == "hot":
+            self.regime_index = 3
+        else:
+            logging.fatal(f"Unrecognized regime: {self.regime}.")
+            sys.exit(2)
+
+    def run(self) -> int:
+        """
+        Generate data and create the velocity distribution plot.
+
+        Requires the existence of the pre-calculated velocity files for
+        all particles belonging to TNG300-1 halos. These can be created
+        with the radial density profile pipeline. Also requires the
+        existence of the pre-calculated particle regime indices, which
+        can be created with the helper script ``tabulate_cluster_data.py``.
+
+        Steps:
+
+        1. Load halo data for TNG300-1 and TNG-Cluster, place in memory.
+        2. Create a mass bin mask for the clusters from their mass.
+        3. Allocate memory for the individual histograms.
+        4. For every cluster in TNG300-1:
+           1. Load radial velocities and particle temperature regime
+              from file
+           2. Restrict velocities only to cool gas
+           3. Calculate the velocity distribution histogram.
+           4. Place histogram in the allocated memory.
+        5. For every cluster in TNG-Cluster:
+           1. Load the particles associated with the cluster.
+           2. Calculate the radial velocity for them, discard obsolete
+              data.
+           3. Find particle temperatures, calculate temperature, mask
+              velocities to cool gas only.
+           4. Calculate velocity distribution histogram, place into
+              allocated array.
+        6. Save data to file (histograms and mass bin mask).
+        7. Plot the data
+
+        :return:
+        """
+        # Step 0: create directories, start monitoring
+        self._create_directories()
+
+        # Step 1: load halo data (mass)
+        halo_masses = np.zeros(self.n_clusters)
+        # Load masses for TNG300-1
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            fields=[self.config.mass_field],
+        )
+        tng_300_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        halo_masses[:self.n300] = tng_300_data[self.config.mass_field]
+        # Load masses for TNG-Cluster
+        cluster_fields = [
+            self.config.mass_field, self.config.radius_field, "GroupPos"
+        ]
+        tng_cluster_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            fields=cluster_fields,
+            cluster_restrict=True,
+        )
+        halo_masses[self.n300:] = tng_cluster_data[self.config.mass_field]
+
+        # Step 2: create a mass bin mask
+        mask = np.digitize(halo_masses, self.mass_bin_edges)
+
+        # Step 3: Allocate memory for histograms
+        histograms = np.zeros((self.n_clusters, self.velocity_bins))
+        edges = np.zeros(self.velocity_bins + 1)
+
+        # Step 4: Loop over TNG300-1 clusters
+        for i, halo_id in enumerate(tng_300_data["IDs"]):
+            logging.debug(f"Processing halo {halo_id} ({i + 1}/280).")
+            # load tabulated data
+            regimes = np.load(
+                self.config.data_home / "particle_regimes" / "TNG300_1"
+                / f"particle_temperature_regimes_halo_{halo_id}.npy"
+            )
+            velocities = np.load(
+                self.config.data_home / "particle_velocities" / "TNG300_1"
+                / f"radial_velocity_halo_{halo_id}.npy"
+            )
+            gas_fractions = np.load(
+                self.config.data_home / "particle_gas_fractions" / "TNG300_1"
+                / f"gas_fractions_halo_{halo_id}.npy"
+            )
+            # restrict velocities only to selected temperature regime
+            gas_vel_current_regime = velocities[regimes == self.regime_index]
+            gas_frac_cur_regime = gas_fractions[regimes == self.regime_index]
+            # find velocity distribution histogram
+            histograms[i], edges = np.histogram(
+                gas_vel_current_regime,
+                bins=self.velocity_bins,
+                range=self.velocity_edges,
+                weights=gas_frac_cur_regime,
+            )
+
+        # Step 5: Loop over TNG-Cluster clusters
+        for i, halo_id in enumerate(tng_cluster_data["IDs"]):
+            logging.debug(f"Processing cluster {halo_id} ({i + 1}/352).")
+            # load temperatures and gas data required
+            temperatures = gas_daq.get_cluster_temperature(
+                halo_id, self.tngclstr_basepath, self.config.snap_num
+            )
+            fields = ["Velocities", "Coordinates", "Masses"]
+            gas_data = gas_daq.get_gas_properties(
+                self.tngclstr_basepath,
+                self.config.snap_num,
+                fields=fields,
+                cluster=halo_id,
+            )
+            # mask gas data to temperature regime
+            temp_mask = np.digitize(temperatures, self.temperature_regimes)
+            masked_data = selection.mask_data_dict(
+                gas_data, temp_mask, index=self.regime_index
+            )
+            del gas_data
+            # get the distances of all particles to later restrict to 2R_vir
+            distances = np.linalg.norm(
+                masked_data["Coordinates"] - tng_cluster_data["GroupPos"][i],
+                axis=1
+            )
+            distances /= tng_cluster_data[self.config.radius_field][i]
+            # get radial velocity only within 2R_vir
+            radial_vel_in_cluster = compute.get_radial_velocities(
+                tng_cluster_data["GroupPos"][i],
+                masked_data["Coordinates"][distances <= 2.0],  # limit to 2R
+                masked_data["Velocities"][distances <= 2.0],  # limit to 2R
+            )
+            # calculate gas fractions
+            gas_masses_cluster = masked_data["Masses"][distances <= 2.0]
+            gas_fractions = gas_masses_cluster / np.sum(gas_masses_cluster)
+            # calculate histogram
+            histograms[self.n300 + i], _ = np.histogram(
+                radial_vel_in_cluster,
+                bins=self.velocity_bins,
+                range=self.velocity_edges,
+                weights=gas_fractions,
+            )
+
+        # Step 6: Save data to file
+        if self.to_file:
+            np.savez(
+                self.paths["data_dir"] / f"{self.paths['data_file_stem']}.npz",
+                histograms=histograms,
+                edges=edges,
+                halo_masses=halo_masses,
+                mass_mask=mask,
+            )
+
+        f, _ = self._plot(histograms, edges, halo_masses, mask)
+        self._save_fig(f)
+
+        return 0
+
+    def _plot(
+        self,
+        histograms: NDArray,
+        edges: NDArray,
+        halo_masses: NDArray,
+        mass_mask: NDArray
+    ) -> tuple[Figure, Axes]:
+        """
+        Plot the velocity distribution in 0.2 dex mass bins.
+
+        :param histograms: The array of velocity distribution histograms,
+            of shape (632, N) where N is the number of velocity bins.
+        :param edges: The array of the edges of the velocity bins, of
+            shape (N + 1, ).
+        :param halo_masses: The array of the halo masses.
+        :param mass_mask: The mask for the masses. Must have length 632
+            and contain integers from
+        :return: Tuple of figure and axes objects with the plots.
+        """
+        # create figure and set up axes
+        n_mass_bins = len(self.mass_bin_edges) - 1
+        ncols = (n_mass_bins + 1) // 2
+        fig, axes = plt.subplots(
+            nrows=2,
+            ncols=ncols,
+            figsize=(ncols * 1.8 + 1.2, 4),
+            sharex=True,
+            sharey=True,
+            gridspec_kw={"hspace": 0, "wspace": 0},
+            layout="constrained",
+        )
+        flat_axes = axes.flatten()
+        # common axes labels
+        fig.supxlabel("Radial velocity [km/s]")
+        fig.supylabel(r"Gas fraction ($\log_{10}$)")
+
+        # for every mass bin, plot the data
+        for i in range(n_mass_bins):
+            # mask the histograms to only those in the current mass bin
+            mass_bin_idx = i + 1
+            current_histograms = selection.mask_quantity(
+                histograms, mass_mask, index=mass_bin_idx
+            )
+            current_masses = selection.mask_quantity(
+                halo_masses, mass_mask, index=mass_bin_idx
+            )
+            self._overplot_distribution(
+                flat_axes[i],
+                current_histograms,
+                edges,
+                current_masses,
+                i,
+                i + 1,
+            )
+            # add a label describing the mass bin edges
+            label = (
+                rf"$10^{{{np.log10(self.mass_bin_edges[i]):.1f}}} - "
+                rf"10^{{{np.log10(self.mass_bin_edges[i + 1]):.1f}}} M_\odot$"
+            )
+            flat_axes[i].text(
+                0.1,
+                0.8,
+                label,
+                color="black",
+                transform=flat_axes[i].transAxes,
+            )
+
+        # plot the total mean and median plus all individuals
+        self._overplot_distribution(
+            flat_axes[-1],
+            histograms,
+            edges,
+            halo_masses,
+            0,
+            -1,
+        )
+        flat_axes[-1].text(
+            0.1,
+            0.8,
+            "Total",
+            color="black",
+            transform=flat_axes[-1].transAxes,
+        )
+
+        return fig, axes
+
+    def _overplot_distribution(
+        self,
+        axes: Axes,
+        histograms: NDArray,
+        edges: NDArray,
+        masses: NDArray,
+        vmin_idx: int,
+        vmax_idx: int
+    ) -> Axes:
+        """
+        Overplot onto the axes all given histograms plus their mean and median.
+
+        :param axes: The axes object onto which to plot the histograms.
+        :param histograms: The array of all histograms to plot.
+        :param edges: The edges of the histograms.
+        :param masses: The masses of the halo belonging to each histogram.
+            Must have length equal to the length of the first axis of
+            ``histograms``.
+        :param vmin_idx: The index of the mass bin edge that demarks the
+            lower edge of the current mass bin.
+        :param vmax_idx: The index of the mass bin edge that demarks the
+            upper edge of the current mass bin.
+        :return: Axes object.
+        """
+        # create a colormap for the current mass range
+        cmap = matplotlib.cm.get_cmap("plasma")
+        norm = matplotlib.colors.Normalize(
+            vmin=self.mass_bin_edges[vmin_idx],
+            vmax=self.mass_bin_edges[vmax_idx]
+        )
+        # plot individuals as faint lines
+        for j, hist in enumerate(histograms):
+            plot_gas_velocites.plot_velocity_distribution(
+                axes,
+                hist,
+                edges,
+                color=cmap(norm(masses[j])),
+                alpha=0.05,
+            )
+        # find mean and median, and plot these as prominent lines
+        mean = np.nanmean(histograms, axis=0)
+        median = np.nanmedian(histograms, axis=0)
+        plot_gas_velocites.plot_velocity_distribution(
+            axes,
+            mean,
+            edges,
+            color="black",
+            label="mean",
+        )
+        plot_gas_velocites.plot_velocity_distribution(
+            axes,
+            median,
+            edges,
+            color="black",
+            linestyle="dashed",
+            label="median"
+        )
+        return axes
+
+
+class MassBinnedVelocityDistributionFromFilePipeline(
+        MassBinnedVelocityDistributionPipeline):
+    """
+    Load data from file and recreate plots.
+    """
+
+    def run(self) -> int:
+        """Load data and plot it."""
+        self._verify_directories()
+
+        filename = f"{self.paths['data_file_stem']}.npz"
+        data = load_velocity_distributions.load_velocity_distributions(
+            self.paths["data_dir"] / filename,
+            self.velocity_bins,
+            self.n_clusters,
+        )
+
+        f, _ = self._plot(*data)
+        self._save_fig(f)
+        return 0

@@ -802,6 +802,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
         return fig, axes
 
 
+@dataclass
 class StackDensityProfilesByVelocityPipeline(
         StackDensityProfilesCombinedPipeline):
     """
@@ -813,6 +814,8 @@ class StackDensityProfilesByVelocityPipeline(
     Requires the data files for profiles of TNG300-1 and TNG Cluster to
     already exist, since they will be loaded.
     """
+
+    regime: Literal["cool", "warm", "hot"] = "cool"
 
     def run(self) -> int:
         """
@@ -886,7 +889,7 @@ class StackDensityProfilesByVelocityPipeline(
         logging.info("Plotting combined density stacks.")
         f, _ = self._plot_density_stacks(stacks, errors, edges)
         logging.info("Saving combined radial density profile to file.")
-        self._save_fig(f, ident_flag="split_by_flow")
+        self._save_fig(f, ident_flag=f"{self.regime}_gas_split_by_flow")
 
         return 0
 
@@ -933,8 +936,8 @@ class StackDensityProfilesByVelocityPipeline(
         n_tng300_clusters = 0
         for i, halo_data in enumerate(load_generator):
             masses[i] = halo_data["halo_mass"]
-            hists[i][0] = halo_data["cool_inflow"]
-            hists[i][1] = halo_data["cool_outflow"]
+            hists[i][0] = halo_data[f"{self.regime}_inflow"]
+            hists[i][1] = halo_data[f"{self.regime}_outflow"]
             n_tng300_clusters += 1
 
         # load TNG Cluster data and verify it
@@ -953,14 +956,18 @@ class StackDensityProfilesByVelocityPipeline(
                     )
                     sys.exit(2)
             masses[i + n_tng300_clusters] = halo_data["halo_mass"]
-            hists[i + n_tng300_clusters][0] = halo_data["cool_inflow"]
-            hists[i + n_tng300_clusters][1] = halo_data["cool_outflow"]
+            hists[i
+                  + n_tng300_clusters][0] = halo_data[f"{self.regime}_inflow"]
+            hists[i
+                  + n_tng300_clusters][1] = halo_data[f"{self.regime}_outflow"]
 
         # construct and return mapping
         return {"masses": masses, "histograms": hists, "edges": edges}
 
-    def _stack_density_hists(self,
-                             histograms: NDArray) -> tuple[NDArray, NDArray]:
+    def _stack_density_hists(
+        self,
+        histograms: NDArray,
+    ) -> tuple[NDArray, NDArray]:
         """
         Return the mean of the density histograms for in- and outflow.
 
@@ -1030,7 +1037,10 @@ class StackDensityProfilesByVelocityPipeline(
         if self.core_only:
             ylim = (1e1, 1e7)
         else:
-            ylim = (1e-2, 1e5)
+            if self.regime == "hot":
+                ylim = (5, 1e6)
+            else:
+                ylim = (1e-2, 1e5)
         axes[0].set_ylim(ylim)
         axes[1].set_ylim(ylim)
         if self.log:

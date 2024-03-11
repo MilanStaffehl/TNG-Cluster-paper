@@ -347,7 +347,7 @@ def parse_namespace(
     for field, default_value in defaults.items():
         if not hasattr(namespace, field):
             logging.debug(
-                f"Filling missing argument {field} with default value "
+                f"Filling missing argument '{field}' with default value "
                 f"{default_value}."
             )
             kwargs.update({field: default_value})

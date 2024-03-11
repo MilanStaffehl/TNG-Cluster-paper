@@ -63,6 +63,7 @@ def main(args: argparse.Namespace) -> None:
     if args.combined and args.what == "density":
         pipeline = StackDensityProfilesCombinedPipeline(**pipeline_config)
     elif args.split:
+        pipeline_config.update({"regime": args.split})
         pipeline = StackDensityProfilesByVelocityPipeline(**pipeline_config)
     else:
         pipeline = StackProfilesBinnedPipeline(**pipeline_config)
@@ -154,10 +155,14 @@ if __name__ == "__main__":
         help=(
             "Split the density profiles by velocity instead of plotting the "
             "total profile. Only works for density, has no effect when used "
-            "with temperature. When used, the -m flag has no effect."
+            "with temperature. When used, the -m flag has no effect. Must "
+            "specify the temperature regime (cool, warm, or hot) to plot "
+            "after the flag."
         ),
         dest="split",
-        action="store_true",
+        type=str,
+        choices=["cool", "warm", "hot"],
+        default=None,
     )
 
     # parse arguments
