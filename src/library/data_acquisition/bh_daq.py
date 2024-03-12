@@ -20,7 +20,8 @@ def get_most_massive_blackhole(
     snap_num: int,
     halo_id: int,
     fields: Sequence[str],
-) -> dict[str, float | NDArray]:
+    diagnostics: bool = False,
+) -> dict[str, float | NDArray | np.nan]:
     """
     Return data for the most massive black hole of the selected halo.
 
@@ -35,9 +36,13 @@ def get_most_massive_blackhole(
         BH of.
     :param fields: A list of field names to load and to return for the
         most massive halo.
+    :param diagnostics: When set to True, a debug log is logged when
+        the most massive VHis not the first in the list of BHs, and the
+        mass ratio of the second most massive BH to the most massive BH
+        is always logged at DEBUG level.
     :return: The data dictionary, limited to only the most massive BH.
         Note that scalar quantities will be set as scalars in the
-        values of the dict, not arrays! Similarly, vector quantitites
+        values of the dict, not arrays! Similarly, vector quantities
         will be the vector itself, not a vector nested inside a length
         one array.
     """
@@ -59,20 +64,41 @@ def get_most_massive_blackhole(
         5,
         fields=fields,
     )
+    # package into a dict if only one field is loaded
+    if len(fields) == 1:
+        data = {fields[0]: data, "count": len(data)}
+
+    # check that anything was loaded at all
     if data["count"] == 0:
         logging.warning(
             f"Halo {halo_id} has no black holes, cannot provide data for "
             f"fields {', '.join(fields)}! Will return NaNs instead for all "
             f"fields."
         )
-        return data.update({field: np.nan for field in fields})
+        data.update({field: np.nan for field in fields})
+        return data
 
     # determine index of most massive BH, extract its data
     central_idx = np.argmax(data["BH_Mass"])
-    if central_idx != 0:
+
+    # log useful information if desired
+    if diagnostics:
+        if central_idx != 0:
+            logging.debug(
+                f"Most massive black hole does not have index 0 for halo "
+                f"{halo_id}. Most massive black hole has index {central_idx}."
+            )
+        # log mass ratio of second most massive BH
+        mask = np.ones(data["BH_Mass"].shape, dtype=int)
+        mask[central_idx] = 0
+        second_most_massive_idx = np.argmax(data["BH_Mass"][mask == 1])
+        mass_ratio = (
+            data["BH_Mass"][second_most_massive_idx]
+            / data["BH_Mass"][central_idx]
+        )
         logging.debug(
-            f"Most massive black hole does not have index 0 for halo "
-            f"{halo_id}. Most massive black hole has index {central_idx}."
+            f"Mass ratio of second most massive BH to most massive BH: "
+            f"{mass_ratio:.4f}"
         )
 
     # create restricted dict and convert units
