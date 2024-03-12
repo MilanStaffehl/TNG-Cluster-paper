@@ -45,18 +45,26 @@ python ./radial_profiles/stackbin_radial_profiles.py --what density --method med
 
 printf "\n\nRunning: cluster mass trend plots (full cluster, SFR):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field SFR -r
+printf "\n\nRunning: cluster mass trend plots (full cluster, total BH mass):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field TotalBHMass -r
 printf "\n\nRunning: cluster mass trend plots (full cluster, BH mass):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMass -r
 printf "\n\nRunning: cluster mass trend plots (full cluster, BH accretion rate):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMdot -r
+printf "\n\nRunning: cluster mass trend plots (full cluster, BH mode):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMode -r
 printf "\n\nRunning: cluster mass trend plots (full cluster, gas metallicity):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --field GasMetallicity -r
 
 printf "\n\nRunning: cluster mass trend plots (cluster core only, SFR):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field SFR -r -cc
+printf "\n\nRunning: cluster mass trend plots (cluster core only, total BH mass):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field TotalBHMass -r -cc
 printf "\n\nRunning: cluster mass trend plots (cluster core only, BH mass):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMass -r -cc
 printf "\n\nRunning: cluster mass trend plots (cluster core only, BH accretion rate):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMdot -r -cc
+printf "\n\nRunning: cluster mass trend plots (cluster core only, BH mode):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMode -r -cc
 printf "\n\nRunning: cluster mass trend plots (cluster core only, gas metallicity):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --field GasMetallicity -r -cc
