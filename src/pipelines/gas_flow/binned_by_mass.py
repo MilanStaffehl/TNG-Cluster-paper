@@ -144,19 +144,19 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 self.config.data_home / "particle_velocities" / "TNG300_1"
                 / f"radial_velocity_halo_{halo_id}.npy"
             )
-            gas_fractions = np.load(
-                self.config.data_home / "particle_gas_fractions" / "TNG300_1"
-                / f"gas_fractions_halo_{halo_id}.npy"
+            gas_masses = np.load(
+                self.config.data_home / "particle_masses" / "TNG300_1"
+                / f"gas_masses_halo_{halo_id}.npy"
             )
             # restrict velocities only to selected temperature regime
             gas_vel_current_regime = velocities[regimes == self.regime_index]
-            gas_frac_cur_regime = gas_fractions[regimes == self.regime_index]
+            gas_mass_cur_regime = gas_masses[regimes == self.regime_index]
             # find velocity distribution histogram
             histograms[i], edges = np.histogram(
                 gas_vel_current_regime,
                 bins=self.velocity_bins,
                 range=self.velocity_edges,
-                weights=gas_frac_cur_regime,
+                weights=gas_mass_cur_regime,
             )
 
         # Step 5: Loop over TNG-Cluster clusters
@@ -193,13 +193,12 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
             # calculate gas fractions
             gas_masses_cluster = masked_data["Masses"][distances <= 2.0]
-            gas_fractions = gas_masses_cluster / np.sum(gas_masses_cluster)
             # calculate histogram
             histograms[self.n300 + i], _ = np.histogram(
                 radial_vel_in_cluster,
                 bins=self.velocity_bins,
                 range=self.velocity_edges,
-                weights=gas_fractions,
+                weights=gas_masses_cluster,
             )
 
         # Step 6: Save data to file
@@ -213,7 +212,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
 
         f, _ = self._plot(histograms, edges, halo_masses, mask)
-        self._save_fig(f)
+        self._save_fig(f, tight_layout=False)
 
         return 0
 
@@ -242,12 +241,9 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         fig, axes = plt.subplots(
             nrows=2,
             ncols=ncols,
-            figsize=(ncols * 1.8 + 1.2, 4),
-            sharex=True,
-            sharey=True,
-            gridspec_kw={"hspace": 0, "wspace": 0},
-            layout="constrained",
+            figsize=(ncols * 2, 5),
         )
+        fig.set_tight_layout(True)
         flat_axes = axes.flatten()
         # common axes labels
         fig.supxlabel("Radial velocity [km/s]")
@@ -278,7 +274,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
             flat_axes[i].text(
                 0.1,
-                0.8,
+                0.85,
                 label,
                 color="black",
                 transform=flat_axes[i].transAxes,
@@ -286,16 +282,11 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
 
         # plot the total mean and median plus all individuals
         self._overplot_distribution(
-            flat_axes[-1],
-            histograms,
-            edges,
-            halo_masses,
-            0,
-            -1,
+            flat_axes[-1], histograms, edges, halo_masses, 0, -1, alpha=0.01
         )
         flat_axes[-1].text(
             0.1,
-            0.8,
+            0.85,
             "Total",
             color="black",
             transform=flat_axes[-1].transAxes,
@@ -310,7 +301,8 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         edges: NDArray,
         masses: NDArray,
         vmin_idx: int,
-        vmax_idx: int
+        vmax_idx: int,
+        alpha: int = 0.05,
     ) -> Axes:
         """
         Overplot onto the axes all given histograms plus their mean and median.
@@ -325,6 +317,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             lower edge of the current mass bin.
         :param vmax_idx: The index of the mass bin edge that demarks the
             upper edge of the current mass bin.
+        :param alpha: The transparency of the individual lines.
         :return: Axes object.
         """
         # create a colormap for the current mass range
@@ -340,7 +333,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 hist,
                 edges,
                 color=cmap(norm(masses[j])),
-                alpha=0.05,
+                alpha=alpha,
             )
         # find mean and median, and plot these as prominent lines
         mean = np.nanmean(histograms, axis=0)
@@ -374,6 +367,12 @@ class MassBinnedVelocityDistributionFromFilePipeline(
         self._verify_directories()
 
         filename = f"{self.paths['data_file_stem']}.npz"
+        if not (self.paths["data_dir"] / filename).exists():
+            logging.fatal(
+                f"Data file {self.paths['data_dir'] / filename} does not "
+                f"exist yet. Canceling execution."
+            )
+            sys.exit(1)
         data = load_velocity_distributions.load_velocity_distributions(
             self.paths["data_dir"] / filename,
             self.velocity_bins,
@@ -381,5 +380,5 @@ class MassBinnedVelocityDistributionFromFilePipeline(
         )
 
         f, _ = self._plot(*data)
-        self._save_fig(f)
+        self._save_fig(f, tight_layout=False)
         return 0
