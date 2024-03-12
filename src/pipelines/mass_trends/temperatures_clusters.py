@@ -7,24 +7,20 @@ import logging
 import time
 import tracemalloc
 from dataclasses import dataclass
-from typing import Any, Callable, ClassVar, TypeAlias
+from typing import Any, Callable, ClassVar
 
-import illustris_python as il
+import matplotlib.cm
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import CenteredNorm, SymLogNorm
 from matplotlib.lines import Line2D
 from numpy.typing import NDArray
 
-from library import units
 from library.config import config
-from library.data_acquisition import gas_daq, halos_daq
+from library.data_acquisition import bh_daq, gas_daq, halos_daq
 from library.loading import load_radial_profiles
-from library.plotting import common, pltutil
+from library.plotting import common
 from library.processing import selection
 from pipelines.base import DiagnosticsPipeline
-
-ColorData: TypeAlias = tuple[NDArray, dict[str, Any]]
 
 
 @dataclass
@@ -65,7 +61,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
         # list of supported fields to color the data with and the methods
         # that can generate them
-        self.field_generators: dict[str, Callable[[], ColorData]] = {
+        self.field_generators: dict[str, Callable[[], NDArray]] = {
             "SFR": self._get_cluster_sfr,
             "BHMass": self._get_cluster_bh_mass,
             "BHMdot": self._get_cluster_bh_mdot,
@@ -124,7 +120,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         # Step 2: acquire data to color the points with
         try:
-            color_quantity, kwargs = self.field_generators[self.color_field]()
+            color_quantity = self.field_generators[self.color_field]()
+            kwargs = self._get_plot_kwargs(self.color_field)
         except KeyError:
             logging.error(
                 f"Unknown or unsupported field name for color field: "
@@ -474,8 +471,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         axes.legend(handles=[tng300_handle, tngclstr_handle])
         self._save_fig(fig)
+        logging.info(
+            f"Successfully plotted mass trend colored by {self.color_field}."
+        )
 
-    def _get_cluster_sfr(self) -> ColorData:
+    def _get_cluster_sfr(self) -> NDArray:
         """
         Return the SFR of all clusters in TNG300-1 and TNG-Cluster.
 
@@ -509,17 +509,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         if self.color_log:
             sfrs[sfrs == 0] = 0.1
 
-        # label
-        if self.color_log:
-            label = r"SFR [$\log(M_\odot / yr)$]"
-        else:
-            label = r"SFR [$M_\odot / yr$]"
+        return sfrs
 
-        return sfrs, {"cbar_label": label}
-
-    def _get_cluster_bh_mass(self) -> ColorData:
+    def _get_cluster_bh_mass(self) -> NDArray:
         """
-        Return the black hole mass in all clusters, plus aux data.
+        Return the black hole mass in all clusters.
 
         :return: Array of shape (632, ) of black hole masses per cluster,
             and an appropriate color bar label and plot kwargs.
@@ -547,16 +541,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         bh_masses[self.n300:] = halo_data["GroupMassType"][:, 5]
 
-        if self.color_log:
-            label = r"BH mass [$\log M_\odot$]"
-        else:
-            label = r"BH mass [$M_\odot$]"
+        return bh_masses
 
-        return bh_masses, {"cbar_label": label, "cmap": "plasma"}
-
-    def _get_cluster_bh_mode(self) -> ColorData:
+    def _get_cluster_bh_mode(self) -> NDArray:
         """
-        Return BH mode of all clusters, plus aux data.
+        Return BH mode of all clusters.
 
         :return: Array of shape (632, ) of black hole mass accretion
             rate per cluster, and an appropriate color bar label and
@@ -575,32 +564,26 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
             :param base_path: Sim base path.
             :param hid: Halo ID.
-            :return: The value of MDot - Chi.
+            :return: The ratio of the Eddington ratio over the mode
+                switchover threshold: (Mdor / Mdot_EDdd) / chi.
             """
             logging.debug(f"Finding black hole mode for halo {hid}.")
             # load all required data
-            bh_data = il.snapshot.loadHalo(
+            fields = ["BH_Mass", "BH_Mdot", "BH_MdotEddington"]
+            bh_data = bh_daq.get_most_massive_blackhole(
                 base_path,
                 self.config.snap_num,
                 hid,
-                5,
-                fields=["BH_Mass", "BH_Mdot", "BH_MdotEddington"],
+                fields=fields,
             )
-            # determine index of most massive BH, extract its data
-            central_idx = np.argmax(bh_data["BH_Mass"])
-            # convert units of most massive BH
-            mass = units.UnitConverter.convert(
-                bh_data["BH_Mass"][central_idx],
-                "BH_Mass",
-            )
-            # no conversion needed for the ratio
-            mdot = bh_data["BH_Mdot"][central_idx]
-            eddington_limit = bh_data["BH_MdotEddington"][central_idx]
+            mass = bh_data["BH_Mass"]
+            mdot = bh_data["BH_Mdot"]
+            eddington_limit = bh_data["BH_MdotEddington"]
             # calculate the threshold for mode switchover
             chi = min(0.002 * (mass / 1e8)**2, 0.1)
             # calculate actual ratio
             eddington_ratio = mdot / eddington_limit
-            return eddington_ratio - chi
+            return eddington_ratio / chi
 
         logging.info("Calculating BH mode for TNG300-1 and TNG-Cluster.")
         bh_mode_index = np.zeros(self.n_clusters)
@@ -639,62 +622,60 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             # place the difference between the actual ratio and xi
             bh_mode_index[i] = mdot_index
             i += 1
+        return bh_mode_index
 
-        if self.color_log:
-            label = r"BH mode [$\dot{M} - \chi$]"
-            norm = SymLogNorm(linthresh=0.0001)
-        else:
-            label = r"BH mode [$\dot{M} - \chi$]"
-            norm = CenteredNorm()
-
-        config_dict = {
-            "cbar_label": label,
-            "norm": norm,
-            "cmap": pltutil.BlackSeismic,
-        }
-        return bh_mode_index, config_dict
-
-    def _get_cluster_bh_mdot(self) -> ColorData:
+    def _get_cluster_bh_mdot(self) -> NDArray:
         """
-        Return mass accretion of all clusters, plus aux data.
+        Return mass accretion of all clusters.
 
         :return: Array of shape (632, ) of black hole mass accretion
             rate per cluster, and an appropriate color bar label and
             plot kwargs.
         """
-        logging.info("Loading BH accretion rate for TNG300-1 and TNG-Cluster.")
+        logging.info(
+            "Loading BH accretion rates for TNG300-1 and TNG-Cluster."
+        )
         bh_mdots = np.zeros(self.n_clusters)
 
-        # load and restrict TNG300-1 BH accretion rates
+        # load and restrict TNG300-1 mass data (required for restriction)
         halo_data = halos_daq.get_halo_properties(
             self.tng300_basepath,
             self.config.snap_num,
-            ["GroupBHMdot", self.config.mass_field],
+            [self.config.mass_field],
         )
         cluster_data = selection.select_clusters(
             halo_data, self.config.mass_field, expected_number=self.n300
         )
-        bh_mdots[:self.n300] = cluster_data["GroupBHMdot"]
+        # load the black hole data for every halo
+        fields = ["BH_Mdot"]
+        i = 0
+        for halo_id in cluster_data["IDs"]:
+            bh_data = bh_daq.get_most_massive_blackhole(
+                self.tng300_basepath, self.config.snap_num, halo_id, fields
+            )
+            bh_mdots[i] = bh_data["BH_Mdot"]
+            i += 1
 
-        # load TNG-Cluster BH accretion rates
+        # load TNG-Cluster IDs
         halo_data = halos_daq.get_halo_properties(
             self.tngclstr_basepath,
             self.config.snap_num,
-            ["GroupBHMdot"],
+            [self.config.mass_field],
             cluster_restrict=True,
         )
-        bh_mdots[self.n300:] = halo_data["GroupBHMdot"]
+        # load the black hole data for every halo
+        for halo_id in halo_data["IDs"]:
+            bh_data = bh_daq.get_most_massive_blackhole(
+                self.tngclstr_basepath, self.config.snap_num, halo_id, fields
+            )
+            bh_mdots[i] = bh_data["BH_Mdot"]
+            i += 1
 
-        if self.color_log:
-            label = r"BH accretion rate [$\log (M_\odot / Gyr)$]"
-        else:
-            label = r"BH accretion rate [$M_\odot / Gyr$]"
+        return bh_mdots
 
-        return bh_mdots, {"cbar_label": label, "cmap": "magma"}
-
-    def _get_cluster_gas_metallicity(self) -> ColorData:
+    def _get_cluster_gas_metallicity(self) -> NDArray:
         """
-        Return the gas matallicity of all clusters in TNG300-1 and TNG-Cluster.
+        Return the gas metallicity of all clusters in TNG300-1 and TNG-Cluster.
 
         Note that the metallicity will be returned in units of solar
         metallicities, not in code units, which simply give the ratio
@@ -729,18 +710,126 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # adjust units to solar units
         gas_z /= 0.0127  # convert to solar units
 
-        # label
-        if self.color_log:
-            label = r"Gas metallicity [$\log Z_\odot$]"
-        else:
-            label = r"Gas metallicity [$Z_\odot$]"
+        return gas_z
 
-        return gas_z, {"cbar_label": label, "cmap": "cividis"}
+    def _get_plot_kwargs(self, field: str) -> dict[str, Any]:
+        """
+        Return keyword parameters for the plotting function.
+
+        For the given field, return a dictionary of keyword arguments
+        for the plotting function.
+
+        :param field: Name of the field.
+        :return: Dict of keyword argument.
+        """
+        # TODO: make this monstrosity readable
+        match field:
+            case "SFR":
+                if self.color_log:
+                    label = r"SFR [$\log(M_\odot / yr)$]"
+                else:
+                    label = r"SFR [$M_\odot / yr$]"
+                return {"cbar_label": label}
+
+            case "BHMass":
+                if self.color_log:
+                    label = r"BH mass [$\log M_\odot$]"
+                else:
+                    label = r"BH mass [$M_\odot$]"
+                return {"cbar_label": label, "cmap": "plasma"}
+
+            case "BHMdot":
+                if self.color_log:
+                    label = r"BH accretion rate [$\log (M_\odot / Gyr)$]"
+                else:
+                    label = r"BH accretion rate [$M_\odot / Gyr$]"
+                return {"cbar_label": label, "cmap": "magma"}
+
+            case "BHMode":
+                # create a custom colormap
+                kinetic_cmap = plt.cm.winter(np.linspace(0, 1, 256))
+                thermal_cmap = plt.cm.autumn(np.linspace(0, 1, 256))
+                full_cmap = np.vstack((kinetic_cmap, thermal_cmap))
+                bh_mode_map = matplotlib.colors.LinearSegmentedColormap.from_list(
+                    "bh_mode_map", full_cmap
+                )
+                if self.color_log:
+                    norm_config = {"vmin": -5, "vcenter": 0, "vmax": 5}
+                    label = r"BH mode [$\log_{10}((\dot{M} / \dot{M}_{Edd}) / \chi)$]"
+                else:
+                    norm_config = {"vmin": 0, "vcenter": 1, "vmax": 10}
+                    label = r"BH mode [$(\dot{M} / \dot{M}_{Edd}) / \chi$]"
+                norm = matplotlib.colors.TwoSlopeNorm(**norm_config)
+
+                config_dict = {
+                    "cbar_label": label,
+                    "norm": norm,
+                    "cmap": bh_mode_map,
+                    "cbar_caps": "both",
+                }
+                return config_dict
+
+            case "GasMetallicity":
+                if self.color_log:
+                    label = r"Gas metallicity [$\log Z_\odot$]"
+                else:
+                    label = r"Gas metallicity [$Z_\odot$]"
+                return {"cbar_label": label, "cmap": "cividis"}
+
+            case _:
+                logging.error(
+                    f"Unknown field {field} received, returning empty "
+                    f"kwargs dict."
+                )
+                return {}
 
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
     """
     Pipeline to plot the gas fraction vs. mass trend from file.
+
+    Plots a single quantity as a single panel.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    def run(self) -> int:
+        """Load data from file and plot it."""
+        self._verify_directories()
+
+        # load base data
+        logging.info("Loading base data from file.")
+        base_file = self.paths["data_dir"] / self.base_filename
+        if not base_file.exists():
+            logging.fatal(f"Base data file {base_file} does not exist!")
+            return 1
+
+        with np.load(base_file) as base_data:
+            halo_masses = base_data["halo_masses"]
+            cool_gas_fracs = base_data["cool_gas_fracs"]
+
+        # adjust zero-values
+        if self.log:
+            # make zero-values visible; scatter them a little
+            rng = np.random.default_rng(42)
+            n_zeros = len(cool_gas_fracs) - np.count_nonzero(cool_gas_fracs)
+            randnums = np.power(5, rng.random(n_zeros))
+            cool_gas_fracs[cool_gas_fracs == 0] = 1e-7 * randnums
+
+        # load color data
+        filename = f"{self.paths['data_file_stem']}.npy"
+        color_data = np.load(self.paths["data_dir"] / filename)
+        color_kwargs = self._get_plot_kwargs(self.color_field)
+
+        if self.color_log:
+            color_data = np.log10(color_data)
+        self._plot(halo_masses, cool_gas_fracs, color_data, color_kwargs)
+
+
+class ClusterCoolGasMassTrendGridPipeline(ClusterCoolGasMassTrendPipeline):
+    """
+    Plot a bunch of panels into one figure.
     """
 
     def __post_init__(self):

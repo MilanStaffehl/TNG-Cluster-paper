@@ -52,7 +52,7 @@ class UnitConverter:
             ],
         "velocityLike": ["Velocities"],
         "sfrLike": ["GroupSFR"],
-        "massFlowLike": ["GroupBHMdot", "BH_Mdot"],
+        "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],
         "unitless": ["count", "IDs", "GroupGasMetallicity"]
     }
 

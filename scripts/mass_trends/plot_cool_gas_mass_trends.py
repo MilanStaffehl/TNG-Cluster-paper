@@ -79,7 +79,6 @@ if __name__ == "__main__":
         help=(
             "The name of the field to color the points by. If not set, "
             "defaults to None which means the points will not be colored."
-            "If set, it must be a valid TNG group catalogue field name."
         ),
         dest="color_field",
         metavar="FIELD",

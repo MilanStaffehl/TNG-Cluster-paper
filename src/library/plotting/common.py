@@ -143,6 +143,7 @@ def plot_scatterplot(
     norm: Normalize | None = None,
     cbar_label: str = "Color",
     cbar_range: Sequence[float, float] | None = None,
+    cbar_caps: str = "neither",
     suppress_colorbar: bool = False
 ) -> tuple[Figure, Axes]:
     """
@@ -182,6 +183,9 @@ def plot_scatterplot(
     :param cbar_range: The minimum and maximum value between which the
         colored values will lie. Has no effect when ``colored_quantity``
         is None. To automatically determine range, set to None.
+    :param cbar_caps: The cap parameters for the lower and upper end
+        of the colorbar. Must be one of the following: 'neither', 'both',
+        'min', 'max'.
     :param suppress_colorbar: Set to True to not add a colorbar.
     :return: The tuple of the figure and the axes object, with the plot
         drawn onto them. Returned for convenience, the objects are
@@ -228,6 +232,6 @@ def plot_scatterplot(
 
     # add a colorbar
     if color_quantity is not None and not suppress_colorbar:
-        figure.colorbar(sc, ax=axes, label=cbar_label)
+        figure.colorbar(sc, ax=axes, label=cbar_label, extend=cbar_caps)
 
     return figure, axes
