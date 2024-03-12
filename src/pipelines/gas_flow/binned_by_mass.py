@@ -39,6 +39,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
     """
 
     regime: Literal["cool", "warm", "hot"] = "cool"
+    log: bool = True
 
     velocity_bins: ClassVar[int] = 50  # number of velocity bins
     velocity_edges: ClassVar[tuple[float, float]] = (-3000, 3000)  # in km/s
@@ -212,7 +213,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
 
         f, _ = self._plot(histograms, edges, halo_masses, mask)
-        self._save_fig(f, tight_layout=False)
+        self._save_fig(f)
 
         return 0
 
@@ -241,13 +242,16 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         fig, axes = plt.subplots(
             nrows=2,
             ncols=ncols,
-            figsize=(ncols * 2, 5),
+            figsize=(ncols * 2.5, 5),
         )
         fig.set_tight_layout(True)
         flat_axes = axes.flatten()
         # common axes labels
         fig.supxlabel("Radial velocity [km/s]")
         fig.supylabel(r"Gas fraction ($\log_{10}$)")
+        if self.log:
+            for ax in flat_axes:
+                ax.set_yscale("log")
 
         # for every mass bin, plot the data
         for i in range(n_mass_bins):
@@ -273,11 +277,13 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 rf"10^{{{np.log10(self.mass_bin_edges[i + 1]):.1f}}} M_\odot$"
             )
             flat_axes[i].text(
-                0.1,
-                0.85,
+                0.97,
+                0.97,
                 label,
                 color="black",
                 transform=flat_axes[i].transAxes,
+                horizontalalignment="right",
+                verticalalignment="top",
             )
 
         # plot the total mean and median plus all individuals
@@ -285,11 +291,13 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             flat_axes[-1], histograms, edges, halo_masses, 0, -1, alpha=0.01
         )
         flat_axes[-1].text(
-            0.1,
-            0.85,
+            0.97,
+            0.97,
             "Total",
             color="black",
             transform=flat_axes[-1].transAxes,
+            horizontalalignment="right",
+            verticalalignment="top",
         )
 
         return fig, axes

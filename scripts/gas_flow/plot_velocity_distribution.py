@@ -20,7 +20,7 @@ def main(args: argparse.Namespace) -> None:
         args.regime,
     )
 
-    pipeline_config.update({"regime": args.regime})
+    pipeline_config.update({"regime": args.regime, "log": args.log})
     if args.from_file:
         pipeline = MassBinnedVelocityDistributionFromFilePipeline(
             **pipeline_config
@@ -46,6 +46,12 @@ if __name__ == "__main__":
         ),
         dest="regime",
         default="cool",
+    )
+    parser.add_argument(
+        "--log",
+        help="Plot gas mass in log-scale.",
+        dest="log",
+        action="store_true",
     )
 
     # parse arguments
