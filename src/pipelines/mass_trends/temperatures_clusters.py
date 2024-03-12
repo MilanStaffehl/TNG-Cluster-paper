@@ -63,6 +63,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # that can generate them
         self.field_generators: dict[str, Callable[[], NDArray]] = {
             "SFR": self._get_cluster_sfr,
+            "TotalBHMass": self._get_cluster_total_bh_mass,
             "BHMass": self._get_cluster_bh_mass,
             "BHMdot": self._get_cluster_bh_mdot,
             "GasMetallicity": self._get_cluster_gas_metallicity,
@@ -105,6 +106,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         """
         # Step 0: create directories, start memory monitoring, timing
         self._create_directories()
+        if self.core_only:
+            logging.info("Plotting mass trends for core only.")
 
         # Step 1: acquire base halo data
         base_file = self.paths["data_dir"] / self.base_filename
@@ -511,9 +514,9 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         return sfrs
 
-    def _get_cluster_bh_mass(self) -> NDArray:
+    def _get_cluster_total_bh_mass(self) -> NDArray:
         """
-        Return the black hole mass in all clusters.
+        Return the total black hole mass per clusters.
 
         :return: Array of shape (632, ) of black hole masses per cluster,
             and an appropriate color bar label and plot kwargs.
@@ -624,6 +627,52 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             i += 1
         return bh_mode_index
 
+    def _get_cluster_bh_mass(self) -> NDArray:
+        """
+        Return mass of the most massive BH per clusters.
+
+        :return: Array of shape (632, ) of mass of the most massive BH
+            in every cluster.
+        """
+        logging.info("Loading BH masses for TNG300-1 and TNG-Cluster.")
+        bh_masses = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 mass data (required for restriction)
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            [self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        # load the black hole data for every halo
+        fields = ["BH_Mass"]
+        i = 0
+        for halo_id in cluster_data["IDs"]:
+            bh_data = bh_daq.get_most_massive_blackhole(
+                self.tng300_basepath, self.config.snap_num, halo_id, fields
+            )
+            bh_masses[i] = bh_data["BH_Mass"]
+            i += 1
+
+        # load TNG-Cluster IDs
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            [self.config.mass_field],
+            cluster_restrict=True,
+        )
+        # load the black hole data for every halo
+        for halo_id in halo_data["IDs"]:
+            bh_data = bh_daq.get_most_massive_blackhole(
+                self.tngclstr_basepath, self.config.snap_num, halo_id, fields
+            )
+            bh_masses[i] = bh_data["BH_Mass"]
+            i += 1
+
+        return bh_masses
+
     def _get_cluster_bh_mdot(self) -> NDArray:
         """
         Return mass accretion of all clusters.
@@ -730,6 +779,13 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 else:
                     label = r"SFR [$M_\odot / yr$]"
                 return {"cbar_label": label}
+
+            case "TotalBHMass":
+                if self.color_log:
+                    label = r"BH mass [$\log M_\odot$]"
+                else:
+                    label = r"BH mass [$M_\odot$]"
+                return {"cbar_label": label, "cmap": "plasma"}
 
             case "BHMass":
                 if self.color_log:
