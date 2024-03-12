@@ -76,8 +76,8 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
         self.distances_dir = (
             self.config.data_home / "particle_distances" / "TNG300_1"
         )
-        self.gas_frac_dir = (
-            self.config.data_home / "particle_gas_fractions" / "TNG300_1"
+        self.gas_mass_dir = (
+            self.config.data_home / "particle_masses" / "TNG300_1"
         )
 
         self.dir_list = [
@@ -86,7 +86,7 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
             self.temperature_dir,
             self.regime_dir,
             self.distances_dir,
-            self.gas_frac_dir,
+            self.gas_mass_dir,
         ]
 
         # create directories
@@ -199,8 +199,8 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
             np.save(self.distances_dir / filename, cur_data["Distances"])
             filename = f"particle_temperatures_halo_{halo_id}.npy"
             np.save(self.temperature_dir / filename, cur_data["Temperatures"])
-            filename = f"gas_fractions_halo_{halo_id}.npy"
-            np.save(self.gas_frac_dir / filename, cur_data["GasFractions"])
+            filename = f"gas_masses_halo_{halo_id}.npy"
+            np.save(self.gas_mass_dir / filename, cur_data["Masses"])
 
             # create regime mask and save to file
             mask = np.digitize(
@@ -211,6 +211,7 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
             np.save(self.regime_dir / filename, mask.astype(np.uint8))
 
         self._diagnostics(timepoint, "masking and saving cluster data")
+        logging.info("Successfully tabulated cluster data for TNG300-1.")
 
         return 0
 
@@ -350,13 +351,6 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
             restricted_gas_data["Velocities"]
         )
         restricted_gas_data.update({"RadialVelocities": radial_vel})
-
-        # find gas mass fractions
-        gas_fractions = (
-            restricted_gas_data["Masses"]
-            / np.sum(restricted_gas_data["Masses"])
-        )
-        restricted_gas_data.update({"GasFractions": gas_fractions})
 
         return restricted_gas_data
 
