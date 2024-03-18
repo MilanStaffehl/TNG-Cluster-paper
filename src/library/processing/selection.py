@@ -13,6 +13,50 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
+def digitize_clusters(
+    cluster_masses: NDArray,
+    bins: NDArray | None = None,
+) -> NDArray:
+    """
+    ``numpy.digitize`` for clusters in TNG300-1 and TNG-Cluster.
+
+    Wrapper around ``numpy.digitize`` made to accommodate for the fact
+    that some clusters in TNG-Cluster lie just slightly above the highest
+    mass bin of 10^15 solar masses and therefore would not be considered
+    in some analyses.
+
+    This function simply calls ``numpy.digitize`` with the given masses
+    and bins and returns the resulting array of indices, with one change:
+    all indices higher than ``len(bins) - 1``, i.e. all indices belonging
+    to masses outside the right edge of the mass bins are set to the
+    index of the highest mass bin. This is so that clusters with a mass
+    of for example log M = 15.4001 are also considered in analysis and
+    not discarded.
+
+    .. attention:: This function is specifically meant for a very
+        narrow purpose, namely to replace the use of ``numpy.digitize``
+        for TNG300-1 and TNG-Cluster clusters, when used with the
+        M_200c mass field. Other mass fields or simulations probably
+        won't do anything different from ``numpy.digitize`` or they
+        might cause seriously misleading results. Use with caution.
+
+    :param cluster_masses: Array of the cluster masses in units of solar
+        masses.
+    :param bins: Array of mass bin edges in units of solar masses.
+        Optional, defaults to seven 0.2 dex mass bins from log M = 14 to
+        log M = 15.4 when left empty or set to None.
+    :return: An array of bin indices into which the masses fall, with
+        the masses that fall to the right of the last bin edge being
+        sorted into the last bin instead.
+    """
+    if bins is None:
+        bins = 10**np.linspace(14.0, 15.4, num=8)
+    mask = np.digitize(cluster_masses, bins)
+    # replace index of "outside of bins" with last bin index
+    mask[mask == len(bins)] -= 1
+    return mask
+
+
 def select_halos_from_mass_bins(
     selections_per_bin: int,
     halo_ids: NDArray,

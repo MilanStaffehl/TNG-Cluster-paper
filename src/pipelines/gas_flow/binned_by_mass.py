@@ -127,7 +127,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         halo_masses[self.n300:] = tng_cluster_data[self.config.mass_field]
 
         # Step 2: create a mass bin mask
-        mask = np.digitize(halo_masses, self.mass_bin_edges)
+        mask = selection.digitize_clusters(halo_masses, self.mass_bin_edges)
 
         # Step 3: Allocate memory for histograms
         histograms = np.zeros((self.n_clusters, self.velocity_bins))

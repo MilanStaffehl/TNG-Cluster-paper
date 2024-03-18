@@ -114,7 +114,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         # Step 4: create mass bin mask
         logging.info("Creating a mass bin mask.")
         n_mass_bins = len(self.mass_bins) - 1
-        mask = np.digitize(cluster_masses, self.mass_bins)
+        mask = selection.digitize_clusters(cluster_masses, self.mass_bins)
 
         # Step 5: allocate memory for mean/median histograms
         # cluster_histograms[0].shape will be one of the following:
@@ -621,7 +621,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
         # Step 4: create mass bin mask
         logging.info("Creating a mass bin mask.")
         n_mass_bins = len(self.mass_bins) - 1
-        mask = np.digitize(cluster_masses, self.mass_bins)
+        mask = selection.digitize_clusters(cluster_masses, self.mass_bins)
 
         # Step 5: allocate memory for mean/median histograms
         stacks = np.zeros(
@@ -858,7 +858,7 @@ class StackDensityProfilesByVelocityPipeline(
         # Step 4: create mass bin mask
         logging.info("Creating a mass bin mask.")
         n_mass_bins = len(self.mass_bins) - 1
-        mask = np.digitize(cluster_masses, self.mass_bins)
+        mask = selection.digitize_clusters(cluster_masses, self.mass_bins)
 
         # Step 5: allocate memory for mean/median histograms
         stacks = np.zeros(
