@@ -203,6 +203,7 @@ def plot_scatterplot(
         "s": marker_size,
         "marker": marker_style,
         "alpha": alpha,
+        "zorder": 10,
     }
     # overwrite color if a color quantity is given
     if color_quantity is not None:

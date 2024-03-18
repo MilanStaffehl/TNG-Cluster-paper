@@ -58,22 +58,30 @@ def sample_cmap(colormap: str, samples: int, index: int | None) -> RGBAColor:
     return cmap(indices[index])
 
 
-def custom_cmap(color: tuple[float, float, float]) -> cl.ListedColormap:
+def custom_cmap(
+    color_end: RGBAColor, color_start: RGBAColor = (256, 256, 256)
+) -> cl.ListedColormap:
     """
-    Return a colormap going from white to the specified color.
+    Return a colormap going to the specified color.
 
     The colormap can be used as a normal matplotlib colormap, for example
-    in histograms.
+    in histograms. By default, the colormap starts at white, but the
+    start color can also be given to achieve arbitrary, custom color
+    maps between two colors. The color always uniformly transforms in
+    each channel separately.
 
-    :param color: The color in RGB. The colormap will go uniformly from
-        to this color.
+    :param color_end: The end color of the colormap in RGB. The colormap
+        will go uniformly from to this color.
+    :param color_start: The start color of the colormap in RGB. The
+        colormap will start at this color and uniformly transform into
+        the end color. Defaults to white.
     :return: Uniform colormap from white to the specified color.
     """
     N = 256
     vals = np.ones((N, 4))
-    vals[:, 0] = np.linspace(1, color[0] / 256, N)
-    vals[:, 1] = np.linspace(1, color[1] / 256, N)
-    vals[:, 2] = np.linspace(1, color[2] / 256, N)
+    vals[:, 0] = np.linspace(color_start[0] / 256, color_end[0] / 256, N)
+    vals[:, 1] = np.linspace(color_start[1] / 256, color_end[1] / 256, N)
+    vals[:, 2] = np.linspace(color_start[2] / 256, color_end[2] / 256, N)
     return cl.ListedColormap(vals)
 
 

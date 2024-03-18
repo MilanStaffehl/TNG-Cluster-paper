@@ -40,6 +40,8 @@ class UnitConverter:
                 "Group_M_TopHat200",
                 "Masses",
                 "BH_Mass",
+                "BH_CumMassGrowth_QM",
+                "BH_CumMassGrowth_RM",
             ],
         "distanceLike":
             [
@@ -53,6 +55,7 @@ class UnitConverter:
         "velocityLike": ["Velocities"],
         "sfrLike": ["GroupSFR"],
         "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],
+        "energyLike": ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"],
         "unitless": ["count", "IDs", "GroupGasMetallicity"]
     }
 
@@ -87,6 +90,8 @@ class UnitConverter:
             return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:
             return quantity
+        elif field in cls.fields["energyLike"]:
+            return cls.convert_energylike(quantity)
         elif field in cls.fields["unitless"]:
             return quantity
         else:
@@ -121,3 +126,18 @@ class UnitConverter:
         :return: Mass-flow-like quantity in solar masses per Gyr.
         """
         return quantity * 1e10 / 0.978
+
+    @staticmethod
+    def convert_energylike(quantity: N) -> N:
+        """
+        Return the energy-like quantity in solar masses * ckpc^2 per Gyr^2.
+
+        Note that this conversion only works for quantities that are
+        already in code units representing solar masses, ckpc and Gyr.
+        There are other energy fields that require a different conversion.
+
+        :param quantity: Energy-like quantity in code units.
+        :return: Energy-like quantity in solar masses times comoving
+            kiloparsec squared per gigayear squared.
+        """
+        return quantity * 1e10 / (constants.HUBBLE * 0.978**2)

@@ -38,6 +38,7 @@ def main(args: argparse.Namespace) -> None:
             "color_field": args.color_field,
             "forbid_recalculation": args.forbid_recalculation,
             "core_only": args.core_only,
+            "median_deviation": args.median_deviation,
         }
     )
 
@@ -102,6 +103,17 @@ if __name__ == "__main__":
             "core (that is within 5%% of the virial radius)."
         ),
         dest="core_only",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-d",
+        "--median-deviation",
+        help=(
+            "Plot not the color quantity itself but the deviation of it from "
+            "the median in 0.2 dex mass bins. Also adds lines as visual marks "
+            "for the mass bins to the plot."
+        ),
+        dest="median_deviation",
         action="store_true",
     )
 

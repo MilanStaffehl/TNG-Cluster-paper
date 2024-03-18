@@ -4,6 +4,7 @@ Pipeline to plot radial temperature profiles for individual halos.
 from __future__ import annotations
 
 import logging
+import sys
 import time
 import tracemalloc
 from dataclasses import dataclass
@@ -19,7 +20,7 @@ from library.config import config
 from library.data_acquisition import bh_daq, gas_daq, halos_daq
 from library.loading import load_radial_profiles
 from library.plotting import common
-from library.processing import selection
+from library.processing import selection, statistics
 from pipelines.base import DiagnosticsPipeline
 
 
@@ -44,6 +45,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     log: bool = False
     color_log: bool = False
     forbid_recalculation: bool = True
+    median_deviation: bool = False
     core_only: bool = False
 
     n_clusters: ClassVar[int] = 632
@@ -68,6 +70,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             "BHMdot": self._get_cluster_bh_mdot,
             "GasMetallicity": self._get_cluster_gas_metallicity,
             "BHMode": self._get_cluster_bh_mode,
+            "BHCumEnergy": self._get_cluster_bh_cum_energy,
+            "BHCumMass": self._get_cluster_bh_cum_mass,
         }
 
     def run(self) -> int:
@@ -124,14 +128,12 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # Step 2: acquire data to color the points with
         try:
             color_quantity = self.field_generators[self.color_field]()
-            kwargs = self._get_plot_kwargs(self.color_field)
         except KeyError:
             logging.error(
                 f"Unknown or unsupported field name for color field: "
                 f"{self.color_field}. Will plot uncolored plot."
             )
             color_quantity = None
-            kwargs = {}
             self.color_field = None  # plot only black dots
         else:
             # since there is color data, save it to file
@@ -139,10 +141,21 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             filename = f"{self.paths['data_file_stem']}.npy"
             np.save(self.paths["data_dir"] / filename, color_quantity)
 
-        # Step 3: plot data
+        # Step 3: optionally plot not the quantity, but its trend at fixed mass
+        if self.median_deviation and color_quantity is not None:
+            color_quantity = statistics.find_deviation_from_median_per_bin(
+                color_quantity,
+                np.log10(halo_masses),
+                min_mass=14.0,
+                max_mass=15.4,
+                num_bins=7,
+            )
+
+        # Step 4: plot data
         if self.color_field is None:
-            self._plot(halo_masses, cool_gas_fracs, None, kwargs)
+            self._plot(halo_masses, cool_gas_fracs, None, {})
         else:
+            kwargs = self._get_plot_kwargs(self.color_field)
             if self.color_log:
                 color_quantity = np.log10(color_quantity)
             self._plot(halo_masses, cool_gas_fracs, color_quantity, kwargs)
@@ -403,8 +416,14 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         if colored_quantity is not None:
             logging.info(f"Coloring scatter points by {self.color_field}.")
             # determine min and max of colorbar values
-            cbar_min = np.min(colored_quantity)
-            cbar_max = np.max(colored_quantity)
+            cbar_min, cbar_max = None, None
+            if "cbar_range" in additional_kwargs.keys():
+                cbar_min, cbar_max = additional_kwargs.pop("cbar_range")
+            if cbar_min is None:
+                cbar_min = np.min(colored_quantity)
+            if cbar_max is None:
+                cbar_max = np.max(colored_quantity)
+            # extract color label or set a default
             try:
                 label = additional_kwargs.pop("cbar_label")
             except KeyError:
@@ -436,6 +455,17 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 cbar_range=[cbar_min, cbar_max],
                 **additional_kwargs
             )
+            # if bin median deviation is used, plot vertical lines
+            if self.median_deviation:
+                for x in np.linspace(14.0, 15.4, num=7):
+                    axes.axvline(
+                        x,
+                        ymin=0,
+                        ymax=1,
+                        color="grey",
+                        linestyle="dashed",
+                        zorder=0,
+                    )
         else:
             # plot TNG300 data
             common.plot_scatterplot(
@@ -473,10 +503,76 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             label="TNG-Cluster"
         )
         axes.legend(handles=[tng300_handle, tngclstr_handle])
-        self._save_fig(fig)
+        if self.median_deviation:
+            self._save_fig(fig, ident_flag="median_dev")
+        else:
+            self._save_fig(fig)
         logging.info(
             f"Successfully plotted mass trend colored by {self.color_field}."
         )
+
+    def _get_cluster_quantity(
+        self,
+        call_func: Callable[[str, int], float],
+        quantity_descr: str,
+    ) -> NDArray:
+        """
+        Load a quantity for every cluster.
+
+        Given a function ``call_func`` that loads a quantity for a halo
+        of a given ID and a simulation base path, return an array of the
+        quantities that this function returns for *one* halo for all
+        clusters in both TNG300-1 and TNG-Cluster.
+
+        For example, if the function ``call_func`` returns the SFR of
+        a halo from a simulation under base path X with ID Y, then the
+        return value of this method will be an array of all 632 values
+        of the SFR for the clusters in TNG300-1 and TNG-Cluster.
+
+        :param call_func: A function of method that takes only two
+            arguments namely a simulation base path and a halo ID and
+            returns a single quantity for the given halo as float.
+        :param quantity_descr: A description of the quantity. Used for
+            logging.
+        :return: An array of the quantity returned by ``call_func`` for
+            all clusters in TNG300-1 and TNG-Cluster.
+        """
+        logging.info(f"Loading {quantity_descr} for TNG300-1 and TNG-Cluster.")
+        quantity = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            [self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        # assign return value of quantity getter to the array
+        quantity[:self.n300] = np.array(
+            [
+                call_func(self.tng300_basepath, hid)
+                for hid in cluster_data["IDs"]
+            ]
+        )
+
+        # load TNG-Cluster SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            ["GroupSFR"],
+            cluster_restrict=True,
+        )
+        # assign return value of quantity getter to the array
+        quantity[self.n300:] = np.array(
+            [
+                call_func(self.tngclstr_basepath, hid)
+                for hid in halo_data["IDs"]
+            ]
+        )
+
+        return quantity
 
     def _get_cluster_sfr(self) -> NDArray:
         """
@@ -513,6 +609,45 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             sfrs[sfrs == 0] = 0.1
 
         return sfrs
+
+    def _get_cluster_gas_metallicity(self) -> NDArray:
+        """
+        Return the gas metallicity of all clusters in TNG300-1 and TNG-Cluster.
+
+        Note that the metallicity will be returned in units of solar
+        metallicities, not in code units, which simply give the ratio
+        M_Z / M_tot.
+
+        :return: Array of shape (632, ) of SFRs, and an appropriate
+            color bar label for it and plot kwargs.
+        """
+        logging.info("Loading gas metallicity for TNG300-1 and TNG-Cluster.")
+        gas_z = np.zeros(self.n_clusters)
+
+        # load and restrict TNG300-1 SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            ["GroupGasMetallicity", self.config.mass_field],
+        )
+        cluster_data = selection.select_clusters(
+            halo_data, self.config.mass_field, expected_number=self.n300
+        )
+        gas_z[:self.n300] = cluster_data["GroupGasMetallicity"]
+
+        # load TNG-Cluster SFRs
+        halo_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            ["GroupGasMetallicity"],
+            cluster_restrict=True,
+        )
+        gas_z[self.n300:] = halo_data["GroupGasMetallicity"]
+
+        # adjust units to solar units
+        gas_z /= 0.0127  # convert to solar units
+
+        return gas_z
 
     def _get_cluster_total_bh_mass(self) -> NDArray:
         """
@@ -588,44 +723,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             eddington_ratio = mdot / eddington_limit
             return eddington_ratio / chi
 
-        logging.info("Calculating BH mode for TNG300-1 and TNG-Cluster.")
-        bh_mode_index = np.zeros(self.n_clusters)
-
-        # load and restrict TNG300-1 mass data (required for restriction)
-        halo_data = halos_daq.get_halo_properties(
-            self.tng300_basepath,
-            self.config.snap_num,
-            [self.config.mass_field],
-        )
-        cluster_data = selection.select_clusters(
-            halo_data, self.config.mass_field, expected_number=self.n300
-        )
-        # load the black hole data for every halo
-        i = 0
-        for halo_id in cluster_data["IDs"]:
-            mdot_index = get_black_hole_mode_index(
-                self.tng300_basepath, halo_id
-            )
-            # place the difference between the actual ratio and xi
-            bh_mode_index[i] = mdot_index
-            i += 1
-
-        # load TNG-Cluster IDs
-        halo_data = halos_daq.get_halo_properties(
-            self.tngclstr_basepath,
-            self.config.snap_num,
-            [self.config.mass_field],
-            cluster_restrict=True,
-        )
-        # load the black hole data for every halo
-        for halo_id in halo_data["IDs"]:
-            mdot_index = get_black_hole_mode_index(
-                self.tngclstr_basepath, halo_id
-            )
-            # place the difference between the actual ratio and xi
-            bh_mode_index[i] = mdot_index
-            i += 1
-        return bh_mode_index
+        return self._get_cluster_quantity(get_black_hole_mode_index, "BH mode")
 
     def _get_cluster_bh_mass(self) -> NDArray:
         """
@@ -722,44 +820,98 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         return bh_mdots
 
-    def _get_cluster_gas_metallicity(self) -> NDArray:
+    def _get_cluster_bh_cum_energy(self):
         """
-        Return the gas metallicity of all clusters in TNG300-1 and TNG-Cluster.
+        Return the cumulative energy fraction of most massive BH.
 
-        Note that the metallicity will be returned in units of solar
-        metallicities, not in code units, which simply give the ratio
-        M_Z / M_tot.
+        The fraction is the fraction of the cumulative energy injected
+        in kinetic mode over the total energy injected (kinetic + thermal).
 
-        :return: Array of shape (632, ) of SFRs, and an appropriate
-            color bar label for it and plot kwargs.
+        :return: Array of cumulative kinetic energy fraction of most
+            massive BH for every cluster.
         """
-        logging.info("Loading gas metallicity for TNG300-1 and TNG-Cluster.")
-        gas_z = np.zeros(self.n_clusters)
 
-        # load and restrict TNG300-1 SFRs
-        halo_data = halos_daq.get_halo_properties(
-            self.tng300_basepath,
-            self.config.snap_num,
-            ["GroupGasMetallicity", self.config.mass_field],
+        # helper func
+        def get_black_hole_kinetic_fraction(base_path: str, hid: int) -> float:
+            """
+            Return the black hole cumulative kinetic energy fraction.
+
+            This fraction is the ratio of the cumulative energy injected
+            in kinetic mode over the total cumulative energy injected.
+
+            :param base_path: Sim base path.
+            :param hid: Halo ID.
+            :return: The ratio of the Eddington ratio over the mode
+                switchover threshold: (Mdor / Mdot_EDdd) / chi.
+            """
+            logging.debug(
+                f"Finding black hole cumulative kinetic energy fraction "
+                f"for halo {hid}."
+            )
+            # load all required data
+            fields = ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"]
+            bh_data = bh_daq.get_most_massive_blackhole(
+                base_path,
+                self.config.snap_num,
+                hid,
+                fields=fields,
+            )
+            total_energy_injected = (
+                bh_data["BH_CumEgyInjection_RM"]
+                + bh_data["BH_CumEgyInjection_RM"]
+            )
+            return bh_data["BH_CumEgyInjection_RM"] / total_energy_injected
+
+        return self._get_cluster_quantity(
+            get_black_hole_kinetic_fraction,
+            "BH kinetic energy injection fraction",
         )
-        cluster_data = selection.select_clusters(
-            halo_data, self.config.mass_field, expected_number=self.n300
+
+    def _get_cluster_bh_cum_mass(self):
+        """
+        Return the cumulative mass accretion fraction of most massive BH.
+
+        The fraction is the fraction of the cumulative mass accreted in
+        kinetic mode over the total mass accreted (kinetic + thermal).
+
+        :return: Array of cumulative mass accretion fraction of most
+            massive BH for every cluster.
+        """
+
+        # helper func
+        def get_black_hole_kinetic_fraction(base_path: str, hid: int) -> float:
+            """
+            Return the black hole cumulative kinetic accretion fraction.
+
+            This fraction is the ratio of the cumulative mass accreted
+            in kinetic mode over the total cumulative mass accreted.
+
+            :param base_path: Sim base path.
+            :param hid: Halo ID.
+            :return: The ratio of the Eddington ratio over the mode
+                switchover threshold: (Mdor / Mdot_EDdd) / chi.
+            """
+            logging.debug(
+                f"Finding black hole cumulative kinetic accretion fraction "
+                f"for halo {hid}."
+            )
+            # load all required data
+            fields = ["BH_CumMassGrowth_QM", "BH_CumMassGrowth_RM"]
+            bh_data = bh_daq.get_most_massive_blackhole(
+                base_path,
+                self.config.snap_num,
+                hid,
+                fields=fields,
+            )
+            total_mass_accreted = (
+                bh_data["BH_CumMassGrowth_QM"] + bh_data["BH_CumMassGrowth_RM"]
+            )
+            return bh_data["BH_CumMassGrowth_RM"] / total_mass_accreted
+
+        return self._get_cluster_quantity(
+            get_black_hole_kinetic_fraction,
+            "BH kinetic mass accretion fraction",
         )
-        gas_z[:self.n300] = cluster_data["GroupGasMetallicity"]
-
-        # load TNG-Cluster SFRs
-        halo_data = halos_daq.get_halo_properties(
-            self.tngclstr_basepath,
-            self.config.snap_num,
-            ["GroupGasMetallicity"],
-            cluster_restrict=True,
-        )
-        gas_z[self.n300:] = halo_data["GroupGasMetallicity"]
-
-        # adjust units to solar units
-        gas_z /= 0.0127  # convert to solar units
-
-        return gas_z
 
     def _get_plot_kwargs(self, field: str) -> dict[str, Any]:
         """
@@ -771,6 +923,22 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         :param field: Name of the field.
         :return: Dict of keyword argument.
         """
+        if self.median_deviation:
+            return self._get_plot_kwargs_for_median_diff(field)
+        else:
+            return self._get_plot_kwargs_normal(field)
+
+    def _get_plot_kwargs_normal(self, field: str) -> dict[str, Any]:
+        """
+        Return keyword parameters for plotting normal quantities.
+
+        For the given field, return a dictionary of keyword arguments
+        for the plotting function. This method returns the kwargs for
+        the normal plotting of color data.
+
+        :param field: Name of the field.
+        :return: Dict of keyword argument.
+        """
         # TODO: make this monstrosity readable
         match field:
             case "SFR":
@@ -778,20 +946,26 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                     label = r"SFR [$\log(M_\odot / yr)$]"
                 else:
                     label = r"SFR [$M_\odot / yr$]"
-                return {"cbar_label": label}
+                config_dict = {
+                    "cbar_label": label,
+                    "cmap": "viridis",
+                    "cbar_range": (0., 2.),
+                    "cbar_caps": "both"
+                }
+                return config_dict
 
             case "TotalBHMass":
                 if self.color_log:
-                    label = r"BH mass [$\log M_\odot$]"
+                    label = r"Total BH mass [$\log M_\odot$]"
                 else:
-                    label = r"BH mass [$M_\odot$]"
+                    label = r"Total BH mass [$M_\odot$]"
                 return {"cbar_label": label, "cmap": "plasma"}
 
             case "BHMass":
                 if self.color_log:
-                    label = r"BH mass [$\log M_\odot$]"
+                    label = r"Most massive BH mass [$\log M_\odot$]"
                 else:
-                    label = r"BH mass [$M_\odot$]"
+                    label = r"Most massive BH mass [$M_\odot$]"
                 return {"cbar_label": label, "cmap": "plasma"}
 
             case "BHMdot":
@@ -799,7 +973,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                     label = r"BH accretion rate [$\log (M_\odot / Gyr)$]"
                 else:
                     label = r"BH accretion rate [$M_\odot / Gyr$]"
-                return {"cbar_label": label, "cmap": "magma"}
+                config_dict = {
+                    "cbar_label": label,
+                    "cmap": "magma",
+                }
+                return config_dict
 
             case "BHMode":
                 # create a custom colormap
@@ -811,7 +989,10 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 )
                 if self.color_log:
                     norm_config = {"vmin": -5, "vcenter": 0, "vmax": 5}
-                    label = r"BH mode [$\log_{10}((\dot{M} / \dot{M}_{Edd}) / \chi)$]"
+                    label = (
+                        r"BH mode [$\log_{10}((\dot{M} / "
+                        r"\dot{M}_{Edd}) / \chi)$]"
+                    )
                 else:
                     norm_config = {"vmin": 0, "vcenter": 1, "vmax": 10}
                     label = r"BH mode [$(\dot{M} / \dot{M}_{Edd}) / \chi$]"
@@ -824,6 +1005,20 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                     "cbar_caps": "both",
                 }
                 return config_dict
+
+            case "BHCumEnergy":
+                if self.color_log:
+                    label = r"Cumulative kinetic energy fraction [$\log_{10}$]"
+                else:
+                    label = r"Cumulative kinetic energy fraction"
+                return {"cbar_label": label, "cmap": "Wistia"}
+
+            case "BHCumMass":
+                if self.color_log:
+                    label = r"Cumulative accreted mass fraction [$\log_{10}$]"
+                else:
+                    label = r"Cumulative accreted mass fraction"
+                return {"cbar_label": label, "cmap": "magma"}
 
             case "GasMetallicity":
                 if self.color_log:
@@ -839,6 +1034,66 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 )
                 return {}
 
+    def _get_plot_kwargs_for_median_diff(self, field: str) -> dict[str, Any]:
+        """
+        Return keyword parameters for plotting median deviation.
+
+        For the given field, return a dictionary of keyword arguments
+        for the plotting function. This method returns the kwargs for
+        plotting the deviation of a quantity from a mass bin median.
+
+        :param field: Name of the field.
+        :return: Dict of keyword argument.
+        """
+        # find a proper description of the values
+        match field:
+            case "SFR":
+                descr = r"SFR / \widetilde{SFR}"
+                limits = [0, 4, -1, 1]
+            case "BHMass":
+                descr = r"M / \tilde{M}"
+                limits = [0, 4, -0.5, 0.35]
+            case "TotalBHMass":
+                descr = r"M / \tilde{M}"
+                limits = [0.5, 2, -0.2, 0.5]
+            case "BHMdot":
+                descr = r"\dot{M} / \tilde{\dot{M}}"
+                limits = [0, 10, -1.5, 1.5]
+            case "GasMetallicity":
+                descr = r"Z / \tilde{Z}"
+                limits = [0.8, 1.2, -0.075, 0.075]
+            case _:
+                logging.warning(
+                    f"Unknown field {field} received, label will be empty."
+                )
+                descr = ""
+                limits = [0, 4, -1, 1]
+        # config values
+        if self.color_log:
+            label = rf"Deviation from median [$\log_{{10}}({descr})$]"
+            norm_config = {"vmin": limits[2], "vcenter": 0, "vmax": limits[3]}
+        else:
+            label = rf"Deviation from median [${descr}$]"
+            norm_config = {"vmin": limits[0], "vcenter": 1, "vmax": limits[1]}
+
+        # create a custom colormap
+        full_range_channel = np.linspace(0, 1, 256)
+        full_cmap = np.zeros((512, 3))
+        full_cmap[:256, 2] = np.flip(full_range_channel)  # blue channel
+        full_cmap[256:, 0] = full_range_channel  # red channel
+        deviation_map = matplotlib.colors.LinearSegmentedColormap.from_list(
+            "deviation_map", full_cmap
+        )
+        norm = matplotlib.colors.TwoSlopeNorm(**norm_config)
+
+        config_dict = {
+            "cbar_label": label,
+            "norm": norm,
+            "cmap": deviation_map,
+            "cbar_caps": "both",
+        }
+        return config_dict
+
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
     """
@@ -853,6 +1108,9 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
     def run(self) -> int:
         """Load data from file and plot it."""
         self._verify_directories()
+        if self.color_field is None:
+            logging.fatal("Require color field to plot.")
+            sys.exit(10)
 
         # load base data
         logging.info("Loading base data from file.")
@@ -878,117 +1136,16 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
         color_data = np.load(self.paths["data_dir"] / filename)
         color_kwargs = self._get_plot_kwargs(self.color_field)
 
+        # plot deviation instead if desired
+        if self.median_deviation:
+            color_data = statistics.find_deviation_from_median_per_bin(
+                color_data,
+                np.log10(halo_masses),
+                min_mass=14.0,
+                max_mass=15.4,
+                num_bins=7,
+            )
+
         if self.color_log:
             color_data = np.log10(color_data)
         self._plot(halo_masses, cool_gas_fracs, color_data, color_kwargs)
-
-
-class ClusterCoolGasMassTrendGridPipeline(ClusterCoolGasMassTrendPipeline):
-    """
-    Plot a bunch of panels into one figure.
-    """
-
-    def __post_init__(self):
-        super().__post_init__()
-
-    def run(self) -> int:
-        """Load data from file"""
-        self._verify_directories()
-
-        # load base data
-        logging.info("Loading base data from file.")
-        base_file = self.paths["data_dir"] / self.base_filename
-        if not base_file.exists():
-            logging.fatal(f"Base data file {base_file} does not exist!")
-            return 1
-
-        with np.load(base_file) as base_data:
-            halo_masses = base_data["halo_masses"]
-            cool_gas_fracs = base_data["cool_gas_fracs"]
-
-        # adjust zero-values
-        if self.log:
-            # make zero-values visible; scatter them a little
-            rng = np.random.default_rng(42)
-            n_zeros = len(cool_gas_fracs) - np.count_nonzero(cool_gas_fracs)
-            randnums = np.power(5, rng.random(n_zeros))
-            cool_gas_fracs[cool_gas_fracs == 0] = 1e-7 * randnums
-
-        # create a figure and plot the data
-        logging.info("Plotting scatter plots.")
-        fig, axes = plt.subplots(figsize=(10, 6), ncols=2, nrows=2)
-        fig.set_tight_layout(True)
-        flat_axes = axes.flatten()
-        # axes config
-        if self.core_only:
-            ylabel = r"Cool gas fraction($< 0.05 R_{200c}$)"
-        else:
-            ylabel = r"Cool gas fraction ($< 2 R_{200c}$)"
-        for ax in flat_axes:
-            ax.set_ylabel(ylabel)
-            ax.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
-        if self.log:
-            for axes in flat_axes:
-                axes.set_yscale("log")
-
-        # config for the fields
-        cbar_conf = {
-            # values pairs: cbar_label, whether to plot color in log scale, cmap
-            "SFR": (r"SFR [$\log(M_\odot / yr)$]", True, "viridis"),
-            "GasMetallicity":
-                (r"Gas metallicity [$Z_\odot$]", False, "cividis"),
-            "BHMass": (r"BH mass [$\log M_\odot$]", True, "plasma"),
-            "BHMdot":
-                (r"BH accretion rate [$\log (M_\odot / Gyr)$]", True, "magma"),
-        }
-
-        for i, fieldname in enumerate(self.field_generators.keys()):
-            # load the quantity to plot
-            logging.info(f"Loading field {fieldname} data.")
-            stem = self.paths["data_file_stem"].replace(
-                "clusters", f"clusters_{fieldname.lower()}"
-            )
-            filename = f"{stem}.npy"
-            filepath = self.paths["data_dir"] / filename
-            if not filepath.exists():
-                logging.error(
-                    f"Could not find the data for field {fieldname} under "
-                    f"{filepath}. Skipping."
-                )
-                continue
-            colored_quantity = np.load(filepath)
-            if cbar_conf[fieldname][1]:
-                colored_quantity = np.log10(colored_quantity)
-
-            # determine min and max of colorbar values
-            cbar_min = np.min(colored_quantity)
-            cbar_max = np.max(colored_quantity)
-
-            # plot TNG300 data
-            common.plot_scatterplot(
-                fig,
-                flat_axes[i],
-                np.log10(halo_masses[:self.n300]),
-                cool_gas_fracs[:self.n300],
-                colored_quantity[:self.n300],
-                legend_label="TNG300-1",
-                marker_style="o",
-                cmap=cbar_conf[fieldname][2],
-                cbar_label=cbar_conf[fieldname][0],
-                cbar_range=[cbar_min, cbar_max],
-            )
-            # plot TNG-Cluster data
-            common.plot_scatterplot(
-                fig,
-                flat_axes[i],
-                np.log10(halo_masses[self.n300:]),
-                cool_gas_fracs[self.n300:],
-                colored_quantity[self.n300:],
-                legend_label="TNG-Cluster",
-                marker_style="D",
-                cmap=cbar_conf[fieldname][2],
-                suppress_colorbar=True,
-                cbar_range=[cbar_min, cbar_max],
-            )
-
-        self._save_fig(fig, ident_flag="combined")

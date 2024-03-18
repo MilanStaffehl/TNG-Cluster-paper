@@ -553,3 +553,56 @@ def volume_normalized_radial_profile(
         edges = edges / virial_radius
 
     return hist / shell_volumes, edges
+
+
+def find_deviation_from_median_per_bin(
+    quantity: NDArray,
+    masses: NDArray,
+    min_mass: float,
+    max_mass: float,
+    num_bins: int
+) -> NDArray:
+    """
+    Split sample into bins and return deviation from median per bin.
+
+    The quantity is split into bins of 0.2 dex and in every bin, the
+    median of the color quantity is found. Then, the function returns
+    not the color quantity itself, but rather the difference from the
+    median in every bin as the ratio ``quantity / median``, such that
+    values below 1 denote a quantity below the median, and values above
+    1 denote quantities that lie above the median.
+
+    :param quantity: The quantity for which to find the deviation from
+        median, shape (N, ) where N is the number of entries.
+    :param masses: The array of masses by which to bin in units of solar
+        masses, shape (N, ).
+    :param min_mass: The lower edge of the mass bins in solar masses.
+    :param max_mass: The upper edge of the mass bins in solar masses.
+    :param num_bins: The number of mass bins to create.
+    :return: The ratios of the quantity to the median of its mass
+        bin, shape (N, ).
+    """
+    # create a mass bin mask
+    mass_bin_edges = np.linspace(min_mass, max_mass, num=num_bins + 1)
+    mask = np.digitize(masses, mass_bin_edges)
+
+    # create an array for the results
+    results = np.zeros_like(quantity)
+
+    # find the median in every mass bin
+    medians = np.zeros(num_bins)
+    for i in range(num_bins):
+        values_in_bin = quantity[mask == i + 1]
+        medians[i] = np.nanmedian(values_in_bin)
+
+    # for every color quantity, compare it to its median
+    for j, cur_data in enumerate(quantity):
+        cur_mass_bin_index = mask[j] - 1  # index of mass bin
+        # some clusters have just above log M = 15.4, place them into
+        # the last mass bin anyway
+        # TODO: replace
+        if cur_mass_bin_index > num_bins - 1:
+            cur_mass_bin_index = num_bins - 1
+        results[j] = cur_data / medians[cur_mass_bin_index]
+
+    return results
