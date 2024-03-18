@@ -55,6 +55,10 @@ printf "\n\nRunning: cluster mass trend plots (full cluster, BH mode):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMode -r
 printf "\n\nRunning: cluster mass trend plots (full cluster, gas metallicity):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --field GasMetallicity -r
+printf "\n\nRunning: cluster mass trend plots (full cluster, BH cumulative energy):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHCumEnergy -r
+printf "\n\nRunning: cluster mass trend plots (full cluster, BH cumulative mass):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHCumMass -r
 
 printf "\n\nRunning: cluster mass trend plots (cluster core only, SFR):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field SFR -r -cc
@@ -68,3 +72,7 @@ printf "\n\nRunning: cluster mass trend plots (cluster core only, BH mode):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHMode -r -cc
 printf "\n\nRunning: cluster mass trend plots (cluster core only, gas metallicity):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --field GasMetallicity -r -cc
+printf "\n\nRunning: cluster mass trend plots (cluster core only, BH cumulative energy):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHCumEnergy -r -cc
+printf "\n\nRunning: cluster mass trend plots (cluster core only, BH cumulative mass):\n"
+python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field BHCumMass -r -cc

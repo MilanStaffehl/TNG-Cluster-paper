@@ -248,7 +248,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         flat_axes = axes.flatten()
         # common axes labels
         fig.supxlabel("Radial velocity [km/s]")
-        fig.supylabel(r"Gas fraction ($\log_{10}$)")
+        fig.supylabel(r"Gas mass ($M_\odot$)")
         if self.log:
             for ax in flat_axes:
                 ax.set_yscale("log")
