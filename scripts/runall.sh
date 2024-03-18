@@ -39,9 +39,18 @@ python ./radial_profiles/stackbin_radial_profiles.py --what temperature --method
 printf "\n\nRunning: radial profile plots (all clusters, temperature, median):\n"
 python ./radial_profiles/stackbin_radial_profiles.py --what temperature --method median --log
 printf "\n\nRunning: radial profile plots (all clusters, density, mean):\n"
-python ./radial_profiles/stackbin_radial_profiles.py --what density --method mean --log
+python ./radial_profiles/stackbin_radial_profiles.py --what density --method mean --log --combined
 printf "\n\nRunning: radial profile plots (all clusters, density, median):\n"
-python ./radial_profiles/stackbin_radial_profiles.py --what density --method median --log
+python ./radial_profiles/stackbin_radial_profiles.py --what density --method median --log --combined
+
+printf "\n\nRunning: radial profile plots (all clusters, core only, temperature, mean):\n"
+python ./radial_profiles/stackbin_radial_profiles.py --what temperature --method mean --log -cc
+printf "\n\nRunning: radial profile plots (all clusters, core only, temperature, median):\n"
+python ./radial_profiles/stackbin_radial_profiles.py --what temperature --method median --log -cc
+printf "\n\nRunning: radial profile plots (all clusters, core only, density, mean):\n"
+python ./radial_profiles/stackbin_radial_profiles.py --what density --method mean --log -cc --combined
+printf "\n\nRunning: radial profile plots (all clusters, core only, density, median):\n"
+python ./radial_profiles/stackbin_radial_profiles.py --what density --method median --log -cc --combined
 
 printf "\n\nRunning: cluster mass trend plots (full cluster, SFR):\n"
 python ./mass_trends/plot_cool_gas_mass_trends.py --log --color-log --field SFR -r
