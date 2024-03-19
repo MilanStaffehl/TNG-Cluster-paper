@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from library.loading import load_radial_profiles
-from library.plotting import common, plot_radial_profiles, pltutil
+from library.plotting import colormaps, common, plot_radial_profiles, pltutil
 from library.processing import selection, statistics
 from pipelines.base import Pipeline
 
@@ -505,7 +505,7 @@ class StackProfilesBinnedPipeline(Pipeline):
                 color = "black"
                 label = "Total"
             else:
-                color = pltutil.sample_cmap("jet", len(stacks) - 1, i)
+                color = colormaps.sample_cmap("jet", len(stacks) - 1, i)
                 label = (
                     rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
                     rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}}$"
@@ -742,7 +742,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
                 color = "black"
                 label = "Total"
             else:
-                color = pltutil.sample_cmap("jet", len(stacks) - 1, i)
+                color = colormaps.sample_cmap("jet", len(stacks) - 1, i)
                 label = (
                     rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
                     rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}} M_\odot$"
@@ -1093,7 +1093,7 @@ class StackDensityProfilesByVelocityPipeline(
                 color = "black"
                 label = "Total"
             else:
-                color = pltutil.sample_cmap("jet", len(stacks) - 1, i)
+                color = colormaps.sample_cmap("jet", len(stacks) - 1, i)
                 label = (
                     rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
                     rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}} M_\odot$"

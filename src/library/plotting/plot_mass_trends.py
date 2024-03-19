@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from library.plotting import common, pltutil
+from library.plotting import colormaps, common
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -95,7 +95,7 @@ def plot_gas_mass_trends_individuals(
     h = axes[0][0].hist2d(
         halo_masses,
         gas_data[:, 0, 0],
-        cmap=pltutil.custom_cmap(common.temperature_colors_rgb["cool"]),
+        cmap=colormaps.custom_cmap(common.temperature_colors_rgb["cool"]),
         range=(xlims, frac_lims),
         bins=(xbins, frac_bins),
         norm="log",
@@ -114,7 +114,7 @@ def plot_gas_mass_trends_individuals(
     h = axes[0][1].hist2d(
         halo_masses,
         gas_data[:, 1, 0],
-        cmap=pltutil.custom_cmap(common.temperature_colors_rgb["cool"]),
+        cmap=colormaps.custom_cmap(common.temperature_colors_rgb["cool"]),
         range=(xlims, mass_lims),
         bins=(xbins, mass_bins),
         norm="log",
@@ -133,7 +133,7 @@ def plot_gas_mass_trends_individuals(
     h = axes[1][0].hist2d(
         halo_masses,
         gas_data[:, 0, 1],
-        cmap=pltutil.custom_cmap(common.temperature_colors_rgb["warm"]),
+        cmap=colormaps.custom_cmap(common.temperature_colors_rgb["warm"]),
         range=(xlims, frac_lims),
         bins=(xbins, frac_bins),
         norm="log",
@@ -152,7 +152,7 @@ def plot_gas_mass_trends_individuals(
     axes[1][1].hist2d(
         halo_masses,
         gas_data[:, 1, 1],
-        cmap=pltutil.custom_cmap(common.temperature_colors_rgb["warm"]),
+        cmap=colormaps.custom_cmap(common.temperature_colors_rgb["warm"]),
         range=(xlims, mass_lims),
         bins=(xbins, mass_bins),
         norm="log",
@@ -171,7 +171,7 @@ def plot_gas_mass_trends_individuals(
     h = axes[2][0].hist2d(
         halo_masses,
         gas_data[:, 0, 2],
-        cmap=pltutil.custom_cmap(common.temperature_colors_rgb["hot"]),
+        cmap=colormaps.custom_cmap(common.temperature_colors_rgb["hot"]),
         range=(xlims, frac_lims),
         bins=(xbins, frac_bins),
         norm="log",
@@ -190,7 +190,7 @@ def plot_gas_mass_trends_individuals(
     h = axes[2][1].hist2d(
         halo_masses,
         gas_data[:, 1, 2],
-        cmap=pltutil.custom_cmap(common.temperature_colors_rgb["hot"]),
+        cmap=colormaps.custom_cmap(common.temperature_colors_rgb["hot"]),
         range=(xlims, mass_lims),
         bins=(xbins, mass_bins),
         norm="log",

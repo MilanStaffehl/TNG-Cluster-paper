@@ -10,11 +10,10 @@ from typing import TYPE_CHECKING, Callable, Sequence
 
 import numpy as np
 
-import library.plotting.pltutil
 from library import compute
 from library.data_acquisition import gas_daq, halos_daq
 from library.loading import load_temperature_histograms
-from library.plotting import plot_temperature_histograms, pltutil
+from library.plotting import colormaps, plot_temperature_histograms, pltutil
 from library.processing import gas_temperatures, parallelization, sequential, statistics
 from pipelines import base
 
@@ -263,7 +262,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
         facecolor = "lightblue" if self.weights == "frac" else "pink"
         # plot all mass bins
         for i in range(len(self.mass_bin_edges) - 1):
-            error_bars = library.plotting.pltutil.get_errorbar_lengths(
+            error_bars = pltutil.get_errorbar_lengths(
                 median[i], percentiles[i]
             )
             f, a = plot_temperature_histograms.plot_temperature_distribution(
@@ -421,7 +420,7 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
         if self.with_virial_temperatures:
             logging.info("Overplotting virial temperatures.")
             for mass_bin in range(len(self.mass_bin_edges) - 1):
-                c = pltutil.sample_cmap(colormap, 1 / len(mean), mass_bin)
+                c = colormaps.sample_cmap(colormap, 1 / len(mean), mass_bin)
                 plot_temperature_histograms.overplot_virial_temperatures(
                     fig, axes, virial_temperatures, mass_bin, mass_bin_mask, c
                 )
@@ -499,7 +498,7 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
         if self.with_virial_temperatures:
             logging.info("Overplotting virial temperatures.")
             for mass_bin in range(len(self.mass_bin_edges) - 1):
-                c = pltutil.sample_cmap(colormap, len(mean), mass_bin)
+                c = colormaps.sample_cmap(colormap, len(mean), mass_bin)
                 plot_temperature_histograms.overplot_virial_temperatures(
                     fig,
                     axes,

@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
 
-from library.plotting import pltutil
+from library.plotting import colormaps
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -393,7 +393,7 @@ def plot_tds_in_one(
 
     for idx, hist in enumerate(means):
         # get the color
-        color = pltutil.sample_cmap(colormap, len(means), idx)
+        color = colormaps.sample_cmap(colormap, len(means), idx)
 
         # plot data
         plot_config = {
