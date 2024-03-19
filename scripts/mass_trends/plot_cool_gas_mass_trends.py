@@ -6,7 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.mass_trends.temperatures_clusters import (
+from pipelines.mass_trends.cool_gas_fracs_clusters import (
     ClusterCoolGasFromFilePipeline,
     ClusterCoolGasMassTrendPipeline,
 )
@@ -23,11 +23,15 @@ def main(args: argparse.Namespace) -> None:
     if args.core_only:
         type_flag += "_core"
 
+    if args.median_deviation:
+        subdir = "median_deviation"
+    else:
+        subdir = "standard"
     pipeline_config = scriptparse.startup(
         args,
         "mass_trends",
         type_flag,
-        figures_subdirectory="./.."  # use base directory of milestone
+        figures_subdirectory=f"./clusters/{subdir}"
     )
 
     # add custom parameters

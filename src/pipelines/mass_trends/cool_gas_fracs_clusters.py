@@ -8,10 +8,13 @@ import sys
 import time
 import tracemalloc
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, ClassVar
 
+import h5py
 import matplotlib.cm
 import matplotlib.pyplot as plt
+import numpy
 import numpy as np
 from matplotlib.lines import Line2D
 from numpy.typing import NDArray
@@ -19,7 +22,7 @@ from numpy.typing import NDArray
 from library.config import config
 from library.data_acquisition import bh_daq, gas_daq, halos_daq
 from library.loading import load_radial_profiles
-from library.plotting import common
+from library.plotting import colormaps, common
 from library.processing import selection, statistics
 from pipelines.base import DiagnosticsPipeline
 
@@ -72,6 +75,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             "BHMode": self._get_cluster_bh_mode,
             "BHCumEnergy": self._get_cluster_bh_cum_energy,
             "BHCumMass": self._get_cluster_bh_cum_mass,
+            "RelaxednessMass": self._get_cluster_relaxedness_by_mass,
+            "RelaxednessDist": self._get_cluster_relaxedness_by_dist,
+            "CCT": self._get_cluster_central_cooling_time,
+            "CoolCore": self._get_cluster_cool_core_category,
+            "FormationRedshift": self._get_cluster_formation_redshift,
         }
 
     def run(self) -> int:
@@ -126,9 +134,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             halo_masses, cool_gas_fracs = self._get_base_data()
 
         # Step 2: acquire data to color the points with
-        try:
-            color_quantity = self.field_generators[self.color_field]()
-        except KeyError:
+        getter = self.field_generators.get(self.color_field)
+        if getter is None:
             logging.error(
                 f"Unknown or unsupported field name for color field: "
                 f"{self.color_field}. Will plot uncolored plot."
@@ -136,6 +143,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             color_quantity = None
             self.color_field = None  # plot only black dots
         else:
+            color_quantity = getter()
             # since there is color data, save it to file
             logging.info(f"Writing color data {self.color_field} to file.")
             filename = f"{self.paths['data_file_stem']}.npy"
@@ -393,12 +401,13 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             this data, i.e. if you wish to plot it in log scale, you
             must pass it already in log scale.
         :param additional_kwargs: A dictionary containing additional
-            keywords for the :fucn:`plot_scatterplot` function.
+            keywords for the :func:`plot_scatterplot` function.
         :return: None, figure is saved to file.
         """
         logging.info("Plotting cool gas fraction mass trend for clusters.")
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
+        axes.set_xlim([14.0, 15.4])
         if self.core_only:
             axes.set_ylabel(r"Cool gas fraction within $0.05R_{200c}$")
         else:
@@ -420,9 +429,9 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             if "cbar_range" in additional_kwargs.keys():
                 cbar_min, cbar_max = additional_kwargs.pop("cbar_range")
             if cbar_min is None:
-                cbar_min = np.min(colored_quantity)
+                cbar_min = np.nanmin(colored_quantity)
             if cbar_max is None:
-                cbar_max = np.max(colored_quantity)
+                cbar_max = np.nanmax(colored_quantity)
             # extract color label or set a default
             try:
                 label = additional_kwargs.pop("cbar_label")
@@ -913,6 +922,93 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             "BH kinetic mass accretion fraction",
         )
 
+    def _get_cluster_relaxedness_by_mass(self) -> NDArray:
+        """
+        Return the relaxedness of the clusters for TNG-Cluster only.
+
+        :return: Array of relaxedness according to mass criterion.
+        """
+        relaxedness = numpy.zeros(self.n_clusters)
+        relaxedness[:self.n300] = np.nan
+        path = (
+            Path(self.tngclstr_basepath).parent / "postprocessing" / "released"
+            / "Relaxedness.hdf5"
+        )
+        with h5py.File(path, "r") as file:
+            relaxedness[self.n300:] = np.array(
+                file["Halo"]["Mass_Criterion"][99]
+            )
+        return relaxedness
+
+    def _get_cluster_relaxedness_by_dist(self) -> NDArray:
+        """
+        Return the relaxedness of the clusters for TNG-Cluster only.
+
+        :return: Array of relaxedness according to distance criterion.
+        """
+        relaxedness = numpy.zeros(self.n_clusters)
+        relaxedness[:self.n300] = np.nan
+        path = (
+            Path(self.tngclstr_basepath).parent / "postprocessing" / "released"
+            / "Relaxedness.hdf5"
+        )
+        with h5py.File(path, "r") as file:
+            relaxedness[self.n300:] = np.array(
+                file["Halo"]["Distance_Criterion"][99]
+            )
+        return relaxedness
+
+    def _get_cluster_central_cooling_time(self) -> NDArray:
+        """
+        Return the central cooling time of clusters in TNG Cluster.
+
+        :return: Central cooling time in Gyr.
+        """
+        cct = np.zeros(self.n_clusters)
+        cct[:self.n300] = np.nan
+        path = (
+            Path(self.tngclstr_basepath).parent / "postprocessing" / "released"
+            / "CCcriteria.hdf5"
+        )
+        with h5py.File(path, "r") as file:
+            cct[self.n300:] = np.array(file["centralCoolingTime"][:, 99])
+        return cct
+
+    def _get_cluster_cool_core_category(self) -> NDArray:
+        """
+        Return the central cooling time of clusters in TNG Cluster.
+
+        :return: Central cooling time in Gyr.
+        """
+        cct = np.zeros(self.n_clusters)
+        cct[:self.n300] = np.nan
+        path = (
+            Path(self.tngclstr_basepath).parent / "postprocessing" / "released"
+            / "CCcriteria.hdf5"
+        )
+        with h5py.File(path, "r") as file:
+            cct[self.n300:] = np.array(file["centralCoolingTime_flag"][:, 99])
+        return cct
+
+    def _get_cluster_formation_redshift(self) -> NDArray:
+        """
+        Return array of formation redshifts.
+
+        :return: Formation redshifts only for TNG-Cluster clusters.
+        """
+        # Load data for TNG-Cluster
+        formation_z = np.zeros(self.n_clusters)
+        formation_z[:self.n300] = np.nan
+        path = (
+            Path(self.tngclstr_basepath).parent / "postprocessing" / "released"
+            / "FormationHistories.hdf5"
+        )
+        with h5py.File(path, "r") as file:
+            formation_z[self.n300:] = np.array(
+                file["Halo"]["Redshift_formation"][:, 99]
+            )
+        return formation_z
+
     def _get_plot_kwargs(self, field: str) -> dict[str, Any]:
         """
         Return keyword parameters for the plotting function.
@@ -954,6 +1050,13 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 }
                 return config_dict
 
+            case "GasMetallicity":
+                if self.color_log:
+                    label = r"Gas metallicity [$\log Z_\odot$]"
+                else:
+                    label = r"Gas metallicity [$Z_\odot$]"
+                return {"cbar_label": label, "cmap": "cividis"}
+
             case "TotalBHMass":
                 if self.color_log:
                     label = r"Total BH mass [$\log M_\odot$]"
@@ -980,13 +1083,6 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 return config_dict
 
             case "BHMode":
-                # create a custom colormap
-                kinetic_cmap = plt.cm.winter(np.linspace(0, 1, 256))
-                thermal_cmap = plt.cm.autumn(np.linspace(0, 1, 256))
-                full_cmap = np.vstack((kinetic_cmap, thermal_cmap))
-                bh_mode_map = matplotlib.colors.LinearSegmentedColormap.from_list(
-                    "bh_mode_map", full_cmap
-                )
                 if self.color_log:
                     norm_config = {"vmin": -5, "vcenter": 0, "vmax": 5}
                     label = (
@@ -996,12 +1092,13 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 else:
                     norm_config = {"vmin": 0, "vcenter": 1, "vmax": 10}
                     label = r"BH mode [$(\dot{M} / \dot{M}_{Edd}) / \chi$]"
-                norm = matplotlib.colors.TwoSlopeNorm(**norm_config)
-
+                cmap, norm = colormaps.two_slope_cmap(
+                    "winter", "autumn", **norm_config
+                )
                 config_dict = {
                     "cbar_label": label,
                     "norm": norm,
-                    "cmap": bh_mode_map,
+                    "cmap": cmap,
                     "cbar_caps": "both",
                 }
                 return config_dict
@@ -1020,12 +1117,74 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                     label = r"Cumulative accreted mass fraction"
                 return {"cbar_label": label, "cmap": "magma"}
 
-            case "GasMetallicity":
+            case "RelaxednessDist":
                 if self.color_log:
-                    label = r"Gas metallicity [$\log Z_\odot$]"
+                    norm_config = {
+                        "vmin": -2, "vcenter": np.log10(0.1), "vmax": 1
+                    }
+                    label = (
+                        r"$\log_{10} (|\vec{r}_{center} - \vec{r}_{COM}| "
+                        r"/ R_{200c})$"
+                    )
                 else:
-                    label = r"Gas metallicity [$Z_\odot$]"
-                return {"cbar_label": label, "cmap": "cividis"}
+                    norm_config = {"vmin": 0, "vcenter": 0.1, "vmax": 1}
+                    label = r"$|\vec{r}_{center} - \vec{r}_{COM}| / R_{200c}$"
+                cmap, norm = colormaps.two_slope_cmap(
+                    "cool", "Wistia", **norm_config
+                )
+                config_dict = {
+                    "cbar_label": label,
+                    "norm": norm,
+                    "cmap": cmap,
+                    "cbar_caps": "both",
+                }
+                return config_dict
+
+            case "RelaxednessMass":
+                if self.color_log:
+                    norm_config = {
+                        "vmin": -0.5, "vcenter": np.log10(0.85), "vmax": 0
+                    }
+                    label = r"$\log_{10} (M_{central} / M_{tot})$"
+                else:
+                    norm_config = {"vmin": 0.3, "vcenter": 0.85, "vmax": 1}
+                    label = r"$M_{central} / M_{tot}$"
+                cmap, norm = colormaps.two_slope_cmap("cool", "Wistia", **norm_config)
+                config_dict = {
+                    "cbar_label": label,
+                    "norm": norm,
+                    "cmap": cmap,
+                    "cbar_caps": "both",
+                }
+                return config_dict
+
+            case "FormationRedshift":
+                if self.color_log:
+                    label = r"Redshift [$\log_{10}(z)$]$"
+                else:
+                    label = "Redshift z"
+                return {"cbar_label": label, "cmap": "gist_heat"}
+
+            case "CCT":
+                if self.color_log:
+                    label = r"Central cooling time [$\log_{10} Gyr$]"
+                else:
+                    label = r"Central cooling time [$Gyr$]"
+                cmap = colormaps.custom_cmap((100, 190, 230), (50, 0, 40))
+                return {"cbar_label": label, "cmap": cmap}
+
+            case "CoolCore":
+                if self.color_log:
+                    logging.warning("Cool core criteria cannot be log scaled.")
+                    raise ValueError("Log scale not supported")
+                else:
+                    label = "Core classification"
+                    norm = matplotlib.colors.BoundaryNorm(
+                        [-0.5, 0.5, 1.5, 2.5], ncolors=256
+                    )
+                    return {
+                        "cbar_label": label, "norm": norm, "cmap": "plasma"
+                    }
 
             case _:
                 logging.error(
