@@ -6,3 +6,4 @@ matplotlib>=3.7.2
 multiprocess>=0.70.15
 scipy>=1.11.3
 pyyaml>=6.0.1
+h5py>=3.9.0
