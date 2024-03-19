@@ -1225,7 +1225,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 logging.warning(
                     f"Unknown field {field} received, label will be empty."
                 )
-                descr = ""
+                descr = "?"
                 limits = [0, 4, -1, 1]
         # config values
         if self.color_log:
