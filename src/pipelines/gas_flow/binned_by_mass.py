@@ -212,9 +212,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 mass_mask=mask,
             )
 
-        f, _ = self._plot(histograms, edges, halo_masses, mask)
-        self._save_fig(f)
-
+        self._plot(histograms, edges, halo_masses, mask)
         return 0
 
     def _plot(
@@ -223,7 +221,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         edges: NDArray,
         halo_masses: NDArray,
         mass_mask: NDArray
-    ) -> tuple[Figure, Axes]:
+    ) -> None:
         """
         Plot the velocity distribution in 0.2 dex mass bins.
 
@@ -236,25 +234,11 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             and contain integers from
         :return: Tuple of figure and axes objects with the plots.
         """
-        # create figure and set up axes
         n_mass_bins = len(self.mass_bin_edges) - 1
-        ncols = (n_mass_bins + 1) // 2
-        fig, axes = plt.subplots(
-            nrows=2,
-            ncols=ncols,
-            figsize=(ncols * 2.5, 5),
-        )
-        fig.set_tight_layout(True)
-        flat_axes = axes.flatten()
-        # common axes labels
-        fig.supxlabel("Radial velocity [km/s]")
-        fig.supylabel(r"Gas mass ($M_\odot$)")
-        if self.log:
-            for ax in flat_axes:
-                ax.set_yscale("log")
 
         # for every mass bin, plot the data
         for i in range(n_mass_bins):
+            fig, axes = self._prepare_figure()
             # mask the histograms to only those in the current mass bin
             mass_bin_idx = i + 1
             current_histograms = selection.mask_quantity(
@@ -263,8 +247,8 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             current_masses = selection.mask_quantity(
                 halo_masses, mass_mask, index=mass_bin_idx
             )
-            self._overplot_distribution(
-                flat_axes[i],
+            current_mean, _ = self._overplot_distribution(
+                axes,
                 current_histograms,
                 edges,
                 current_masses,
@@ -276,30 +260,56 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 rf"$10^{{{np.log10(self.mass_bin_edges[i]):.1f}}} - "
                 rf"10^{{{np.log10(self.mass_bin_edges[i + 1]):.1f}}} M_\odot$"
             )
-            flat_axes[i].text(
+            axes.text(
                 0.97,
                 0.97,
                 label,
                 color="black",
-                transform=flat_axes[i].transAxes,
+                transform=axes.transAxes,
                 horizontalalignment="right",
                 verticalalignment="top",
             )
+            # add a line at zero
+            axes.axvline(0, alpha=1, color="grey", linestyle="solid")
+            # add a label for the fraction left and right of zero
+            self._add_fraction_labels(axes, current_mean)
+            # save figure
+            self._save_fig(fig, ident_flag=str(i))
 
         # plot the total mean and median plus all individuals
-        self._overplot_distribution(
-            flat_axes[-1], histograms, edges, halo_masses, 0, -1, alpha=0.01
+        fig, axes = self._prepare_figure()
+        total_mean, _ = self._overplot_distribution(
+            axes, histograms, edges, halo_masses, 0, -1, alpha=0.01
         )
-        flat_axes[-1].text(
+        axes.text(
             0.97,
             0.97,
             "Total",
             color="black",
-            transform=flat_axes[-1].transAxes,
+            transform=axes.transAxes,
             horizontalalignment="right",
             verticalalignment="top",
         )
+        # and a vertical line at zero
+        axes.axvline(0, alpha=1, color="grey", linestyle="solid")
+        # add label for fractions left and right of zero
+        self._add_fraction_labels(axes, total_mean)
+        self._save_fig(fig, ident_flag="total")
 
+    def _prepare_figure(self) -> tuple[Figure, Axes]:
+        """
+        Return a tuple of figure and axes, set up for the current task.
+
+        :return: A figure and an axes object for plotting.
+        """
+        # create figure and set up axes
+        fig, axes = plt.subplots(figsize=(2.5, 2.3))
+        fig.set_tight_layout(True)
+        axes.set_xlabel("Radial velocity [km/s]")
+        axes.set_ylabel(r"Gas mass ($M_\odot$)")
+        axes.set_ylim([1e6, 3e11])
+        if self.log:
+            axes.set_yscale("log")
         return fig, axes
 
     def _overplot_distribution(
@@ -310,8 +320,8 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         masses: NDArray,
         vmin_idx: int,
         vmax_idx: int,
-        alpha: int = 0.05,
-    ) -> Axes:
+        alpha: float = 0.05,
+    ) -> tuple[NDArray, NDArray]:
         """
         Overplot onto the axes all given histograms plus their mean and median.
 
@@ -326,7 +336,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         :param vmax_idx: The index of the mass bin edge that demarks the
             upper edge of the current mass bin.
         :param alpha: The transparency of the individual lines.
-        :return: Axes object.
+        :return: The mean and median histograms respectively.
         """
         # create a colormap for the current mass range
         cmap = matplotlib.cm.get_cmap("plasma")
@@ -361,7 +371,58 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             linestyle="dashed",
             label="median"
         )
-        return axes
+        return mean, median
+
+    def _add_fraction_labels(self, axes: Axes, histogram: NDArray) -> None:
+        """
+        Add labels for the fraction of the histograms above and below zero.
+
+        Method adds two small text boxes around the zero-line which show
+        the faction of the given histogram left and right of the zero
+        line. For an uneven number of bins, the bin centered on zero is
+        not considered.
+
+        The fraction is calculated per halo, and then the mean is written
+        to the labels.
+
+        :param axes: The axes object onto which to place the labels.
+        :param histogram: The histogram to analyse. Must be centered on
+            zero, i.e. there must be equally many bins to either side.
+        :return: None
+        """
+        if self.velocity_bins % 2 == 0:
+            middle = int(self.velocity_bins / 2)
+            left_frac = np.sum(histogram[:middle])
+            right_frac = np.sum(histogram[middle:])
+            total = left_frac + right_frac
+        else:
+            l_border = int(self.velocity_bins // 2)
+            r_border = l_border + 1
+            left_frac = np.sum(histogram[:l_border])
+            right_frac = np.sum(histogram[r_border:])
+            total = np.sum(histogram)
+        axes.text(
+            0.45,
+            0.05,
+            f"{left_frac / total * 100:.1f}%",
+            fontsize=9,
+            color="black",
+            backgroundcolor=(1, 1, 1, 0.7),
+            transform=axes.transAxes,
+            horizontalalignment="right",
+            verticalalignment="bottom",
+        )
+        axes.text(
+            0.55,
+            0.05,
+            f"{right_frac / total * 100:.1f}%",
+            fontsize=9,
+            color="black",
+            backgroundcolor=(1, 1, 1, 0.7),
+            transform=axes.transAxes,
+            horizontalalignment="left",
+            verticalalignment="bottom",
+        )
 
 
 class MassBinnedVelocityDistributionFromFilePipeline(
@@ -387,6 +448,5 @@ class MassBinnedVelocityDistributionFromFilePipeline(
             self.n_clusters,
         )
 
-        f, _ = self._plot(*data)
-        self._save_fig(f, tight_layout=False)
+        self._plot(*data)
         return 0
