@@ -513,15 +513,18 @@ def volume_normalized_radial_profile(
     Function returns both the normalized histogram as well as the array
     of its bin edges.
 
-    :param radial_distances: The array of radial distances.
+    :param radial_distances: The array of radial distances, either in
+        physical units or in units of virial radii.
     :param weight: The array of weights to sum per bin. Must have the
         same shape as ``radial_distances``.
     :param bins: The number of radial bins or the array of bin edges.
     :param virial_radius: If the radial distances are given in units of
         the virial radius, specifying the virial radius will return them
         to physical units by multiplying the radial distances with it.
-        Subsequently, the quantity in the histogram will also be in
-        physical units then.
+        This is required to get correct measures in physical units, i.e.
+        the histogram values will only be in physical units (namely the
+        volume) if the distances are turned back into physical units
+        before creating the histogram.
     :param radial_range: A sequence of two floats which will be the
         lower and upper edge of the bin range. Optional, leave this
         unspecified to automatically infer range from data.  If the
