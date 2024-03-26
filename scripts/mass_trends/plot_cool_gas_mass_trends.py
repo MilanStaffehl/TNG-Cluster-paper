@@ -33,7 +33,8 @@ def main(args: argparse.Namespace) -> None:
         args,
         "mass_trends",
         type_flag,
-        figures_subdirectory=f"./../clusters/{subdir}"
+        figures_subdirectory=f"./../clusters/{subdir}",
+        suppress_sim_name_in_files=True,
     )
 
     # add custom parameters

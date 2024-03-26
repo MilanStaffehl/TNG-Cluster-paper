@@ -21,7 +21,7 @@ def main(args: argparse.Namespace) -> None:
     else:
         type_flag = f"{args.regime}_density_split"
     if args.virial_velocity:
-        type_flag += "_virial_vel"
+        type_flag += "_virial_velocity"
 
     pipeline_config = scriptparse.startup(
         args,
@@ -29,6 +29,7 @@ def main(args: argparse.Namespace) -> None:
         type_flag,
         with_virial_temperatures=False,
         figures_subdirectory="./../",
+        suppress_sim_name_in_files=True,
     )
 
     pipeline_config.update(

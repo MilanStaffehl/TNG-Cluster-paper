@@ -116,7 +116,9 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
                 tng300_data[self.config.radius_field][i],
                 virial_velocity,
             )
-            filename = f"{self.paths['data_file_stem']}_halo_{halo_id}.npz"
+            filename = (
+                f"{self.paths['data_file_stem']}_TNG300_1_halo_{halo_id}.npz"
+            )
             np.savez(
                 self.data_paths["TNG300_1"] / filename,
                 histograms=histograms,
@@ -156,7 +158,9 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
                 tngclstr_data[self.config.radius_field][i],
                 virial_velocity,
             )
-            filename = f"{self.paths['data_file_stem']}_cluster_{halo_id}.npz"
+            filename = (
+                f"{self.paths['data_file_stem']}_TNG_Cluster_cluster_{halo_id}.npz"
+            )
             np.savez(
                 self.data_paths["TNG_Cluster"] / filename,
                 histograms=histograms,
@@ -419,12 +423,18 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
         if not self.data_paths["TNG_Cluster"].exists():
             logging.error("Data files for TNG-Cluster do not exist.")
             return 1
-        if not len(list(self.data_paths["TNG300_1"].iterdir())
-                   ) == self.n_tng300:
+        # check that all files exist
+        files = self.data_paths["TNG300_1"].iterdir()
+        name = f"{self.paths['data_file_stem']}_TNG300_1_halo_"
+        cur_files = [f for f in files if name in f.stem]
+        if len(cur_files) != self.n_tng300:
             logging.error("Data files for TNG300-1 are incomplete.")
             return 2
-        if not len(list(self.data_paths["TNG_Cluster"].iterdir())
-                   ) == self.n_tngclstr:
+        # and the same for TNG-Cluster
+        files = self.data_paths["TNG_Cluster"].iterdir()
+        name = f"{self.paths['data_file_stem']}_TNG_Cluster_cluster_"
+        cur_files = [f for f in files if name in f.stem]
+        if len(cur_files) != self.n_tngclstr:
             logging.error("Data files for TNG-Cluster are incomplete.")
             return 2
 

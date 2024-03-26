@@ -203,9 +203,13 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
 
         # Step 6: Save data to file
+        filepath = (
+            self.paths["data_dir"]
+            / f"{self.paths['data_file_stem']}_clusters.npz"
+        )
         if self.to_file:
             np.savez(
-                self.paths["data_dir"] / f"{self.paths['data_file_stem']}.npz",
+                filepath,
                 histograms=histograms,
                 edges=edges,
                 halo_masses=halo_masses,

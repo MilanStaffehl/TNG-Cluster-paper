@@ -205,6 +205,7 @@ def startup(
     with_virial_temperatures: bool = False,
     figures_subdirectory: str | Path | None = None,
     data_subdirectory: str | Path | None = None,
+    suppress_sim_name_in_files: bool = False,
 ) -> PipelineKwargs:
     """
     Common set-up for scripts.
@@ -228,6 +229,11 @@ def startup(
     :param data_subdirectory: An optional subdirectory inside the
         data home where to save data files. Must be given relative to
         the data home directory.
+    :param suppress_sim_name_in_files: When set to True, the figure and
+        data file names will not contain the name of the simulation
+        that is set in the namespace ``sim`` field. Otherwise, the
+        name of these files will contain the simulation name given in
+        the namespace object.
     :return: A dictionary of keyword arguments suitable to start up a
         base :class:`~library.pipelines.base.Pipeline`, by using it
         with the ``**`` operator as init args for a pipeline. This
@@ -247,6 +253,7 @@ def startup(
         with_virial_temperatures,
         figures_subdirectory,
         data_subdirectory,
+        suppress_sim_name_in_files,
     )
 
 
@@ -280,6 +287,7 @@ def parse_namespace(
     with_virial_temperatures: bool = False,
     figures_subdirectory: str | Path | None = None,
     data_subdirectory: str | Path | None = None,
+    no_sim_name: bool = False,
 ) -> PipelineKwargs:
     """
     Parse the namespace of a script base parser for base arguments.
@@ -307,6 +315,10 @@ def parse_namespace(
     :param data_subdirectory: An optional subdirectory inside the
         data home where to save data files. Must be given relative to
         the data home directory.
+    :param no_sim_name: When set to True, data and figure files will
+        not contain the name of the simulation set in the config.
+        Useful for runs with mixed simulations (e.g. when running any
+        task on clusters from both TNG300 and TNG-Cluster).
     :return: A dictionary of keyword arguments suitable to start up a
         base :class:`~library.pipelines.base.Pipeline`, by using it
         with the ``**`` operator as init args for a pipeline. This
@@ -333,6 +345,7 @@ def parse_namespace(
         namespace.datapath,
         figures_subdirectory,
         data_subdirectory,
+        no_sim_name,
     )
 
     # assemble rst of the dict
@@ -367,6 +380,7 @@ def _assemble_path_dict(
     alt_data_dir: str | Path | None = None,
     figures_subdirectory: str | Path | None = None,
     data_subdirectory: str | Path | None = None,
+    suppress_sim_path_in_names: bool = False
 ) -> typedef.FileDict:
     """
     Assemble a valid file dictionary from the given input.
@@ -383,7 +397,10 @@ def _assemble_path_dict(
 
     where the file extension and possible identification flags are added
     by the pipeline. The data and figure directories are taken to be the
-    default directories unless alternatve directories are specified.
+    default directories unless alternative directories are specified.
+
+    When the argument ``suppress_sim_path_in_names`` is set, the name of
+    the simulation will be removed from this pattern.
 
     :param milestone: The name of the milestone. Example: ``mass_trends``.
     :param cfg: A Config configuration class instance, set up for
@@ -406,11 +423,18 @@ def _assemble_path_dict(
     :param data_subdirectory: An optional subdirectory inside the
         data home where to save data files. Must be given relative to
         the data home directory.
+    :param suppress_sim_path_in_names: Whether to exclude the simulation
+        name from data and figure file stems. This si useful when
+        combining multiple simulations, to avoid the files being named
+        after a simulation they do not actually belong to.
     :return: A valid file path dictionary.
     """
     figure_path = cfg.figures_home / milestone / cfg.sim_path
     data_path = cfg.data_home / milestone
-    file_stem = f"{milestone}_{type_flag}_{cfg.sim_path}"
+    if not suppress_sim_path_in_names:
+        file_stem = f"{milestone}_{type_flag}_{cfg.sim_path}"
+    else:
+        file_stem = f"{milestone}_{type_flag}"
 
     if figures_subdirectory:
         figure_path = figure_path / Path(figures_subdirectory)
