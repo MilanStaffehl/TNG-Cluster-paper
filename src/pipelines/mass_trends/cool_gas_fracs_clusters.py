@@ -465,16 +465,16 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 **additional_kwargs
             )
             # if bin median deviation is used, plot vertical lines
-            if self.median_deviation:
-                for x in np.linspace(14.0, 15.4, num=7):
-                    axes.axvline(
-                        x,
-                        ymin=0,
-                        ymax=1,
-                        color="grey",
-                        linestyle="dashed",
-                        zorder=0,
-                    )
+            # if self.median_deviation:
+            #     for x in np.linspace(14.0, 15.4, num=7):
+            #         axes.axvline(
+            #             x,
+            #             ymin=0,
+            #             ymax=1,
+            #             color="grey",
+            #             linestyle="dashed",
+            #             zorder=0,
+            #         )
         else:
             # plot TNG300 data
             common.plot_scatterplot(
