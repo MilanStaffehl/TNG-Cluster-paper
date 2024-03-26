@@ -36,7 +36,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
     Note that this pipeline does not create plots for the individual
     profiles.
     """
-    limiting_velocity: float | None
+    limiting_velocity: float  # either absolute value or fraction
     regime: Literal["cool", "warm", "hot", "total"]
     log: bool
 
@@ -106,9 +106,15 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
         logging.info("Processing all clusters in TNG300-1.")
         for i, halo_id in enumerate(tng300_data["IDs"]):
             logging.debug(f"Processing TNG300 cluster {halo_id}.")
+            virial_velocity = compute.get_virial_velocity(
+                tng300_data[self.config.mass_field][i],
+                tng300_data[self.config.radius_field][i],
+            )
             gas_data = self._get_tng300_gas_data(halo_id)
             histograms, edges = self._get_profile_of_cluster(
-                gas_data, tng300_data[self.config.radius_field][i]
+                gas_data,
+                tng300_data[self.config.radius_field][i],
+                virial_velocity,
             )
             filename = f"{self.paths['data_file_stem']}_halo_{halo_id}.npz"
             np.savez(
@@ -116,6 +122,8 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
                 histograms=histograms,
                 edges=edges,
                 halo_id=halo_id,
+                halo_mass=tng300_data[self.config.mass_field],
+                virial_velocity=virial_velocity,
             )
 
         # clean-up
@@ -133,14 +141,20 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
         # Step 4: For every cluster in TNG-Cluster, create a density profile
         logging.info("Processing all clusters in TNG-Cluster.")
         for i, halo_id in enumerate(tngclstr_data["IDs"]):
-            logging.debug(f"Processing TNG Cluster cluster {halo_id}.")
+            logging.debug(f"Processing TNG-Cluster cluster {halo_id}.")
+            virial_velocity = compute.get_virial_velocity(
+                tngclstr_data[self.config.mass_field][i],
+                tngclstr_data[self.config.radius_field][i],
+            )
             gas_data = self._get_tngclstr_gas_data(
                 halo_id,
                 tngclstr_data["GroupPos"][i],
                 tngclstr_data[self.config.radius_field][i],
             )
             histograms, edges = self._get_profile_of_cluster(
-                gas_data, tngclstr_data[self.config.radius_field][i]
+                gas_data,
+                tngclstr_data[self.config.radius_field][i],
+                virial_velocity,
             )
             filename = f"{self.paths['data_file_stem']}_cluster_{halo_id}.npz"
             np.savez(
@@ -148,12 +162,17 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
                 histograms=histograms,
                 edges=edges,
                 halo_id=halo_id,
+                halo_mass=tngclstr_data[self.config.mass_field],
+                virial_velocity=virial_velocity,
             )
 
         return 0
 
     def _get_profile_of_cluster(
-        self, gas_data: dict[str, NDArray], cluster_radius: float
+        self,
+        gas_data: dict[str, NDArray],
+        cluster_radius: float,
+        virial_velocity: float,
     ) -> tuple[NDArray, NDArray]:
         """
         Return the density profile for the cluster gas data given.
@@ -177,16 +196,32 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
             of the current cluster. All values must be arrays of shape
             (N, ) where N is the number of gas cells in the cluster.
         :param cluster_radius: The radius of the cluster in kpc.
+        :param virial_velocity: Virial velocity of the cluster in km/s.
         :return: The density profiles of the cluster, of shape (4, R)
             where R is the number of radial bins and the first axis
             separates the total, inflowing, quasi-static, and outflowing
             gas density profiles respectively, as well as the edges of
             the histogram bins as an array of shape (R + 1, ).
         """
-        if self.limiting_velocity is None:
-            limit = 100.
+        if self.use_virial_velocity:
+            # normalise radial velocities to virial velocities
+            gas_data["RadialVelocities"] /= virial_velocity
+            if 0 < self.limiting_velocity <= 1:
+                limit = self.limiting_velocity
+            else:
+                logging.warning(
+                    "Was instructed to use virial velocities, but the limiting"
+                    " velocity for the quasi-static regime was not given as "
+                    "a fraction of the virial velocity. Please use a value "
+                    "between 0 and 1 as limiting velocity when using virial "
+                    "velocities."
+                )
+                logging.info(
+                    "Arbitrarily choosing 10% of virial velocity as limit."
+                )
+                limit = 0.1
         else:
-            limit = self.limiting_velocity
+            limit = self.limiting_velocity  # in km/s
         ranges = np.array([0, self.max_distance])
         # translator for temperature regime to mask index
         regime_to_index = {"cool": 1, "warm": 2, "hot": 3}
@@ -394,6 +429,7 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
             return 2
 
         # Step 1: Load histograms of current regime
+        logging.info("Loading histograms for density profiles from file.")
         histograms = np.ones((self.n_clusters, 4, self.radial_bins))
         edges = np.linspace(0, self.max_distance, num=self.radial_bins + 1)
         # TNG300-1
@@ -420,11 +456,13 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
                 )
 
         # Step 2: stack the histograms per flow direction
+        logging.info("Calculating mean and std of histograms.")
         means = np.nanmean(histograms, axis=0)
         stds = np.nanstd(histograms, axis=0)
 
         # Step 3: plot
         self._plot(means, stds, edges)
+        return 0
 
     def _plot(self, means: NDArray, stds: NDArray, edges: NDArray) -> None:
         """
@@ -441,6 +479,7 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
         :param edges: The edges of the radial bins.
         :return: None, saves figure to file.
         """
+        logging.info("Plotting density profiles split by velocity.")
         fig, axes = plt.subplots(figsize=(4, 4))
         axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
         axes.set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
@@ -480,7 +519,8 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
             suppress_error_region=False,
             suppress_error_line=True,
         )
-        u = r"v_{\rm vir}" if self.use_virial_velocity else "km/s"
+        unit = r"v_{\rm vir}" if self.use_virial_velocity else r"{\rm km/s}"
+        vmax = self.limiting_velocity
         common.plot_curve_with_error_region(
             xs,
             means[2],
@@ -488,7 +528,7 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
             np.array([stds[2], stds[2]]),
             axes,
             linestyle="solid",
-            label=rf"Quasi-static ($|v_r| \leq {self.max_distance:.1f} {u}$)",
+            label=rf"Quasi-static ($|v_r| \leq {vmax:.1f} {unit}$)",
             color="limegreen",
             suppress_error_region=False,
             suppress_error_line=True,
@@ -506,5 +546,9 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
             suppress_error_line=True,
         )
 
+        # legend
+        axes.legend()
+
         # save figure
-        self._save_fig(fig)
+        logging.info("Saving figure to file.")
+        self._save_fig(fig, ident_flag=str(self.limiting_velocity))

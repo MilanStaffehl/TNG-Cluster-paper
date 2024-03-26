@@ -17,15 +17,15 @@ def main(args: argparse.Namespace) -> None:
     """Create histograms of temperature distribution"""
     # paths
     if args.core_only:
-        type_flag = f"{args.regime}_core"  # prevent overwriting
+        type_flag = f"{args.regime}_density_split_core"  # prevent overwriting
     else:
-        type_flag = args.regime
+        type_flag = f"{args.regime}_density_split"
     if args.virial_velocity:
         type_flag += "_virial_vel"
 
     pipeline_config = scriptparse.startup(
         args,
-        "density_profiles_split",
+        "radial_profiles",
         type_flag,
         with_virial_temperatures=False,
         figures_subdirectory="./../",
@@ -63,7 +63,7 @@ def main(args: argparse.Namespace) -> None:
         logging.error(
             "Some data files did not exist. Could not start plotting pipeline."
         )
-        if args.forbid_generation:
+        if args.from_file:
             logging.fatal(
                 "Data generation was explicitly forbidden, so execution must "
                 "be abandoned."
@@ -88,7 +88,6 @@ if __name__ == "__main__":
     )
     parser.remove_argument("sim")
     parser.remove_argument("processes")
-    parser.remove_argument("from_file")
     parser.remove_argument("to_file")
     parser.add_argument(
         "-t",
@@ -122,16 +121,6 @@ if __name__ == "__main__":
         dest="force_generation",
         action="store_true",
     )
-    exclusion_group.add_argument(
-        "-n",
-        "--forbid-generation",
-        help=(
-            "Forbid the (re-)generation of data. Data generation will be "
-            "skipped by default if the data already exists on file."
-        ),
-        dest="forbid_generation",
-        action="store_true",
-    )
     parser.add_argument(
         "--vmax",
         help=(
@@ -157,8 +146,10 @@ if __name__ == "__main__":
         "--use-virial-velocities",
         help=(
             "Use virial velocities instead of velocity in absolute units. "
-            "This wil normalize gas velocities in every cluster to the "
-            "cluster virial velocity before plotting."
+            "This will normalize gas velocities in every cluster to the "
+            "cluster virial velocity before splitting the gas into the three "
+            "velocity categories. If set, --vmax must be a fraction of the "
+            "virial velocity, i.e. a value between 0 and 1."
         ),
         dest="virial_velocity",
         action="store_true",

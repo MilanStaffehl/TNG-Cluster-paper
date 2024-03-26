@@ -145,3 +145,16 @@ def get_radial_velocities(
     norms = np.linalg.norm(radial_vectors, axis=1)
     unit_vectors = np.divide(radial_vectors, norms[:, np.newaxis])
     return np.sum(velocities * unit_vectors, axis=1)  # pair-wise dot product
+
+
+def get_virial_velocity(
+    virial_mass: float | NDArray, virial_radius: float | NDArray
+) -> float | NDArray:
+    """
+    Return the virial velocity of the halo with the given mass and radius.
+
+    :param virial_mass: Mass of the halo in solar masses.
+    :param virial_radius: Radius of the halo in kpc.
+    :return: The virial velocity of the halo in km/s.
+    """
+    return np.sqrt(G * virial_mass * M_sol / (virial_radius * kpc))
