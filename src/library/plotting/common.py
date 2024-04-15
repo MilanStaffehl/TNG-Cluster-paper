@@ -71,6 +71,7 @@ def plot_curve_with_error_region(
     linestyle: str = "solid",
     color: str | Sequence[float] = "black",
     label: str | None = None,
+    zorder: int = 10,
     suppress_error_line: bool = False,
     suppress_error_region: bool = False,
 ) -> Axes:
@@ -89,6 +90,8 @@ def plot_curve_with_error_region(
     :param color: The color for the lines and shaded region.
     :param label: A label for the curve. Note that this function will
         not create a legend on the plot.
+    :param zorder: The zorder of the points and error bars. Defaults to
+        10, which is higher than the default 0.
     :param suppress_error_line: Set to True to not draw lines for the
         error.
     :param suppress_error_region: Set to True to not draw the shaded
@@ -102,14 +105,14 @@ def plot_curve_with_error_region(
         "color": color,
         "linewidth": 1,
         "marker": None,
-        "zorder": 10,
+        "zorder": zorder,
     }
     error_config = {
         "linestyle": "dotted",
         "color": color,
         "linewidth": 1,
         "marker": None,
-        "zorder": 10,
+        "zorder": zorder,
     }
     fill_config = {
         "alpha": 0.1,

@@ -14,7 +14,7 @@ import numpy as np
 from library import compute
 from library.config import config
 from library.data_acquisition import gas_daq, halos_daq
-from library.plotting import common
+from library.plotting import colormaps, common
 from library.processing import selection, statistics
 from pipelines import base
 
@@ -34,7 +34,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
     The histograms are saved to file.
 
     Note that this pipeline does not create plots for the individual
-    profiles.
+    profiledats.
     """
     limiting_velocity: float  # either absolute value or fraction
     regime: Literal["cool", "warm", "hot", "total"]
@@ -43,6 +43,10 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
     radial_bins: int = 50
     max_distance: float = 2.0  # in units of virial radii
     use_virial_velocity: bool = False
+
+    n_clusters: ClassVar[int] = 632
+    n_tng300: ClassVar[int] = 280
+    n_tngclstr: ClassVar[int] = 352
 
     temperature_bins: ClassVar[tuple[float, ...]] = [0, 4.5, 5.5, np.inf]
 
@@ -93,6 +97,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
             logging.info(f"Creating missing data directory {dpath}.")
             dpath.mkdir(parents=True)
         fields = [self.config.mass_field, self.config.radius_field]
+        virial_velocities = np.zeros(self.n_clusters)
 
         # Step 1: Load group data for TNG300-1
         _tmp = halos_daq.get_halo_properties(
@@ -124,9 +129,9 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
                 histograms=histograms,
                 edges=edges,
                 halo_id=halo_id,
-                halo_mass=tng300_data[self.config.mass_field],
-                virial_velocity=virial_velocity,
+                halo_mass=tng300_data[self.config.mass_field][i],
             )
+            virial_velocities[i] = virial_velocity
 
         # clean-up
         del tng300_data, gas_data, histograms
@@ -166,9 +171,15 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
                 histograms=histograms,
                 edges=edges,
                 halo_id=halo_id,
-                halo_mass=tngclstr_data[self.config.mass_field],
-                virial_velocity=virial_velocity,
+                halo_mass=tngclstr_data[self.config.mass_field][i],
             )
+            virial_velocities[self.n_tng300 + i] = virial_velocity
+
+        # Save virial velocities to file
+        np.save(
+            self.config.data_home / "clusters_virial_velocities.npy",
+            virial_velocities
+        )
 
         return 0
 
@@ -406,45 +417,73 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
     mean density profile and plots it, including a shaded error region.
     """
 
-    n_clusters: ClassVar[int] = 632
-    n_tng300: ClassVar[int] = 280
-    n_tngclstr: ClassVar[int] = 352
-
     def run(self) -> int:
         """
         Plot the mean density profile of the given temperature regime.
 
         :return: Exit code.
         """
-        # Step 0: verify directories and that files exist
+        # Step 1: Load histograms from file
+        histograms, edges, _ = self._load_individual_histograms()
+
+        # Step 2: stack the histograms per flow direction
+        logging.info("Calculating mean and std of histograms.")
+        means = np.nanmean(histograms, axis=0)
+        stds = np.nanstd(histograms, axis=0)
+
+        # Step 3: plot
+        self._plot_means(means, stds, edges)
+        return 0
+
+    def _load_individual_histograms(self) -> tuple[NDArray, NDArray, NDArray]:
+        """
+        Load the individual histograms of all clusters from file.
+
+        Method returns an array of 632 histograms for all the clusters
+        in TNG300 and TNG-Cluster, in the specified temperature regime.
+
+        In case of an error (missing files, files contain wrong data),
+        the method terminates the pipeline execution after logging an
+        error message.
+
+        :return: Tuple of the histograms of shape (632, 4, R) where R is
+            the number of radial bins, and the second axis splits them
+            into the total, inflowing, quasi-static, and outflowing gas,
+            as well as the edges of the bins of shape (R, ), and the halo
+            masses in solar masses as array of shape (632, ).
+        """
+        # verify directories and that files exist
         if not self.data_paths["TNG300_1"].exists():
-            logging.error("Data files for TNG300-1 do not exist.")
-            return 1
+            logging.fatal("Data files for TNG300-1 do not exist.")
+            sys.exit(1)
         if not self.data_paths["TNG_Cluster"].exists():
-            logging.error("Data files for TNG-Cluster do not exist.")
-            return 1
-        # check that all files exist
+            logging.fatal("Data files for TNG-Cluster do not exist.")
+            sys.exit(1)
+
+        # check that all files exist, create a list of required files
         files = self.data_paths["TNG300_1"].iterdir()
-        name = f"{self.paths['data_file_stem']}_TNG300_1_halo_"
-        cur_files = [f for f in files if name in f.stem]
-        if len(cur_files) != self.n_tng300:
-            logging.error("Data files for TNG300-1 are incomplete.")
-            return 2
+        tng_300_name = f"{self.paths['data_file_stem']}_TNG300_1_halo_"
+        tng_300_files = [f for f in files if tng_300_name in f.stem]
+        if len(tng_300_files) != self.n_tng300:
+            logging.fatal("Data files for TNG300-1 are incomplete.")
+            sys.exit(2)
         # and the same for TNG-Cluster
         files = self.data_paths["TNG_Cluster"].iterdir()
-        name = f"{self.paths['data_file_stem']}_TNG_Cluster_cluster_"
-        cur_files = [f for f in files if name in f.stem]
-        if len(cur_files) != self.n_tngclstr:
-            logging.error("Data files for TNG-Cluster are incomplete.")
-            return 2
+        tng_clstr_name = f"{self.paths['data_file_stem']}_TNG_Cluster_cluster_"
+        tng_clstr_files = [f for f in files if tng_clstr_name in f.stem]
+        if len(tng_clstr_files) != self.n_tngclstr:
+            logging.fatal("Data files for TNG-Cluster are incomplete.")
+            sys.exit(2)
 
-        # Step 1: Load histograms of current regime
+        # Load histograms of current regime
         logging.info("Loading histograms for density profiles from file.")
         histograms = np.ones((self.n_clusters, 4, self.radial_bins))
+        masses = np.zeros(self.n_clusters)
         edges = np.linspace(0, self.max_distance, num=self.radial_bins + 1)
         # TNG300-1
-        for i, filename in enumerate(self.data_paths["TNG300_1"].iterdir()):
+        for i, filename in enumerate(tng_300_files):
             with np.load(filename, "r") as data_file:
+                masses[i] = data_file["halo_mass"]
                 # unpack the histograms
                 histograms[i] = data_file["histograms"]
                 # test that the edges line up
@@ -454,8 +493,9 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
                     rtol=1e-4,
                 )
         # TNG-Cluster
-        for i, filename in enumerate(self.data_paths["TNG_Cluster"].iterdir()):
+        for i, filename in enumerate(tng_clstr_files):
             with np.load(filename, "r") as data_file:
+                masses[i + self.n_tng300] = data_file["halo_mass"]
                 # unpack the histograms
                 histograms[i + self.n_tng300] = data_file["histograms"]
                 # test that the edges line up
@@ -465,16 +505,12 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
                     rtol=1e-4,
                 )
 
-        # Step 2: stack the histograms per flow direction
-        logging.info("Calculating mean and std of histograms.")
-        means = np.nanmean(histograms, axis=0)
-        stds = np.nanstd(histograms, axis=0)
+        # Return the histograms and edges
+        return histograms, edges, masses
 
-        # Step 3: plot
-        self._plot(means, stds, edges)
-        return 0
-
-    def _plot(self, means: NDArray, stds: NDArray, edges: NDArray) -> None:
+    def _plot_means(
+        self, means: NDArray, stds: NDArray, edges: NDArray
+    ) -> None:
         """
         Plot the density plots as line plots with error region.
 
@@ -562,3 +598,106 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
         # save figure
         logging.info("Saving figure to file.")
         self._save_fig(fig, ident_flag=str(self.limiting_velocity))
+
+
+class PlotFlowRatioHistograms(PlotMeanProfilesPipeline):
+    """
+    Plot ratio of inflow over outflow binned by halo mass.
+
+    Pipeline loads data previously created for individual clusters and
+    finds, for all clusters in mass bins of 0.2 dex, the density ratio
+    of inflowing vs. outflowing gas at every radius and plots it as a
+    curve.
+    """
+
+    def run(self) -> int:
+        """
+        Plot the ratio of inflow over outflow in halo mass bins.
+
+        :return: Exit code.
+        """
+        # Step 1: load individual histograms
+        histograms, edges, masses = self._load_individual_histograms()
+
+        # Step 2: bin histograms by mass
+        mass_bins = 10**np.linspace(14, 15.4, num=8)
+        mask = selection.digitize_clusters(masses, mass_bins)
+
+        # Step 3: compute ratios of in- and outflow
+        mean_ratios = np.zeros((8, self.radial_bins))
+        for i in range(7):
+            bin_index = i + 1
+            mean_inflow = np.nanmean(
+                histograms[:, 1][mask == bin_index], axis=0
+            )
+            mean_outflow = np.nanmean(
+                histograms[:, 3][mask == bin_index], axis=0
+            )
+            # Mask in- and outflow only to current mass bin, find ratio
+            mean_ratios[i] = mean_inflow / mean_outflow
+        # add the mean ratio over all clusters
+        total_mean_inflow = np.nanmean(histograms[:, 1], axis=0)
+        total_mean_outflow = np.nanmean(histograms[:, 3], axis=0)
+        mean_ratios[-1] = total_mean_inflow / total_mean_outflow
+
+        # Step 3: plot
+        self._plot_ratios(mean_ratios, edges, mass_bins)
+        return 0
+
+    def _plot_ratios(
+        self, mean_ratios: NDArray, edges: NDArray, mass_bin_edges: NDArray
+    ) -> None:
+        """
+        Plot the mean ratio of inflow over outflow.
+
+        :param mean_ratios: The array of ratios of inflow histograms over
+            outflow histograms of shape (8, R) where R is the number of
+            radial bins. The last entry is the total over all clusters,
+            the first seven are in mass bins of 0.2 dex.
+        :param edges: The edges of the radial bins.
+        :return: None
+        """
+        logging.info("Plotting density ratios of inflow over outflow.")
+        fig, axes = plt.subplots(figsize=(4, 4))
+        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        axes.set_ylabel(r"Density ratio (inflowing/outflowing)")
+
+        if self.log:
+            axes.set_yscale("log")
+
+        # create x-values (middle of bins)
+        xs = (edges[:-1] + edges[1:]) / 2
+
+        # plot the different velocity regimes
+        for i in range(8):
+            if i == 7:
+                color = "black"
+                label = "Total"
+            else:
+                color = colormaps.sample_cmap("jet", 7, i)
+                label = (
+                    rf"$10^{{{np.log10(mass_bin_edges[i]):.1f}}} - "
+                    rf"10^{{{np.log10(mass_bin_edges[i + 1]):.1f}}} M_\odot$"
+                )
+            common.plot_curve_with_error_region(
+                xs,
+                mean_ratios[i],
+                x_err=None,
+                y_err=None,
+                axes=axes,
+                linestyle="solid",
+                color=color,
+                label=label,
+                zorder=0,
+                suppress_error_line=True,
+                suppress_error_region=True,
+            )
+
+        # legend
+        axes.legend(ncols=2, fontsize=8)
+
+        # save figure
+        logging.info("Saving figure to file.")
+        self._save_fig(
+            fig, ident_flag=f"binned_ratios_{self.limiting_velocity}"
+        )

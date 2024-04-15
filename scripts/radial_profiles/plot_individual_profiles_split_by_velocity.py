@@ -9,6 +9,7 @@ sys.path.insert(0, str(root_dir / "src"))
 from library import scriptparse
 from pipelines.radial_profiles.by_velocity import (
     GenerateIndividualHistogramsPipeline,
+    PlotFlowRatioHistograms,
     PlotMeanProfilesPipeline,
 )
 
@@ -46,11 +47,14 @@ def main(args: argparse.Namespace) -> None:
     # find the plotting pipeline to use
     if args.plot_type == "overall-mean":
         plot_pipeline = PlotMeanProfilesPipeline(**pipeline_config)
+    elif args.plot_type == "ratios":
+        plot_pipeline = PlotFlowRatioHistograms(**pipeline_config)
     else:
         logging.fatal(f"Unknown/unsupported plot type {args.plot_type}.")
         return
 
     if args.force_generation:
+        logging.info("Dat (re-)generation was forced. Beginning generation.")
         gen_pipeline = GenerateIndividualHistogramsPipeline(**pipeline_config)
         gen_pipeline.run()
         plot_pipeline.run()
@@ -95,7 +99,7 @@ if __name__ == "__main__":
         "--plot-type",
         help="The type of plot to plot from the data",
         dest="plot_type",
-        choices=["overall-mean"],
+        choices=["overall-mean", "ratios"],
         default="overall-mean",
     )
     parser.add_argument(
