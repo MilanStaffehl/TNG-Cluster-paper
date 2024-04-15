@@ -124,7 +124,7 @@ def get_radial_velocities(
     center: NDArray, positions: NDArray, velocities: NDArray
 ) -> NDArray:
     """
-    Calcuate the radial velocities in direction of ``center``.
+    Calculate the radial velocities in direction of ``center``.
 
     The returned array is the radial velocities. Positive value denote
     velocities towards the center, negative velocities denote velocities
@@ -139,7 +139,7 @@ def get_radial_velocities(
     :return: Array of shape (N, ) of velocity components of the given
         velocities in direction of the center. Positive values denote
         velocity towards center, negative values denote velocity away
-        from center.
+        from center. In units of km/s.
     """
     radial_vectors = positions - center
     norms = np.linalg.norm(radial_vectors, axis=1)
@@ -157,4 +157,4 @@ def get_virial_velocity(
     :param virial_radius: Radius of the halo in kpc.
     :return: The virial velocity of the halo in km/s.
     """
-    return np.sqrt(G * virial_mass * M_sol / (virial_radius * kpc))
+    return np.sqrt(G * virial_mass * M_sol / (virial_radius * kpc)) / 100000
