@@ -104,16 +104,18 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
 
         # Step 1: load halo data (mass)
         halo_masses = np.zeros(self.n_clusters)
+        halo_radii = np.zeros(self.n_clusters)
         # Load masses for TNG300-1
         halo_data = halos_daq.get_halo_properties(
             self.tng300_basepath,
             self.config.snap_num,
-            fields=[self.config.mass_field],
+            fields=[self.config.mass_field, self.config.radius_field],
         )
         tng_300_data = selection.select_clusters(
             halo_data, self.config.mass_field, expected_number=self.n300
         )
         halo_masses[:self.n300] = tng_300_data[self.config.mass_field]
+        halo_radii[:self.n300] = tng_300_data[self.config.radius_field]
         # Load masses for TNG-Cluster
         cluster_fields = [
             self.config.mass_field, self.config.radius_field, "GroupPos"
@@ -125,6 +127,9 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             cluster_restrict=True,
         )
         halo_masses[self.n300:] = tng_cluster_data[self.config.mass_field]
+        halo_radii[self.n300:] = tng_cluster_data[self.config.radius_field]
+        # calculate virial velocities
+        vir_velocities = compute.get_virial_velocity(halo_masses, halo_radii)
 
         # Step 2: create a mass bin mask
         mask = selection.digitize_clusters(halo_masses, self.mass_bin_edges)
@@ -214,9 +219,10 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 edges=edges,
                 halo_masses=halo_masses,
                 mass_mask=mask,
+                virial_velocities=vir_velocities,
             )
 
-        self._plot(histograms, edges, halo_masses, mask)
+        self._plot(histograms, edges, halo_masses, vir_velocities, mask)
         return 0
 
     def _plot(
@@ -224,7 +230,8 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         histograms: NDArray,
         edges: NDArray,
         halo_masses: NDArray,
-        mass_mask: NDArray
+        virial_velocities: NDArray,
+        mass_mask: NDArray,
     ) -> None:
         """
         Plot the velocity distribution in 0.2 dex mass bins.
@@ -233,7 +240,8 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             of shape (632, N) where N is the number of velocity bins.
         :param edges: The array of the edges of the velocity bins, of
             shape (N + 1, ).
-        :param halo_masses: The array of the halo masses.
+        :param halo_masses: The array of the halo masses in solar masses.
+        :param virial_velocities: The array of virial velocities in km/s.
         :param mass_mask: The mask for the masses. Must have length 632
             and contain integers from
         :return: Tuple of figure and axes objects with the plots.
@@ -250,6 +258,9 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
             current_masses = selection.mask_quantity(
                 halo_masses, mass_mask, index=mass_bin_idx
+            )
+            current_vir_vel = selection.mask_quantity(
+                virial_velocities, mass_mask, index=mass_bin_idx
             )
             current_mean, _ = self._overplot_distribution(
                 axes,
@@ -273,8 +284,11 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 horizontalalignment="right",
                 verticalalignment="top",
             )
-            # add a line at zero
+            # add a line at zero and at mean virial velocity
             axes.axvline(0, alpha=1, color="grey", linestyle="solid")
+            axes.axvline(
+                np.mean(current_vir_vel), color="darkgrey", linestyle="dashed"
+            )
             # add a label for the fraction left and right of zero
             self._add_fraction_labels(axes, current_mean)
             # save figure
@@ -294,8 +308,11 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             horizontalalignment="right",
             verticalalignment="top",
         )
-        # and a vertical line at zero
+        # and a vertical line at zero and mean virial velocity
         axes.axvline(0, alpha=1, color="grey", linestyle="solid")
+        axes.axvline(
+            np.mean(virial_velocities), color="darkgrey", linestyle="dashed"
+        )
         # add label for fractions left and right of zero
         self._add_fraction_labels(axes, total_mean)
         self._save_fig(fig, ident_flag="total")
@@ -439,7 +456,7 @@ class MassBinnedVelocityDistributionFromFilePipeline(
         """Load data and plot it."""
         self._verify_directories()
 
-        filename = f"{self.paths['data_file_stem']}.npz"
+        filename = f"{self.paths['data_file_stem']}_clusters.npz"
         if not (self.paths["data_dir"] / filename).exists():
             logging.fatal(
                 f"Data file {self.paths['data_dir'] / filename} does not "

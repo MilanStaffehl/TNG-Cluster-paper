@@ -17,7 +17,7 @@ def load_velocity_distributions(
     filepath: str | Path,
     n_velocity_bins: int | None = None,
     n_clusters: int | None = 352,
-) -> tuple[NDArray, NDArray, NDArray, NDArray] | None:
+) -> tuple[NDArray, NDArray, NDArray, NDArray, NDArray] | None:
     """
     Return the velocity distribution histograms for all clusters.
 
@@ -57,11 +57,12 @@ def load_velocity_distributions(
         histograms = data_file["histograms"]
         edges = data_file["edges"]
         halo_masses = data_file["halo_masses"]
+        virial_velocities = data_file["virial_velocities"]
         mass_mask = data_file["mass_mask"]
 
     if n_clusters is None and n_velocity_bins is None:
         logging.info("Returning loaded data without verification.")
-        return histograms, edges, halo_masses, mass_mask
+        return histograms, edges, halo_masses, virial_velocities, mass_mask
 
     # verify data shapes
     if n_clusters is not None:
@@ -72,12 +73,25 @@ def load_velocity_distributions(
                 f"{histograms.shape[0]}."
             )
             return
-        if len(halo_masses) != n_clusters or len(mass_mask) != n_clusters:
+        if len(halo_masses) != n_clusters:
             logging.error(
-                f"Halo masses and/or mass mask has wrong number of entries: "
-                f"Halo masses has length {len(halo_masses)}; mass mask has "
-                f"length {len(mass_mask)}; expected {n_clusters} entries for "
-                f"both."
+                f"Halo masses array has wrong number of entries: "
+                f"Halo masses has length {len(halo_masses)}; expected "
+                f"{n_clusters} entries."
+            )
+            return
+        if len(mass_mask) != n_clusters:
+            logging.error(
+                f"Mass mask array has wrong number of entries: "
+                f"Mass mask has length {len(halo_masses)}; expected "
+                f"{n_clusters} entries."
+            )
+            return
+        if len(virial_velocities) != n_clusters:
+            logging.error(
+                f"Virial velocity array has wrong number of entries: "
+                f"Virial velocities has length {len(halo_masses)}; expected "
+                f"{n_clusters} entries."
             )
             return
     if n_velocity_bins is not None:
@@ -99,4 +113,4 @@ def load_velocity_distributions(
     logging.info(
         "Successfully loaded and verified velocity distribution data."
     )
-    return histograms, edges, halo_masses, mass_mask
+    return histograms, edges, halo_masses, virial_velocities, mass_mask

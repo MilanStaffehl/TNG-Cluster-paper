@@ -18,6 +18,7 @@ def main(args: argparse.Namespace) -> None:
         args,
         "gas_flow",
         args.regime,
+        suppress_sim_name_in_files=True,
     )
 
     pipeline_config.update({"regime": args.regime, "log": args.log})
