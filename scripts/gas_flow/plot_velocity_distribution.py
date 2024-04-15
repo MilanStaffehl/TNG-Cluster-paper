@@ -14,14 +14,25 @@ from pipelines.gas_flow.binned_by_mass import (
 
 def main(args: argparse.Namespace) -> None:
     """Create plot of gas velocity distribution"""
+    type_flag = args.regime
+    if args.core_only:
+        type_flag += "_core"
+
     pipeline_config = scriptparse.startup(
         args,
         "gas_flow",
-        args.regime,
+        type_flag,
         suppress_sim_name_in_files=True,
     )
 
-    pipeline_config.update({"regime": args.regime, "log": args.log})
+    pipeline_config.update(
+        {
+            "regime": args.regime,
+            "log": args.log,
+            "core_only": args.core_only
+        }
+    )
+
     if args.from_file:
         pipeline = MassBinnedVelocityDistributionFromFilePipeline(
             **pipeline_config
@@ -47,6 +58,13 @@ if __name__ == "__main__":
         ),
         dest="regime",
         default="cool",
+    )
+    parser.add_argument(
+        "-cc",
+        "--core-only",
+        help="Plot the velocity distribution only for the cluster core",
+        dest="core_only",
+        action="store_true",
     )
     parser.add_argument(
         "--log",

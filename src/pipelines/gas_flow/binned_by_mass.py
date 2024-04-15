@@ -39,6 +39,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
     """
 
     regime: Literal["cool", "warm", "hot"] = "cool"
+    core_only: bool = False
     log: bool = True
 
     velocity_bins: ClassVar[int] = 50  # number of velocity bins
@@ -139,6 +140,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         edges = np.zeros(self.velocity_bins + 1)
 
         # Step 4: Loop over TNG300-1 clusters
+        logging.info("Processing clusters from TNG300-1.")
         for i, halo_id in enumerate(tng_300_data["IDs"]):
             logging.debug(f"Processing halo {halo_id} ({i + 1}/280).")
             # load tabulated data
@@ -154,6 +156,11 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 self.config.data_home / "particle_masses" / "TNG300_1"
                 / f"gas_masses_halo_{halo_id}.npy"
             )
+            # if required, restrict data to core region
+            if self.core_only:
+                regimes, velocities, gas_masses = self._restrict_to_core(
+                    halo_id, regimes, velocities, gas_masses
+                )
             # restrict velocities only to selected temperature regime
             gas_vel_current_regime = velocities[regimes == self.regime_index]
             gas_mass_cur_regime = gas_masses[regimes == self.regime_index]
@@ -166,6 +173,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
 
         # Step 5: Loop over TNG-Cluster clusters
+        logging.info("Processing clusters from TNG-Cluster.")
         for i, halo_id in enumerate(tng_cluster_data["IDs"]):
             logging.debug(f"Processing cluster {halo_id} ({i + 1}/352).")
             # load temperatures and gas data required
@@ -191,14 +199,15 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 axis=1
             )
             distances /= tng_cluster_data[self.config.radius_field][i]
-            # get radial velocity only within 2R_vir
+            # get radial velocity only within 2R_vir or in core
+            lim = 0.05 if self.core_only else 2.0
             radial_vel_in_cluster = compute.get_radial_velocities(
                 tng_cluster_data["GroupPos"][i],
-                masked_data["Coordinates"][distances <= 2.0],  # limit to 2R
-                masked_data["Velocities"][distances <= 2.0],  # limit to 2R
+                masked_data["Coordinates"][distances <= lim],
+                masked_data["Velocities"][distances <= lim],
             )
             # calculate gas fractions
-            gas_masses_cluster = masked_data["Masses"][distances <= 2.0]
+            gas_masses_cluster = masked_data["Masses"][distances <= lim]
             # calculate histogram
             histograms[self.n300 + i], _ = np.histogram(
                 radial_vel_in_cluster,
@@ -208,6 +217,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
 
         # Step 6: Save data to file
+        logging.info("Saving data to file.")
         filepath = (
             self.paths["data_dir"]
             / f"{self.paths['data_file_stem']}_clusters.npz"
@@ -223,7 +233,37 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             )
 
         self._plot(histograms, edges, halo_masses, vir_velocities, mask)
+        logging.info("Successfully wrote plot to file.")
         return 0
+
+    def _restrict_to_core(
+        self,
+        halo_id: int,
+        regimes: NDArray,
+        velocities: NDArray,
+        gas_masses: NDArray
+    ) -> tuple[NDArray, NDArray, NDArray]:
+        """
+        Restrict the arrays of particle data to only particles in core.
+
+        :param halo_id: IDof the halo.
+        :param regimes: Array of temperature regimes. Shape (N, ).
+        :param velocities: Array of particle velocities. Shape (N, ).
+        :param gas_masses: Array of cell gas masses. Shape (N, )
+        :return: Tuple of regimes, velocities, gas masses but restricted
+            to only those particles that are within the core of the
+            cluster.
+        """
+        cluster_ids = np.load(
+            self.config.data_home / "particle_ids" / "TNG300_1"
+            / f"particles_halo_{halo_id}.npy"
+        )
+        core_ids = np.load(
+            self.config.data_home / "particle_ids_core" / "TNG300_1"
+            / f"particles_halo_{halo_id}_core.npy"
+        )
+        mask = np.in1d(cluster_ids, core_ids)
+        return regimes[mask], velocities[mask], gas_masses[mask]
 
     def _plot(
         self,
@@ -243,7 +283,8 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         :param halo_masses: The array of the halo masses in solar masses.
         :param virial_velocities: The array of virial velocities in km/s.
         :param mass_mask: The mask for the masses. Must have length 632
-            and contain integers from
+            and contain integers from 0 to 8, denoting the mass bin of
+            the corresponding cluster.
         :return: Tuple of figure and axes objects with the plots.
         """
         n_mass_bins = len(self.mass_bin_edges) - 1
@@ -287,7 +328,9 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             # add a line at zero and at mean virial velocity
             axes.axvline(0, alpha=1, color="grey", linestyle="solid")
             axes.axvline(
-                np.mean(current_vir_vel), color="darkgrey", linestyle="dashed"
+                -np.mean(current_vir_vel),
+                color="darkgrey",
+                linestyle="dashed"
             )
             # add a label for the fraction left and right of zero
             self._add_fraction_labels(axes, current_mean)
@@ -311,7 +354,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         # and a vertical line at zero and mean virial velocity
         axes.axvline(0, alpha=1, color="grey", linestyle="solid")
         axes.axvline(
-            np.mean(virial_velocities), color="darkgrey", linestyle="dashed"
+            -np.mean(virial_velocities), color="darkgrey", linestyle="dashed"
         )
         # add label for fractions left and right of zero
         self._add_fraction_labels(axes, total_mean)
