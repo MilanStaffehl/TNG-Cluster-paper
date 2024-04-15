@@ -17,7 +17,7 @@ from library import compute
 from library.config import config
 from library.data_acquisition import gas_daq, halos_daq
 from library.loading import load_velocity_distributions
-from library.plotting import plot_gas_velocites
+from library.plotting import colormaps, plot_gas_velocites
 from library.processing import selection
 from pipelines.base import DiagnosticsPipeline
 
@@ -285,7 +285,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         :param mass_mask: The mask for the masses. Must have length 632
             and contain integers from 0 to 8, denoting the mass bin of
             the corresponding cluster.
-        :return: Tuple of figure and axes objects with the plots.
+        :return: None.
         """
         n_mass_bins = len(self.mass_bin_edges) - 1
 
@@ -514,3 +514,112 @@ class MassBinnedVelocityDistributionFromFilePipeline(
 
         self._plot(*data)
         return 0
+
+
+class MassBinnedVelocityDistributionCombined(
+        MassBinnedVelocityDistributionFromFilePipeline):
+    """
+    Load data from file and plot mean and median distribution per mass bin.
+    """
+
+    def _plot(
+        self,
+        histograms: NDArray,
+        edges: NDArray,
+        halo_masses: NDArray,
+        virial_velocities: NDArray,
+        mass_mask: NDArray,
+    ) -> None:
+        """
+        Plot the mean and median velocity distribution per mass bin.
+
+        Method plots mean and median colored by mass bin into one single
+        figure instead of 8 different panels.
+
+        :param histograms: The array of velocity distribution histograms,
+            of shape (632, N) where N is the number of velocity bins.
+        :param edges: The array of the edges of the velocity bins, of
+            shape (N + 1, ).
+        :param halo_masses: The array of the halo masses in solar masses.
+        :param virial_velocities: The array of virial velocities in km/s.
+        :param mass_mask: The mask for the masses. Must have length 632
+            and contain integers from 0 to 8, denoting the mass bin of
+            the corresponding cluster.
+        :return: None.
+        """
+        logging.info("Plotting mean and median into one combined figure.")
+        # figure setup
+        fig, axes = plt.subplots(figsize=(4, 4))
+        fig.set_tight_layout(True)
+        axes.set_xlabel("Radial velocity [km/s]")
+        axes.set_ylabel(r"Gas mass ($M_\odot$)")
+        axes.set_ylim([1e6, 3e11])
+        if self.log:
+            axes.set_yscale("log")
+
+        n_mass_bins = len(self.mass_bin_edges) - 1
+
+        # for every mass bin, plot the mean and median
+        for i in range(n_mass_bins):
+            # mask the histograms to only those in the current mass bin
+            mass_bin_idx = i + 1
+            current_histograms = selection.mask_quantity(
+                histograms, mass_mask, index=mass_bin_idx
+            )
+            current_vir_vel = selection.mask_quantity(
+                virial_velocities, mass_mask, index=mass_bin_idx
+            )
+            current_mean = np.nanmean(current_histograms, axis=0)
+            # current_median = np.nanmedian(current_histograms, axis=0)
+            # add a label describing the mass bin edges
+            label = (
+                rf"$10^{{{np.log10(self.mass_bin_edges[i]):.1f}}} - "
+                rf"10^{{{np.log10(self.mass_bin_edges[i + 1]):.1f}}} M_\odot$"
+            )
+            # determine color for current mass bin
+            color = colormaps.sample_cmap("jet", 7, i)
+            # plot mean (solid line)
+            plot_gas_velocites.plot_velocity_distribution(
+                axes,
+                current_mean,
+                edges,
+                color=color,
+                label=label,
+            )
+            # plot median (dashed line)
+            # plot_gas_velocites.plot_velocity_distribution(
+            #     axes,
+            #     current_median,
+            #     edges,
+            #     color=color,
+            #     linestyle="dashed",
+            # )
+            # overplot mean virial velocity
+            axes.axvline(
+                -np.mean(current_vir_vel), color=color, linestyle="dotted"
+            )
+
+        # plot the total mean and median plus all individuals
+        # total_mean = np.nanmean(histograms, axis=0)
+        # total_median = np.nanmedian(histograms, axis=0)
+        # plot_gas_velocites.plot_velocity_distribution(
+        #     axes,
+        #     total_mean,
+        #     edges,
+        #     label="Total",
+        #     color="black",
+        # )
+        # plot_gas_velocites.plot_velocity_distribution(
+        #     axes,
+        #     total_median,
+        #     edges,
+        #     color="black",
+        #     linestyle="dashed",
+        # )
+        # and a vertical line at mean virial velocity
+        axes.axvline(0, alpha=1, color="grey", linestyle="solid")
+        axes.axvline(
+            -np.mean(virial_velocities), color="black", linestyle="dotted"
+        )
+        self._save_fig(fig, ident_flag="combined")
+        logging.info("Successfully saved combined figure to file.")

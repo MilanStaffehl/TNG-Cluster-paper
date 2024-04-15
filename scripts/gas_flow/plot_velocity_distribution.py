@@ -7,6 +7,7 @@ sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
 from pipelines.gas_flow.binned_by_mass import (
+    MassBinnedVelocityDistributionCombined,
     MassBinnedVelocityDistributionFromFilePipeline,
     MassBinnedVelocityDistributionPipeline,
 )
@@ -33,10 +34,12 @@ def main(args: argparse.Namespace) -> None:
         }
     )
 
-    if args.from_file:
+    if args.from_file and not args.combine:
         pipeline = MassBinnedVelocityDistributionFromFilePipeline(
             **pipeline_config
         )
+    elif args.combine:
+        pipeline = MassBinnedVelocityDistributionCombined(**pipeline_config)
     else:
         pipeline = MassBinnedVelocityDistributionPipeline(**pipeline_config)
     pipeline.run()
@@ -62,7 +65,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-cc",
         "--core-only",
-        help="Plot the velocity distribution only for the cluster core",
+        help="Plot the velocity distribution only for the cluster core.",
         dest="core_only",
         action="store_true",
     )
@@ -70,6 +73,13 @@ if __name__ == "__main__":
         "--log",
         help="Plot gas mass in log-scale.",
         dest="log",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-c",
+        "--combine",
+        help="Combine mean and median per mass bin into one plot.",
+        dest="combine",
         action="store_true",
     )
 
