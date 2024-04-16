@@ -630,15 +630,15 @@ class PlotFlowRatioHistograms(PlotMeanProfilesPipeline):
             mean_inflow = np.nanmean(
                 histograms[:, 1][mask == bin_index], axis=0
             )
-            mean_outflow = np.nanmean(
-                histograms[:, 3][mask == bin_index], axis=0
+            mean_total = np.nanmean(
+                histograms[:, 0][mask == bin_index], axis=0
             )
             # Mask in- and outflow only to current mass bin, find ratio
-            mean_ratios[i] = mean_inflow / mean_outflow
+            mean_ratios[i] = mean_inflow / mean_total
         # add the mean ratio over all clusters
         total_mean_inflow = np.nanmean(histograms[:, 1], axis=0)
-        total_mean_outflow = np.nanmean(histograms[:, 3], axis=0)
-        mean_ratios[-1] = total_mean_inflow / total_mean_outflow
+        total_mean_total = np.nanmean(histograms[:, 0], axis=0)
+        mean_ratios[-1] = total_mean_inflow / total_mean_total
 
         # Step 3: plot
         self._plot_ratios(mean_ratios, edges, mass_bins)
@@ -648,7 +648,7 @@ class PlotFlowRatioHistograms(PlotMeanProfilesPipeline):
         self, mean_ratios: NDArray, edges: NDArray, mass_bin_edges: NDArray
     ) -> None:
         """
-        Plot the mean ratio of inflow over outflow.
+        Plot the mean ratio of inflow over total gas density.
 
         :param mean_ratios: The array of ratios of inflow histograms over
             outflow histograms of shape (8, R) where R is the number of
@@ -660,7 +660,7 @@ class PlotFlowRatioHistograms(PlotMeanProfilesPipeline):
         logging.info("Plotting density ratios of inflow over outflow.")
         fig, axes = plt.subplots(figsize=(4, 4))
         axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
-        axes.set_ylabel(r"Density ratio (inflowing/outflowing)")
+        axes.set_ylabel(r"Density ratio (inflowing/total)")
 
         if self.log:
             axes.set_yscale("log")
