@@ -1,0 +1,214 @@
+sfr:
+  default-scale: log
+  daq-field-name: GroupSFR
+  label:
+    log: "SFR [$\\log(M_\\odot / yr)$]"
+    linear: "SFR [$M_\\odot / yr$]"
+    dev: "SFR"
+  cbar-config:
+    norm: default
+    vmin:
+      log: 0.0
+    vmax:
+      log: 2.0
+    cmap: viridis
+    caps: both
+  dev-config:
+    default-scale: log
+    limits-log: [-1, 1]
+    limits-linear: [0, 4]
+
+gas-metallicity:
+  default-scale: linear
+  daq-field-name: GroupGasMetallicity
+  label:
+    log: "Gas metallicity [$\\log Z_\\odot$]"
+    linear: "Gas metallicity [$Z_\\odot$]"
+    dev: "Z"
+  cbar-config:
+    norm: default
+    cmap: cividis
+  dev-config:
+    default-scale: log
+    limits-log: [-0.075, 0.075]
+    limits-linear: [0.8, 1.2]
+
+total-bh-mass:
+  default-scale: log
+  daq-field-name: BHMass
+  label:
+    log: "Total BH mass [$\\log M_\\odot$]"
+    linear: "Total BH mass [$M_\\odot$]"
+    dev: "M"
+  cbar-config:
+    norm: default
+    cmap: plasma
+  dev-config:
+    default-scale: log
+    limits-log: [-0.2, 0.5]
+    limits-linear: [0.5, 2.0]
+
+bh-mass:
+  default-scale: log
+  daq-field-name: CentralBHMass
+  label:
+    log: "Most massive BH mass [$\\log M_\\odot$]"
+    linear: "Most massive BH mass [$M_\\odot$]"
+    dev: "M"
+  cbar-config:
+    norm: default
+    cmap: plasma
+  dev-config:
+    default-scale: log
+    limits-log: [-0.5, 0.35]
+    limits-linear: [0.0, 4.0]
+
+bh-mdot:
+  default-scale: log
+  daq-field-name: BHMdot
+  label:
+    log: "BH accretion rate [$\\log (M_\\odot / Gyr)$]"
+    linear: "BH accretion rate [$M_\\odot / Gyr$]"
+    dev: "\\Dot{M}"
+  cbar-config:
+    norm: default
+    cmap: magma
+  dev-config:
+    default-scale: log
+    limits-log: [ -1.5, 1.5 ]
+    limits-linear: [ 0.0, 10.0 ]
+
+bh-mode:
+  default-scale: log
+  daq-field-name: BHMode
+  label:
+    log: "BH mode [$\\log_{10}((\\dot{M} / \\dot{M}_{Edd}) / \\chi)$]"
+    linear: "BH mode [$(\\dot{M} / \\dot{M}_{Edd}) / \\chi$]"
+    dev: "Mode"
+  cbar-config:
+    norm: twoslope
+    cmap: ["winter", "autumn"]
+    vmin:
+      log: -5
+      linear: 0
+    vmax:
+      log: 5
+      linear: 10
+    vcenter:
+      log: 0
+      linear: 1
+    caps: both
+  dev-config:
+    default-scale: log
+    limits-log: [ -1, 1 ]
+    limits-linear: [ 0, 4 ]
+
+bh-cumulative-energy-frac:
+  default-scale: log
+  daq-field-name: BHCumEnergyFraction
+  label:
+    log: "Cumulative kinetic energy fraction [$\\log_{10}$]"
+    linear: "Cumulative kinetic energy fraction"
+    dev: "$E_{kin} / E_{tot}$"
+  cbar-config:
+    norm: default
+    cmap: Wistia
+  dev-config:
+    default-scale: log
+    limits-log: [-1, 1]
+    limits-linear: [0, 4]
+
+bh-cumulative-mass-frac:
+  default-scale: log
+  daq-field-name: BHCumMassFraction
+  label:
+    log: "Cumulative accreted mass fraction [$\\log_{10}$]"
+    linear: "Cumulative accreted mass fraction"
+    dev: "$M_{kin} / M_{tot}$"
+  cbar-config:
+    norm: default
+    cmap: magma
+  dev-config:
+    default-scale: log
+    limits-log: [-1, 1]
+    limits-linear: [0, 4]
+
+relaxedness-by-distance:
+  default-scale: log
+  daq-field-name: RelaxednessDist
+  label:
+    log: "$\\log_{10} (|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200c})$"
+    linear: "$|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200c}$"
+    dev: "$\\varrho$"
+  cbar-config:
+    norm: twoslope
+    cmap: ["cool", "gray"]
+    vmin:
+      log: -2
+      linear: 0
+    vmax:
+      log: 1
+      linear: 1
+    vcenter:
+      log: -1
+      linear: 0.1
+    caps: both
+  dev-config:
+    default-scale: log
+    limits-log: [ -1, 1 ]
+    limits-linear: [ 0, 4 ]
+
+relaxedness-by-mass:
+  default-scale: log
+  daq-field-name: RelaxednessMass
+  label:
+    log: "$\\log_{10} (M_{central} / M_{tot})$"
+    linear: "$M_{central} / M_{tot}$"
+    dev: "$M_{central} / M_{tot}$"
+  cbar-config:
+    norm: twoslope
+    cmap: ["cool", "gray"]
+    vmin:
+      log: -0.5
+      linear: 0.3
+    vmax:
+      log: 0
+      linear: 1
+    vcenter:
+      log: -0.07058107428570728
+      linear: 0.85
+    caps: both
+  dev-config:
+    default-scale: log
+    limits-log: [ -1, 1 ]
+    limits-linear: [ 0, 4 ]
+
+formation-redshift:
+  default-scale: linear
+  daq-field-name: FormationRedshift
+  label:
+    log: "Redshift [$\\log_{10}(z)$]$"
+    linear: "Redshift z"
+    dev: "z"
+  cbar-config:
+    norm: default
+    cmap: gist_heat
+  dev-config:
+    default-scale: log
+    limits-log: [-1, 1]
+    limits-linear: [0, 4]
+
+central-cooling-time:
+  default-scale: linear
+  daq-field-name: CentralCoolingTime
+  label:
+    log: "Central cooling time [$\\log_{10} Gyr$]"
+    linear: "Central cooling time [$Gyr$]"
+    dev: "CCT"
+  cbar-config:
+    norm: default
+    cmap: cmr.cosmic
+  dev-config:
+    default-scale: log
+    limits-log: [-1, 1]
+    limits-linear: [0, 4]

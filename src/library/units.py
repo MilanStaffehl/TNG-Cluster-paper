@@ -53,10 +53,11 @@ class UnitConverter:
                 "Coordinates",
             ],
         "velocityLike": ["Velocities"],
-        "sfrLike": ["GroupSFR"],
+        "sfrLike": ["GroupSFR", "StarFormationRate"],
         "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],
         "energyLike": ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"],
-        "unitless": ["count", "IDs", "GroupGasMetallicity"]
+        "metallicityLike": ["GroupGasMetallicity", "GFM_Metallicity"],
+        "unitless": ["count", "IDs", "GroupLen"]
     }
 
     @classmethod
@@ -89,9 +90,11 @@ class UnitConverter:
         elif field in cls.fields["massFlowLike"]:
             return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:
-            return quantity
+            return quantity  # Already in M_sol /yr
         elif field in cls.fields["energyLike"]:
             return cls.convert_energylike(quantity)
+        elif field in cls.fields["metallicityLike"]:
+            return cls.convert_metallicitylike(quantity)
         elif field in cls.fields["unitless"]:
             return quantity
         else:
@@ -141,3 +144,13 @@ class UnitConverter:
             kiloparsec squared per gigayear squared.
         """
         return quantity * 1e10 / (constants.HUBBLE * 0.978**2)
+
+    @staticmethod
+    def convert_metallicitylike(quantity: N) -> N:
+        """
+        Retrun the metallicity-like quantity in solar metallicities (Z_sol).
+
+        :param quantity: Metallicity-like (unit-less; M_Z / M_tot)
+        :return: Metallicity in solar units (Z)
+        """
+        return quantity / 0.0127
