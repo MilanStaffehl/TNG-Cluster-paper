@@ -6,6 +6,7 @@ matplotlib>=3.7.2
 multiprocess>=0.70.15
 scipy>=1.11.3
 h5py>=3.9.0
+cmasher>=1.8.0
 pytest>=7.4.0
 pytest-mock>=3.11.1
 flake8>=6.0.0
