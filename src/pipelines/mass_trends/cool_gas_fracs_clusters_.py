@@ -13,7 +13,7 @@ import time
 import tracemalloc
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, ClassVar, Literal, Sequence
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, Sequence
 
 import cmasher  # noqa: F401
 import matplotlib.cm
@@ -29,6 +29,10 @@ from library.loading import load_radial_profiles
 from library.plotting import colormaps, common
 from library.processing import selection, statistics
 from pipelines.base import DiagnosticsPipeline
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 @dataclass
@@ -174,7 +178,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 filepath = self.paths["data_dir"] / "color_data"
                 np.save(filepath / filename, color_quantity)
 
-        # Step 3: plot data
+        # Step 3: plot data, save figure
         kwargs = self._get_plot_kwargs()
         if self.color_scale == "log":
             plot_color = np.copy(color_quantity)
@@ -186,25 +190,47 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             plot_color = np.log10(plot_color)
         else:
             plot_color = np.copy(color_quantity)
-        self._plot(halo_masses, cool_gas_fracs, plot_color, kwargs)
+        f, _ = self._plot(halo_masses, cool_gas_fracs, plot_color, kwargs)
+        self._save_fig(f)
+        logging.info(
+            f"Successfully plotted mass trend colored by {self.field}."
+        )
 
         # Step 4: plot not the quantity, but its trend at fixed mass
-        deviation_quantity = statistics.find_deviation_from_median_per_bin(
+        deviation_color = statistics.find_deviation_from_median_per_bin(
             color_quantity,
             np.log10(halo_masses),
             min_mass=14.0,
             max_mass=15.4,
             num_bins=7,
         )
+        # get statistical quantities
+        corcoef = statistics.pearson_corrcoeff_per_bin(
+            cool_gas_fracs,
+            color_quantity,
+            np.log10(halo_masses),
+            min_mass=14.0,
+            max_mass=15.4,
+            num_bins=7,
+        )
+        # log values for the plot if desired
         if self.deviation_scale == "log":
-            deviation_quantity = np.log10(deviation_quantity)
+            deviation_color = np.log10(deviation_color)
+        # plot deviation as color
         dev_kwargs = self._get_plot_kwargs_for_median_diff()
-        self._plot(
+        f, a = self._plot(
             halo_masses,
             cool_gas_fracs,
-            deviation_quantity,
+            deviation_color,
             dev_kwargs,
-            "median_dev",
+        )
+        # overplot Pearson correlation coefficients as text
+        self._add_statistics_labels(a, corcoef)
+        # save figure
+        self._save_fig(f, ident_flag="median_dev")
+        logging.info(
+            f"Successfully plotted mass trend median deviation of field "
+            f"{self.field}."
         )
 
         return 0
@@ -426,6 +452,14 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             cool_gas_fracs[idx] = cool_gas / total_gas
             idx += 1
 
+        if self.to_file:
+            np.savez(
+                self.paths["data_dir"] / self.base_filename,
+                halo_masses=halo_masses,
+                cool_gas_fracs=cool_gas_fracs,
+            )
+            logging.info("Wrote base data to file.")
+
         return halo_masses, cool_gas_fracs
 
     def _plot(
@@ -434,8 +468,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         gas_fraction: NDArray,
         colored_quantity: NDArray | None,
         additional_kwargs: dict[str, Any],
-        ident_flag: str = "",
-    ) -> None:
+    ) -> tuple[Figure, Axes]:
         """
         Plot the cool gas fraction vs. halo mass plot.
 
@@ -451,14 +484,12 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             must pass it already in log scale.
         :param additional_kwargs: A dictionary containing additional
             keywords for the :func:`plot_scatterplot` function.
-        :param ident_flag: Ident flag for the figure file name, i.e. a
-            suffix to be appended to the file stem. Primarily useful to
-            give deviation plots a different name from normal color plots.
-        :return: None, figure is saved to file.
+        :return: Figure and axes objects as tuple.
         """
         logging.info("Plotting cool gas fraction mass trend for clusters.")
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
+        axes.set_xticks(np.linspace(14.0, 15.4, num=8))
         if self.gas_domain == "central":
             axes.set_ylabel(r"Cool gas fraction within $0.05R_{200c}$")
         else:
@@ -532,16 +563,34 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             label="TNG-Cluster"
         )
         axes.legend(handles=[tng300_handle, tngclstr_handle])
-        self._save_fig(fig, ident_flag=ident_flag)
-        if ident_flag == "":
-            logging.info(
-                f"Successfully plotted mass trend colored by {self.field}."
+        return fig, axes
+
+    @staticmethod
+    def _add_statistics_labels(axes: Axes, pearson_cc: NDArray) -> Axes:
+        """
+        Add labels with the statistical quantities to the plot.
+
+        :param axes: The axes onto which to draw the labels.
+        :param pearson_cc: The array of Pearson correlation coefficients.
+        :return: The Axes object, for convenience. Axes is altered in
+            place.
+        """
+        n_bins = len(pearson_cc)
+        bin_width = 0.9 / n_bins
+        for i in range(n_bins):
+            axes.text(
+                0.05 + i * bin_width + bin_width / 2,
+                0.05 + (i % 2) * 0.08,
+                f"R = {pearson_cc[i]:.2f}",
+                fontsize=8,
+                color="black",
+                backgroundcolor=(1, 1, 1, 0.5),
+                transform=axes.transAxes,
+                horizontalalignment="center",
+                verticalalignment="bottom",
+                zorder=10,
             )
-        else:
-            logging.info(
-                f"Successfully plotted mass trend median deviation of field "
-                f"{self.field}."
-            )
+        return axes
 
     def _get_plot_kwargs(self) -> dict[str, Any]:
         """
@@ -712,25 +761,50 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
 
         # plot data
         if self.color_scale == "log":
-            color_data = np.log10(color_data)
-        self._plot(halo_masses, cool_gas_fracs, color_data, color_kwargs)
+            plot_color = np.copy(color_data)
+            # set zeros to a small value to avoid NaNs
+            min_val = np.nanmin(plot_color[plot_color != 0])
+            logging.debug(f"Smallest non-zero color value: {min_val}")
+            plot_color[plot_color == 0] = 0.1 * min_val
+            # log the values
+            plot_color = np.log10(plot_color)
+        else:
+            plot_color = np.copy(color_data)
+        f, _ = self._plot(halo_masses, cool_gas_fracs, plot_color, color_kwargs)
+        self._save_fig(f)
+        logging.info(
+            f"Successfully plotted mass trend colored by {self.field}."
+        )
 
         # plot deviation
-        color_data = statistics.find_deviation_from_median_per_bin(
+        deviation_color = statistics.find_deviation_from_median_per_bin(
             color_data,
             np.log10(halo_masses),
             min_mass=14.0,
             max_mass=15.4,
             num_bins=7,
         )
-
-        if self.deviation_scale == "log":
-            color_data = np.log10(color_data)
-        dev_kwargs = self._get_plot_kwargs_for_median_diff()
-        self._plot(
-            halo_masses,
+        # get statistical quantities
+        corcoef = statistics.pearson_corrcoeff_per_bin(
             cool_gas_fracs,
             color_data,
+            np.log10(halo_masses),
+            min_mass=14.0,
+            max_mass=15.4,
+            num_bins=7,
+        )
+        if self.deviation_scale == "log":
+            deviation_color = np.log10(deviation_color)
+        dev_kwargs = self._get_plot_kwargs_for_median_diff()
+        f, a = self._plot(
+            halo_masses,
+            cool_gas_fracs,
+            deviation_color,
             dev_kwargs,
-            ident_flag="median_dev"
+        )
+        self._add_statistics_labels(a, corcoef)
+        self._save_fig(f, ident_flag="median_dev")
+        logging.info(
+            f"Successfully plotted mass trend median deviation of field "
+            f"{self.field}."
         )

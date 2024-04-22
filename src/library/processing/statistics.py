@@ -579,8 +579,10 @@ def find_deviation_from_median_per_bin(
         median, shape (N, ) where N is the number of entries.
     :param masses: The array of masses by which to bin in units of solar
         masses, shape (N, ).
-    :param min_mass: The lower edge of the mass bins in solar masses.
-    :param max_mass: The upper edge of the mass bins in solar masses.
+    :param min_mass: The lower edge of the mass bins in the same unit as
+        ``masses``.
+    :param max_mass: The upper edge of the mass bins in the same unit as
+        ``masses``.
     :param num_bins: The number of mass bins to create.
     :return: The ratios of the quantity to the median of its mass
         bin, shape (N, ).
@@ -609,3 +611,48 @@ def find_deviation_from_median_per_bin(
         results[j] = cur_data / medians[cur_mass_bin_index]
 
     return results
+
+
+def pearson_corrcoeff_per_bin(
+    x_data: NDArray,
+    y_data: NDArray,
+    masses: NDArray,
+    min_mass: float,
+    max_mass: float,
+    num_bins: int,
+) -> NDArray:
+    """
+    Return Pearson correlation coefficient per mass bin.
+
+    Function takes x-data and y-data of arbitrary kind for halos as well
+    as their respective masses, and sorts the (x, y) points into mass
+    bins according to the given masses and lower/upper masses and number
+    of mass bins. Then it computes, in every mass bin, the Pearson
+    correlation coefficient of the y-data with the x-data in that bin
+    and returns the results as an array of length ``n_bins``.
+
+    :param x_data: x values of shape (N, ).
+    :param y_data: y values of shape (N, )
+    :param min_mass: The lower edge of the lowest mass bin, in the same
+        units as ``masses``.
+    :param max_mass: The upper edge of the highest mass bin, in the same
+        units as ``masses``.
+    :param num_bins: The number of bins to create.
+    :return: The Pearson correlation coefficients in each mass bin, from
+        the lowest mass bin to the highest mass bin. Array of shape
+        (``num_bins``,).
+    """
+    # create a mass bin mask
+    mass_bin_edges = np.linspace(min_mass, max_mass, num=num_bins + 1)
+    mask = np.digitize(masses, mass_bin_edges)
+
+    # create an array for the results
+    corrcoeffs = np.zeros(num_bins)
+
+    # find the Pearson correlation coefficient in every mass bin
+    for i in range(num_bins):
+        xs_in_bin = x_data[mask == i + 1]
+        ys_in_bin = y_data[mask == i + 1]
+        corrcoeffs[i] = scipy.stats.pearsonr(xs_in_bin, ys_in_bin).statistic
+
+    return corrcoeffs
