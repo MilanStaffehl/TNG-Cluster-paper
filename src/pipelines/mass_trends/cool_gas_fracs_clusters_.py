@@ -168,19 +168,28 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             raise
         else:
             # since there is color data, save it to file
-            logging.info(f"Writing color data {self.field} to file.")
-            filename = f"{self.paths['data_file_stem']}.npy"
-            filepath = self.paths["data_dir"] / "color_data"
-            np.save(filepath / filename, color_quantity)
+            if self.to_file:
+                logging.info(f"Writing color data {self.field} to file.")
+                filename = f"{self.paths['data_file_stem']}.npy"
+                filepath = self.paths["data_dir"] / "color_data"
+                np.save(filepath / filename, color_quantity)
 
         # Step 3: plot data
         kwargs = self._get_plot_kwargs()
         if self.color_scale == "log":
-            color_quantity = np.log10(color_quantity)
-        self._plot(halo_masses, cool_gas_fracs, color_quantity, kwargs)
+            plot_color = np.copy(color_quantity)
+            # set zeros to a small value to avoid NaNs
+            min_val = np.nanmin(plot_color[plot_color != 0])
+            logging.debug(f"Smallest non-zero color value: {min_val}")
+            plot_color[plot_color == 0] = 0.1 * min_val
+            # log the values
+            plot_color = np.log10(plot_color)
+        else:
+            plot_color = np.copy(color_quantity)
+        self._plot(halo_masses, cool_gas_fracs, plot_color, kwargs)
 
         # Step 4: plot not the quantity, but its trend at fixed mass
-        color_quantity = statistics.find_deviation_from_median_per_bin(
+        deviation_quantity = statistics.find_deviation_from_median_per_bin(
             color_quantity,
             np.log10(halo_masses),
             min_mass=14.0,
@@ -188,12 +197,12 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             num_bins=7,
         )
         if self.deviation_scale == "log":
-            color_quantity = np.log10(color_quantity)
+            deviation_quantity = np.log10(deviation_quantity)
         dev_kwargs = self._get_plot_kwargs_for_median_diff()
         self._plot(
             halo_masses,
             cool_gas_fracs,
-            color_quantity,
+            deviation_quantity,
             dev_kwargs,
             "median_dev",
         )
@@ -394,8 +403,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         idx = 0
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
-            cool_gas = np.sum(halo_data["cool_histogram"] * shell_volumes)
-            total_gas = np.sum(halo_data["total_histogram"] * shell_volumes)
+            cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
+            cool_gas = np.sum(cool_profile * shell_volumes)
+            total_profile = halo_data["total_inflow"] + halo_data[
+                "total_outflow"]
+            total_gas = np.sum(total_profile * shell_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
             idx += 1
 
@@ -406,8 +418,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
-            cool_gas = np.sum(halo_data["cool_histogram"] * shell_volumes)
-            total_gas = np.sum(halo_data["total_histogram"] * shell_volumes)
+            cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
+            cool_gas = np.sum(cool_profile * shell_volumes)
+            total_profile = halo_data["total_inflow"] + halo_data[
+                "total_outflow"]
+            total_gas = np.sum(total_profile * shell_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
             idx += 1
 
@@ -444,18 +459,17 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         logging.info("Plotting cool gas fraction mass trend for clusters.")
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
-        # axes.set_xlim([14.0, 15.4])
-        axes.set_yscale("log")
-        axes.set_ylim((3e-4, 2e-2))
         if self.gas_domain == "central":
             axes.set_ylabel(r"Cool gas fraction within $0.05R_{200c}$")
         else:
             axes.set_ylabel(r"Cool gas fraction within $2R_{200c}$")
+        axes.set_yscale("log")
 
-        logging.debug(f"Smallest gas frac value: {np.min(gas_fraction)}")
+        logging.debug(f"Smallest gas frac value: {np.min(gas_fraction):e}")
         # make zero-values visible; scatter them a little
         rng = np.random.default_rng(42)
         n_zeros = len(gas_fraction) - np.count_nonzero(gas_fraction)
+        logging.debug(f"Number of zero entries: {n_zeros}")
         randnums = np.power(5, rng.random(n_zeros))
         gas_fraction[gas_fraction == 0] = 1e-7 * randnums
 

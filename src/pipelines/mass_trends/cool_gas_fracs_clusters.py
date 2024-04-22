@@ -361,8 +361,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         idx = 0
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
-            cool_gas = np.sum(halo_data["cool_histogram"] * shell_volumes)
-            total_gas = np.sum(halo_data["total_histogram"] * shell_volumes)
+            cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
+            cool_gas = np.sum(cool_profile * shell_volumes)
+            total_profile = halo_data["total_inflow"] + halo_data[
+                "total_outflow"]
+            total_gas = np.sum(total_profile * shell_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
             idx += 1
 
@@ -373,8 +376,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
-            cool_gas = np.sum(halo_data["cool_histogram"] * shell_volumes)
-            total_gas = np.sum(halo_data["total_histogram"] * shell_volumes)
+            cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
+            cool_gas = np.sum(cool_profile * shell_volumes)
+            total_profile = halo_data["total_inflow"] + halo_data[
+                "total_outflow"]
+            total_gas = np.sum(total_profile * shell_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
             idx += 1
 
@@ -407,7 +413,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         logging.info("Plotting cool gas fraction mass trend for clusters.")
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
-        axes.set_xlim([14.0, 15.4])
+        # axes.set_xlim([14.0, 15.4])
+        # axes.set_ylim((1e-4, 2e-2))
         if self.core_only:
             axes.set_ylabel(r"Cool gas fraction within $0.05R_{200c}$")
         else:

@@ -4,6 +4,7 @@ Data loading for radial temperature profiles.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
 
@@ -11,6 +12,25 @@ import numpy as np
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+
+def _natsort_key(path: Path | str) -> list[int]:
+    """
+    Sorting key for natural sort. Used to sort filenames by halo ID.
+
+    Can be used as a key to ``sorted`` or ``list.sort()`` to sort the
+    list in natural order:
+
+    >>> alist = ["file_10", "file_2", "file_1"]
+    >>> sorted(alist, key=_natsort_key)
+    ["file_1", "file_2", "file_10"]
+
+    :param path: A file path, as a valid Path object or string.
+    :return: A list of integers found in the text.
+    """
+    # yapf: disable
+    return [int(c) if c.isdigit() else c for c in re.split(r"(\d+)", str(path))]
+    # yapf: enable
 
 
 def load_radial_profile_data(
@@ -150,7 +170,9 @@ def load_individuals_2d_profile(
         )
 
     # load every file individually and yield it
-    for filename in filepath.iterdir():
+    files = list(filepath.iterdir())
+    files = sorted(files, key=_natsort_key)
+    for filename in files:
         if not filename.is_file():
             logging.warning(f"Skipping non-file entry {filename}.")
         with np.load(filename) as data_file:
@@ -208,6 +230,10 @@ def load_individuals_1d_profile(
     a 2D array), 'edges', (bin edges of the histogram bins), 'halo_id'
     and 'halo_mass' (given in physical units).
 
+    .. warning:: The returned data is yielded in arbitrary order! There
+        is no guarantee that the data is returned in order of ascending
+        halo ID!
+
     :param filepath: Path of the directory in which the data files are
         located. All non-file entries are ignored.
     :param expected_shape: The shape of the histogram array. Optional,
@@ -244,7 +270,9 @@ def load_individuals_1d_profile(
         )
 
     # load every file individually and yield it
-    for filename in filepath.iterdir():
+    files = list(filepath.iterdir())
+    files = sorted(files, key=_natsort_key)
+    for filename in files:
         if not filename.is_file():
             logging.warning(f"Skipping non-file entry {filename}.")
             continue
