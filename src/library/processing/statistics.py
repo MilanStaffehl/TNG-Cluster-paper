@@ -632,7 +632,10 @@ def pearson_corrcoeff_per_bin(
     and returns the results as an array of length ``n_bins``.
 
     :param x_data: x values of shape (N, ).
-    :param y_data: y values of shape (N, )
+    :param y_data: y values of shape (N, ).
+    :param masses: An array of hao masses associated with every (x, y)
+        point. Points will be binned according to these masses. Unit is
+        arbitrary, but must match that of ``min_mass`` and ``max_mass``.
     :param min_mass: The lower edge of the lowest mass bin, in the same
         units as ``masses``.
     :param max_mass: The upper edge of the highest mass bin, in the same

@@ -193,3 +193,33 @@ def test_column_normalized_hist2d_existing_histogram():
     assert output[1] is None and output[2] is None
     expected = np.array([[1 / 3, 1, 0], [1, 0, 1], [2 / 3, 1 / 3, 1]])
     np.testing.assert_almost_equal(output[0], expected, decimal=2)
+
+
+def test_pearson_corrcoeff_per_bin():
+    """Test the function for Pearson correlation coefficients"""
+    xs = np.array([0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
+    ys = np.array([2, 3, 4, 5, 6, 6, 5, 4, 3, 2])
+    masses = np.array([1, 1, 1, 1, 1, 3, 3, 3, 3, 3])
+    expected = np.array([1, -1])
+    output = statistics.pearson_corrcoeff_per_bin(xs, ys, masses, 0, 4, 2)
+    np.testing.assert_equal(output, expected)
+
+
+def test_pearson_corrcoeff_per_bin_unordered():
+    """Test the function for corr. coeff. works regardless of order"""
+    xs = np.array([4, 0, 3, 1, 4, 2, 3, 0, 2, 1])
+    ys = np.array([6, 6, 3, 3, 2, 4, 5, 2, 4, 5])
+    masses = np.array([1, 3, 3, 1, 3, 1, 1, 1, 3, 3])
+    expected = np.array([1, -1])
+    output = statistics.pearson_corrcoeff_per_bin(xs, ys, masses, 0, 4, 2)
+    np.testing.assert_equal(output, expected)
+
+
+def test_pearson_corrcoeff_per_bin_real_values():
+    """A more realistic scenario with scatter"""
+    xs = np.array([7, 8, 8, 3, 6, 4, 7, 3, 5, 0, 7, 6, 1, 0, 6, 0, 8, 2, 8, 5])
+    ys = np.array([8, 2, 6, 3, 0, 8, 2, 2, 5, 1, 4, 4, 8, 8, 7, 1, 5, 0, 5, 3])
+    ms = np.array([1, 2, 1, 3, 4, 3, 4, 3, 4, 2, 4, 3, 3, 1, 3, 1, 3, 2, 1, 4])
+    expected = np.array([0.312633, 0.720577, -0.082670, -0.259938])
+    output = statistics.pearson_corrcoeff_per_bin(xs, ys, ms, 0, 5, 4)
+    np.testing.assert_almost_equal(output, expected, decimal=5)
