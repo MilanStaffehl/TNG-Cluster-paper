@@ -223,3 +223,24 @@ def test_pearson_corrcoeff_per_bin_real_values():
     expected = np.array([0.312633, 0.720577, -0.082670, -0.259938])
     output = statistics.pearson_corrcoeff_per_bin(xs, ys, ms, 0, 5, 4)
     np.testing.assert_almost_equal(output, expected, decimal=5)
+
+
+def test_two_side_difference_simple():
+    """Test the function in a basic scenario"""
+    # assume just one mass bin for simplicity
+    masses = np.ones(10)
+    # test data
+    colors = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    ys = np.array([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+    output = statistics.two_side_difference(ys, colors, masses, 0, 2, 1)
+    np.testing.assert_almost_equal(output, np.array([5.0]), decimal=6)
+
+
+def test_two_side_difference_binning():
+    """Test the function with binning"""
+    masses = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2])
+    colors = np.array([2, 4, 6, 0, 3, 0, 0, -3, 0, 4, 6, 8])
+    ys = np.array([3, 4, 5, 0, 1, 2, 5, 4, 3, 2, 1, 0])
+    output = statistics.two_side_difference(ys, colors, masses, 0, 3, 2)
+    expected = np.array([3.0, -7.0])
+    np.testing.assert_almost_equal(output, expected, decimal=6)

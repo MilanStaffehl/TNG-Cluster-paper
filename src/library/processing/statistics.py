@@ -659,3 +659,68 @@ def pearson_corrcoeff_per_bin(
         corrcoeffs[i] = scipy.stats.pearsonr(xs_in_bin, ys_in_bin).statistic
 
     return corrcoeffs
+
+
+def two_side_difference(
+    y_data: NDArray,
+    color_data: NDArray,
+    masses: NDArray,
+    min_mass: float,
+    max_mass: float,
+    num_bins: int
+) -> NDArray:
+    """
+    Return the difference of mean values above and below median per bin.
+
+    Function takes a set of values named ``color_data`` and sorts it
+    into mass bins according to the associated ``masses`` and the mass
+    bin specification given. In every mass bin, it then divides the
+    color data into two sets of points around the median ``y_data``
+    point, i.e. it splits the points in the middle along the y-axis,
+    described by ``y_data``. Then, it computes the mean color value in
+    both sets and subtracts the lower mean from the upper mean. This
+    difference is then normalized to the mean of all color data points.
+
+    The resulting quantity can be seen as a crude measure of the trend
+    of ``color_data`` with ``y_data``: If, in a given mass bin, the
+    difference between the mean color data of the upper points minus
+    the mean color data of the lower points is positive, the color
+    correlates with the y-values. If it is negative, color anti-correlates
+    with the y-values. The magnitude of the difference shows the strength
+    of the correlation.
+
+    :param color_data: Color data for which to find the correlation
+        with ``y_data``. Array of shape (N, ).
+    :param masses: An array of masses by which to sort the data into
+        bins. Can be of arbitrary units, but units must match those of
+        ``min_mass`` and ``max_mass``. Array of shape (N, ).
+    :param y_data: Data points by which to split the color data into
+        two sets (above and below median y). Array of shape (N, ).
+    :param min_mass: The lower edge of the smallest mass bin.
+    :param max_mass: The upper edge of the highest mass bin.
+    :param num_bins: The number of bins to use.
+    :return: Array of shape (``num_bins``, ) of differences between the
+        mean color above the median y-value and the mean color below the
+        median y-value *per mass bin*, normalized to the mean color in
+        that bin.
+    """
+    # create a mass bin mask
+    mass_bin_edges = np.linspace(min_mass, max_mass, num=num_bins + 1)
+    mask = np.digitize(masses, mass_bin_edges)
+
+    # create an array for the results
+    deltas = np.zeros(num_bins)
+
+    for i in range(num_bins):
+        # find all points in current mass bin
+        color_in_bin = color_data[mask == i + 1]
+        ys_in_bin = y_data[mask == i + 1]
+        # find median y
+        y_median = np.nanmedian(ys_in_bin)
+        # find mean color above and below median
+        mean_above = np.mean(color_in_bin[ys_in_bin > y_median])
+        mean_below = np.mean(color_in_bin[ys_in_bin < y_median])
+        # place difference in result array
+        deltas[i] = (mean_above - mean_below) / np.mean(color_in_bin)
+
+    return deltas
