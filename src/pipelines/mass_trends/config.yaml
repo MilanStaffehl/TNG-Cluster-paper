@@ -65,7 +65,7 @@ bh-mass:
 
 bh-mdot:
   default-scale: log
-  daq-field-name: BHMdot
+  daq-field-name: TotalBHMdot
   label:
     log: "BH accretion rate [$\\log (M_\\odot / Gyr)$]"
     linear: "BH accretion rate [$M_\\odot / Gyr$]"
@@ -80,7 +80,7 @@ bh-mdot:
 
 bh-mode:
   default-scale: log
-  daq-field-name: BHMode
+  daq-field-name: CentralBHMode
   label:
     log: "BH mode [$\\log_{10}((\\dot{M} / \\dot{M}_{Edd}) / \\chi)$]"
     linear: "BH mode [$(\\dot{M} / \\dot{M}_{Edd}) / \\chi$]"
