@@ -181,13 +181,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # Step 3: plot data, save figure
         kwargs = self._get_plot_kwargs()
         if self.color_scale == "log":
-            plot_color = np.copy(color_quantity)
-            # set zeros to a small value to avoid NaNs
-            min_val = np.nanmin(plot_color[plot_color != 0])
-            logging.debug(f"Smallest non-zero color value: {min_val}")
-            plot_color[plot_color == 0] = 0.1 * min_val
-            # log the values
-            plot_color = np.log10(plot_color)
+            plot_color = self._nanlog10(color_quantity)
         else:
             plot_color = np.copy(color_quantity)
         f, _ = self._plot(halo_masses, cool_gas_fracs, plot_color, kwargs)
@@ -204,7 +198,18 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             max_mass=15.4,
             num_bins=7,
         )
-        # get statistical quantities
+        if self.deviation_scale == "log":
+            # avoid NaNs (okay, since this array is used only for plotting)
+            deviation_color = self._nanlog10(deviation_color, "deviation")
+        dev_kwargs = self._get_plot_kwargs_for_median_diff()
+        f, a = self._plot(
+            halo_masses,
+            cool_gas_fracs,
+            deviation_color,
+            dev_kwargs,
+        )
+
+        # Step 5: overplot statistical quantities
         corcoef = statistics.pearson_corrcoeff_per_bin(
             cool_gas_fracs,
             color_quantity,
@@ -213,20 +218,18 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             max_mass=15.4,
             num_bins=7,
         )
-        # log values for the plot if desired
-        if self.deviation_scale == "log":
-            deviation_color = np.log10(deviation_color)
-        # plot deviation as color
-        dev_kwargs = self._get_plot_kwargs_for_median_diff()
-        f, a = self._plot(
-            halo_masses,
+        deltas = statistics.two_side_difference(
             cool_gas_fracs,
-            deviation_color,
-            dev_kwargs,
+            color_quantity,
+            np.log10(halo_masses),
+            min_mass=14.0,
+            max_mass=15.4,
+            num_bins=7,
         )
         # overplot Pearson correlation coefficients as text
-        self._add_statistics_labels(a, corcoef)
-        # save figure
+        self._add_statistics_labels(a, corcoef, deltas)
+
+        # Step 6: save median deviation figure
         self._save_fig(f, ident_flag="median_dev")
         logging.info(
             f"Successfully plotted mass trend median deviation of field "
@@ -547,44 +550,58 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         )
         # set handles manually to avoid coloring them
         tng300_handle = Line2D(
-            [], [],
+            [],
+            [],
             color="black",
             marker="o",
             ls="",
             markersize=3,
-            label="TNG300-1"
+            label="TNG300-1",
         )
         tngclstr_handle = Line2D(
-            [], [],
+            [],
+            [],
             color="black",
             marker="D",
             ls="",
             markersize=3,
-            label="TNG-Cluster"
+            label="TNG-Cluster",
         )
         axes.legend(handles=[tng300_handle, tngclstr_handle])
         return fig, axes
 
     @staticmethod
-    def _add_statistics_labels(axes: Axes, pearson_cc: NDArray) -> Axes:
+    def _add_statistics_labels(
+        axes: Axes, pearson_cc: NDArray, deltas: NDArray
+    ) -> Axes:
         """
         Add labels with the statistical quantities to the plot.
 
         :param axes: The axes onto which to draw the labels.
         :param pearson_cc: The array of Pearson correlation coefficients.
+        :param deltas: Difference between mean color above and below
+            median gas fraction per mass bin.
         :return: The Axes object, for convenience. Axes is altered in
             place.
         """
+        if len(pearson_cc) != len(deltas):
+            logging.error(
+                "Pearson coefficients and Deltas have different lengths, "
+                "cannot add them to the plot."
+            )
+            return axes
+
         n_bins = len(pearson_cc)
         bin_width = 0.9 / n_bins
         for i in range(n_bins):
             axes.text(
                 0.05 + i * bin_width + bin_width / 2,
-                0.05 + (i % 2) * 0.08,
-                f"R = {pearson_cc[i]:.2f}",
+                0.05 + (i % 2) * 0.1,
+                f"R = {pearson_cc[i]:.2f}\n"
+                rf"$\Delta$ = {deltas[i]:.2f}",
                 fontsize=8,
                 color="black",
-                backgroundcolor=(1, 1, 1, 0.5),
+                backgroundcolor=(1, 1, 1, 0.6),
                 transform=axes.transAxes,
                 horizontalalignment="center",
                 verticalalignment="bottom",
@@ -718,6 +735,31 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         }
         return config_dict
 
+    @staticmethod
+    def _nanlog10(x: NDArray, what: str = "color"):
+        """
+        Logarithm avoiding NaN values by setting zeros to small value.
+
+        Method replaces all zero entries in ``x`` with 0.1 times the
+        smallest non-zero value of ``x``, then returns the log10 of the
+        resulting array. This avoids NaNs, but makes the result inaccurate.
+        Useful for plotting, when zero-values may be treated as small
+        non-zero values. Avoid for real physics.
+
+        :param x: The quantity to log.
+        :param what: Description of the quantity being logged, for the
+            debug log message emitted. Defaults to 'color'.
+        :return: The log10 of the array, with all zero-entries replaced
+            by a small value before taking the log.
+        """
+        quantity = np.copy(x)
+        # set zeros to a small value to avoid NaNs
+        min_val = np.nanmin(quantity[quantity != 0])
+        logging.debug(f"Smallest non-zero {what} value: {min_val}")
+        quantity[quantity == 0] = 0.1 * min_val
+        # log the values
+        return np.log10(quantity)
+
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
     """
@@ -761,13 +803,8 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
 
         # plot data
         if self.color_scale == "log":
-            plot_color = np.copy(color_data)
-            # set zeros to a small value to avoid NaNs
-            min_val = np.nanmin(plot_color[plot_color != 0])
-            logging.debug(f"Smallest non-zero color value: {min_val}")
-            plot_color[plot_color == 0] = 0.1 * min_val
-            # log the values
-            plot_color = np.log10(plot_color)
+            # log the values, avoiding NaNs
+            plot_color = self._nanlog10(color_data)
         else:
             plot_color = np.copy(color_data)
         f, _ = self._plot(halo_masses, cool_gas_fracs, plot_color, color_kwargs)
@@ -793,8 +830,16 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             max_mass=15.4,
             num_bins=7,
         )
+        deltas = statistics.two_side_difference(
+            cool_gas_fracs,
+            color_data,
+            np.log10(halo_masses),
+            min_mass=14.0,
+            max_mass=15.4,
+            num_bins=7,
+        )
         if self.deviation_scale == "log":
-            deviation_color = np.log10(deviation_color)
+            deviation_color = self._nanlog10(deviation_color, "deviation")
         dev_kwargs = self._get_plot_kwargs_for_median_diff()
         f, a = self._plot(
             halo_masses,
@@ -802,7 +847,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             deviation_color,
             dev_kwargs,
         )
-        self._add_statistics_labels(a, corcoef)
+        self._add_statistics_labels(a, corcoef, deltas)
         self._save_fig(f, ident_flag="median_dev")
         logging.info(
             f"Successfully plotted mass trend median deviation of field "

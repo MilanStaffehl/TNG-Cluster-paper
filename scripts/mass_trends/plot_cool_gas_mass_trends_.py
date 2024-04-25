@@ -21,7 +21,7 @@ def main(args: argparse.Namespace) -> None:
     if args.field is None:
         type_flag = "clusters_raw"
     else:
-        type_flag = f"clusters_{args.field.lower()}"
+        type_flag = f"clusters_{args.field.lower().replace('-', '_')}"
     if args.gas_domain == "central":
         type_flag += "_core"
 
