@@ -7,6 +7,7 @@ import logging
 import sys
 import time
 import tracemalloc
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, ClassVar
@@ -56,6 +57,12 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     nclstr: ClassVar[int] = 352  # number of clusters in TNG-Cluster
 
     def __post_init__(self):
+        warnings.warn(
+            "This version of the cool gas mass trend pipeline is deprecated. "
+            "Use the newer version instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         super().__post_init__()
         # file paths
         core = "_core" if self.core_only else ""

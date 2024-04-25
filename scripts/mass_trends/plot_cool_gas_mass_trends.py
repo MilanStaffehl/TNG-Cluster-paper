@@ -1,5 +1,6 @@
 import argparse
 import sys
+import warnings
 from pathlib import Path
 
 root_dir = Path(__file__).parents[2].resolve()
@@ -57,6 +58,12 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
+    warnings.warn(
+        "This version of the cool gas mass trend script is deprecated. "
+        "Use the newer version instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
         description="Plot mass trends of gas of halos in TNG",
