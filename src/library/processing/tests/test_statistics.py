@@ -225,15 +225,15 @@ def test_pearson_corrcoeff_per_bin_real_values():
     np.testing.assert_almost_equal(output, expected, decimal=5)
 
 
-def test_two_side_difference_simple():
+def test_two_side_difference_ratio_simple():
     """Test the function in a basic scenario"""
     # assume just one mass bin for simplicity
     masses = np.ones(10)
     # test data
     colors = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     ys = np.array([-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
-    output = statistics.two_side_difference(ys, colors, masses, 0, 2, 1)
-    np.testing.assert_almost_equal(output, np.array([1.111111]), decimal=6)
+    output = statistics.two_side_difference_ratio(ys, colors, masses, 0, 2, 1)
+    np.testing.assert_almost_equal(output, np.array([3.5]), decimal=6)
 
 
 def test_two_side_difference_binning():
@@ -241,6 +241,6 @@ def test_two_side_difference_binning():
     masses = np.array([1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2])
     colors = np.array([2, 4, 6, 0, 3, 0, 0, -3, 0, 4, 6, 8])
     ys = np.array([3, 4, 5, 0, 1, 2, 5, 4, 3, 2, 1, 0])
-    output = statistics.two_side_difference(ys, colors, masses, 0, 3, 2)
-    expected = np.array([1.2, -2.8])
+    output = statistics.two_side_difference_ratio(ys, colors, masses, 0, 3, 2)
+    expected = np.array([4, -1 / 6])
     np.testing.assert_almost_equal(output, expected, decimal=6)

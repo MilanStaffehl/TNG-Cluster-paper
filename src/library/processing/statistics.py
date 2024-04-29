@@ -661,7 +661,7 @@ def pearson_corrcoeff_per_bin(
     return corrcoeffs
 
 
-def two_side_difference(
+def two_side_difference_ratio(
     y_data: NDArray,
     color_data: NDArray,
     masses: NDArray,
@@ -670,7 +670,7 @@ def two_side_difference(
     num_bins: int
 ) -> NDArray:
     """
-    Return the difference of mean values above and below median per bin.
+    Return the ratio of mean values above and below median per bin.
 
     Function takes a set of values named ``color_data`` and sorts it
     into mass bins according to the associated ``masses`` and the mass
@@ -678,16 +678,16 @@ def two_side_difference(
     color data into two sets of points around the median ``y_data``
     point, i.e. it splits the points in the middle along the y-axis,
     described by ``y_data``. Then, it computes the mean color value in
-    both sets and subtracts the lower mean from the upper mean. This
-    difference is then normalized to the mean of all color data points.
+    both sets and divides the upper mean by the lower mean.
 
     The resulting quantity can be seen as a crude measure of the trend
     of ``color_data`` with ``y_data``: If, in a given mass bin, the
-    difference between the mean color data of the upper points minus
-    the mean color data of the lower points is positive, the color
-    correlates with the y-values. If it is negative, color anti-correlates
-    with the y-values. The magnitude of the difference shows the strength
-    of the correlation.
+    ratio between the mean color data of the upper points to the mean
+    color data of the lower points is greater than one, the color
+    correlates with the y-values. If it is less than one, color
+    anti-correlates with the y-values. If it is one, there is no
+    correlation. The magnitude of the log of the ratio shows the
+    strength of the correlation.
 
     :param color_data: Color data for which to find the correlation
         with ``y_data``. Array of shape (N, ).
@@ -699,17 +699,16 @@ def two_side_difference(
     :param min_mass: The lower edge of the smallest mass bin.
     :param max_mass: The upper edge of the highest mass bin.
     :param num_bins: The number of bins to use.
-    :return: Array of shape (``num_bins``, ) of differences between the
+    :return: Array of shape (``num_bins``, ) of ratios between the
         mean color above the median y-value and the mean color below the
-        median y-value *per mass bin*, normalized to the mean color in
-        that bin.
+        median y-value *per mass bin*.
     """
     # create a mass bin mask
     mass_bin_edges = np.linspace(min_mass, max_mass, num=num_bins + 1)
     mask = np.digitize(masses, mass_bin_edges)
 
     # create an array for the results
-    deltas = np.zeros(num_bins)
+    ratios = np.zeros(num_bins)
 
     for i in range(num_bins):
         # find all points in current mass bin
@@ -721,6 +720,6 @@ def two_side_difference(
         mean_above = np.mean(color_in_bin[ys_in_bin > y_median])
         mean_below = np.mean(color_in_bin[ys_in_bin < y_median])
         # place difference in result array
-        deltas[i] = (mean_above - mean_below) / np.mean(color_in_bin)
+        ratios[i] = mean_above / mean_below
 
-    return deltas
+    return ratios
