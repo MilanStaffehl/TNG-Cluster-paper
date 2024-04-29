@@ -44,7 +44,7 @@ class UnitConverter:
                 "BH_CumMassGrowth_RM",
                 "SubhaloMass",
                 "SubhaloMassInRadType",
-            ],
+            ],  # noqa: E123
         "distanceLike":
             [
                 "Group_R_Crit200",
@@ -53,7 +53,7 @@ class UnitConverter:
                 "Group_R_TopHat200",
                 "GroupPos",
                 "Coordinates",
-            ],
+            ],  # noqa: E123
         "velocityLike": ["Velocities"],
         "sfrLike": ["GroupSFR", "StarFormationRate", "SubhaloSFR"],
         "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],

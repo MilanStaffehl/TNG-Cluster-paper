@@ -529,7 +529,7 @@ def _get_bh_cumulative_energy_fraction(
             fields=fields,
         )
         total_energy_injected = (
-            bh_data["BH_CumEgyInjection_RM"] + bh_data["BH_CumEgyInjection_RM"]
+            bh_data["BH_CumEgyInjection_QM"] + bh_data["BH_CumEgyInjection_RM"]
         )
         return bh_data["BH_CumEgyInjection_RM"] / total_energy_injected
 

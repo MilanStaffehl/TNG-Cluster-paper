@@ -198,7 +198,7 @@ bh-cumulative-energy-frac:
     cmap: cmr.emerald
   dev-config:
     default-scale: log
-    limits-log: [-1, 1]
+    limits-log: [-0.2, 0.3]
     limits-linear: [0, 4]
 
 bh-cumulative-energy-total:
