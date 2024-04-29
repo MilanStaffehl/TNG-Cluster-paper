@@ -57,7 +57,7 @@ def get_temperature(
     Return the temperature of the cells given. Uses numpy array maths.
 
     Function does the same thing as :func:`get_temperature`, but it
-    utilizes numpy functions in order to porcess entire arrays without
+    utilizes numpy functions in order to process entire arrays without
     the use of ``np.vectorize``.
 
     :param internal_energy: internal energy of the gas cell in units of
