@@ -73,7 +73,7 @@ gas-metallicity-core:
 
 total-bh-mass:
   default-scale: log
-  daq-field-name: BHMass
+  daq-field-name: TotalBHMass
   label:
     log: "Total BH mass [$\\log M_\\odot$]"
     linear: "Total BH mass [$M_\\odot$]"
@@ -107,7 +107,7 @@ bh-mdot:
   label:
     log: "BH accretion rate [$\\log (M_\\odot / Gyr)$]"
     linear: "BH accretion rate [$M_\\odot / Gyr$]"
-    dev: "\\Dot{M}"
+    dev: "\\dot{M}"
   cbar-config:
     norm: default
     cmap: magma
@@ -147,7 +147,7 @@ bh-cumulative-energy-frac:
   label:
     log: "Cumulative kinetic energy fraction [$\\log_{10}$]"
     linear: "Cumulative kinetic energy fraction"
-    dev: "$E_{kin} / E_{tot}$"
+    dev: "E_{kin} / E_{tot}"
   cbar-config:
     norm: default
     cmap: cmr.emerald
@@ -207,7 +207,7 @@ bh-cumulative-mass-frac:
   label:
     log: "Cumulative accreted mass fraction [$\\log_{10}$]"
     linear: "Cumulative accreted mass fraction"
-    dev: "$M_{kin} / M_{tot}$"
+    dev: "M_{kin} / M_{tot}"
   cbar-config:
     norm: default
     cmap: magma

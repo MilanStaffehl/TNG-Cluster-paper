@@ -218,7 +218,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             max_mass=15.4,
             num_bins=7,
         )
-        deltas = statistics.two_side_difference(
+        ratios = statistics.two_side_difference_ratio(
             cool_gas_fracs,
             color_quantity,
             np.log10(halo_masses),
@@ -226,8 +226,17 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             max_mass=15.4,
             num_bins=7,
         )
-        # overplot Pearson correlation coefficients as text
-        self._add_statistics_labels(a, corcoef, deltas)
+        # save the statistical measures to file
+        if self.to_file:
+            filepath = self.paths["data_dir"] / "statistical_measures"
+            filename = f"{self.paths['data_file_stem']}_statistics.npz"
+            np.savez(
+                filepath / filename,
+                correlation_coefficients=corcoef,
+                ratios=ratios,
+            )
+        # overplot statistical measures as text
+        self._add_statistics_labels(a, corcoef, ratios)
 
         # Step 6: save median deviation figure
         self._save_fig(f, ident_flag="median_dev")
@@ -572,19 +581,19 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
     @staticmethod
     def _add_statistics_labels(
-        axes: Axes, pearson_cc: NDArray, deltas: NDArray
+        axes: Axes, pearson_cc: NDArray, ratios: NDArray
     ) -> Axes:
         """
         Add labels with the statistical quantities to the plot.
 
         :param axes: The axes onto which to draw the labels.
         :param pearson_cc: The array of Pearson correlation coefficients.
-        :param deltas: Difference between mean color above and below
-            median gas fraction per mass bin.
+        :param ratios: Ratios between mean color above and below median
+            gas fraction per mass bin.
         :return: The Axes object, for convenience. Axes is altered in
             place.
         """
-        if len(pearson_cc) != len(deltas):
+        if len(pearson_cc) != len(ratios):
             logging.error(
                 "Pearson coefficients and Deltas have different lengths, "
                 "cannot add them to the plot."
@@ -598,7 +607,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 0.05 + i * bin_width + bin_width / 2,
                 0.05 + (i % 2) * 0.1,
                 f"R = {pearson_cc[i]:.2f}\n"
-                rf"$\Delta$ = {deltas[i]:.2f}",
+                rf"$\alpha$ = {ratios[i]:.2f}",
                 fontsize=8,
                 color="black",
                 backgroundcolor=(1, 1, 1, 0.6),
@@ -830,7 +839,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             max_mass=15.4,
             num_bins=7,
         )
-        deltas = statistics.two_side_difference(
+        deltas = statistics.two_side_difference_ratio(
             cool_gas_fracs,
             color_data,
             np.log10(halo_masses),
