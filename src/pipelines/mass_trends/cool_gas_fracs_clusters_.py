@@ -80,7 +80,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         # config file
         cur_dir = Path(__file__).parent
-        with open(cur_dir / "config.yaml", "r") as config_file:
+        with open(cur_dir / "plot_config.yaml", "r") as config_file:
             stream = config_file.read()
         self.plot_config: dict[str, Any] = yaml.full_load(stream)
 
@@ -657,7 +657,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
 
         :return: Dict of keyword arguments for plotting.
         """
-        cbar_cfg = self.plot_config["cbar-config"]
+        cbar_cfg = self.plot_config[self.field]["cbar-config"]
         # extract colormaps
         if not isinstance(cbar_cfg["cmap"], Sequence):
             logging.error(

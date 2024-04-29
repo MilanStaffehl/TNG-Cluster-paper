@@ -60,7 +60,7 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     # get list of available fields
-    config_file = root_dir / "src/pipelines/mass_trends/config.yaml"
+    config_file = root_dir / "src/pipelines/mass_trends/plot_config.yaml"
     with open(config_file, "r") as f:
         stream = f.read()
     configuration = yaml.full_load(stream)
