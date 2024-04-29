@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 import h5py
+import illustris_python as il
 import numpy as np
 
 from library import units
@@ -59,12 +60,20 @@ def get_cluster_property(
     """
     special_fields = {
         "SFRCore": _get_sfr_core,
+        "GasMetallicityCore": _get_metallicity_core,
         "TotalBHMass": _get_total_bh_mass,
         "TotalBHMdot": _get_total_bh_mdot,
         "CentralBHMass": _get_central_bh_mass,
         "CentralBHMode": _get_central_bh_mode,
         "BHCumEnergyFraction": _get_bh_cumulative_energy_fraction,
+        "BHCumTotalEnergy": _get_bh_total_cumulative_energy,
+        "BHCumKineticEnergy": _get_bh_cumulative_kinetic_energy,
+        "BHCumThermalEnergy": _get_bh_cumulative_thermal_energy,
         "BHCumMassFraction": _get_bh_cumulative_mass_fraction,
+        "BHCumTotalMass": _get_bh_total_cumulative_mass,
+        "BHCumKineticMass": _get_bh_cumulative_kinetic_mass,
+        "BHCumThermalMass": _get_bh_cumulative_thermal_mass,
+        "BHProgenitors": _get_bh_number_of_progenitors,
         "RelaxednessDist": _get_relaxedness_dist,
         "RelaxednessMass": _get_relaxedness_mass,
         "FormationRedshift": _get_formation_redshift,
@@ -150,7 +159,77 @@ def get_cluster_groupcat_field(
 def _get_sfr_core(
     snap_num: int, mass_field: str = "Group_M_Crit200"
 ) -> NDArray:
-    raise NotImplementedError("Core SFR implementation pending.")
+    """
+    Return SFRs of the primary subhalo of all clusters.
+
+    :param snap_num: Snapshot number to load.
+    :param mass_field: Mass field name.
+    :return: Array of shape (632, ) of SFR in primary subhalo in every
+        cluster.
+    """
+
+    def get_cluster_primary_subhalo_sfr(base_path: str, halo_id: int) -> float:
+        """
+        Helper function; returns the SFR of the primary subhalo.
+
+        :param base_path: Base path of the simulation.
+        :param halo_id: ID of the halo for which to load the data.
+        :return:
+        """
+        halo_data = il.groupcat.loadSingle(base_path, snap_num, haloID=halo_id)
+        primary_subhalo_id = halo_data["GroupFirstSub"]
+        # load subhalo data
+        subhalo_data = il.groupcat.loadSingle(
+            base_path, snap_num, subhaloID=primary_subhalo_id
+        )
+        return units.UnitConverter.convert(
+            subhalo_data["SubhaloSFR"], "SubhaloSFR"
+        )
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_cluster_primary_subhalo_sfr,
+        "primary subhalo SFR",
+        mass_field
+    )
+
+
+def _get_metallicity_core(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return metallicities of the primary subhalo of all clusters.
+
+    :param snap_num: Snapshot number to load.
+    :param mass_field: Mass field name.
+    :return: Array of shape (632, ) of metallicity in primary subhalo in every
+        cluster in solar units.
+    """
+
+    def get_cluster_primary_subhalo_z(base_path: str, halo_id: int) -> float:
+        """
+        Helper function; returns the metallicity of the primary subhalo.
+
+        :param base_path: Base path of the simulation.
+        :param halo_id: ID of the halo for which to load the data.
+        :return:
+        """
+        halo_data = il.groupcat.loadSingle(base_path, snap_num, haloID=halo_id)
+        primary_subhalo_id = halo_data["GroupFirstSub"]
+        # load subhalo data
+        subhalo_data = il.groupcat.loadSingle(
+            base_path, snap_num, subhaloID=primary_subhalo_id
+        )
+        return units.UnitConverter.convert(
+            subhalo_data["SubhaloGasMetallicity"], "SubhaloGasMetallicity"
+        )
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_cluster_primary_subhalo_z,
+        "primary subhalo metallicity",
+        mass_field
+    )
 
 
 def _get_central_bh_mass(
@@ -381,6 +460,121 @@ def _get_bh_cumulative_energy_fraction(
     )
 
 
+def _get_bh_total_cumulative_energy(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the cumulative energy ejected of most massive BH.
+
+    The total is the sum of the cumulative energy injected
+    in kinetic mode and the energy injected in thermal mode.
+
+    :return: Array of cumulative total energy of most massive BH for
+        every cluster.
+    """
+
+    # helper func
+    def get_black_hole_total_energy(base_path: str, hid: int) -> float:
+        """
+        Return the black hole cumulative total energy.
+
+        :param base_path: Sim base path.
+        :param hid: Halo ID.
+        :return: The sum of the energy in thermal mode and the energy in
+            kinetic mode.
+        """
+        # load all required data
+        fields = ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"]
+        bh_data = bh_daq.get_most_massive_blackhole(
+            base_path,
+            snap_num,
+            hid,
+            fields=fields,
+        )
+        return (
+            bh_data["BH_CumEgyInjection_RM"] + bh_data["BH_CumEgyInjection_RM"]
+        )
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_black_hole_total_energy,
+        "BH total energy",
+        mass_field,
+    )
+
+
+def _get_bh_cumulative_kinetic_energy(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the cumulative kinetic energy ejected of most massive BH.
+
+    :return: Array of cumulative kinetic energy of most massive BH for
+        every cluster.
+    """
+
+    # helper func
+    def get_black_hole_kinetic_energy(base_path: str, hid: int) -> float:
+        """
+        Return the black hole cumulative kinetic energy.
+
+        :param base_path: Sim base path.
+        :param hid: Halo ID.
+        :return: The kinetic energy injected over the lifetime of the BH.
+        """
+        # load all required data
+        bh_data = bh_daq.get_most_massive_blackhole(
+            base_path,
+            snap_num,
+            hid,
+            fields=["BH_CumEgyInjection_RM"],
+        )
+        return bh_data["BH_CumEgyInjection_RM"]
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_black_hole_kinetic_energy,
+        "BH kinetic energy injection",
+        mass_field,
+    )
+
+
+def _get_bh_cumulative_thermal_energy(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the cumulative thermal energy ejected of most massive BH.
+
+    :return: Array of cumulative thermal energy of most massive BH for
+        every cluster.
+    """
+
+    # helper func
+    def get_black_hole_thermal_energy(base_path: str, hid: int) -> float:
+        """
+        Return the black hole cumulative thermal energy.
+
+        :param base_path: Sim base path.
+        :param hid: Halo ID.
+        :return: The kinetic energy injected over the lifetime of the BH.
+        """
+        # load all required data
+        bh_data = bh_daq.get_most_massive_blackhole(
+            base_path,
+            snap_num,
+            hid,
+            fields=["BH_CumEgyInjection_QM"],
+        )
+        return bh_data["BH_CumEgyInjection_QM"]
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_black_hole_thermal_energy,
+        "BH thermal energy injection",
+        mass_field,
+    )
+
+
 def _get_bh_cumulative_mass_fraction(
     snap_num: int, mass_field: str = "Group_M_Crit200"
 ) -> NDArray:
@@ -424,6 +618,158 @@ def _get_bh_cumulative_mass_fraction(
         snap_num,
         get_black_hole_kinetic_fraction,
         "BH kinetic mass accretion fraction",
+        mass_field,
+    )
+
+
+def _get_bh_total_cumulative_mass(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the cumulative mass accreted of most massive BH.
+
+    The total is the sum of the cumulative mass accreted
+    in kinetic mode and the mass accreted in thermal mode.
+
+    :return: Array of cumulative total mass of most massive BH for
+        every cluster.
+    """
+
+    # helper func
+    def get_black_hole_total_mass(base_path: str, hid: int) -> float:
+        """
+        Return the black hole cumulative total energy.
+
+        :param base_path: Sim base path.
+        :param hid: Halo ID.
+        :return: The sum of the energy in thermal mode and the energy in
+            kinetic mode.
+        """
+        # load all required data
+        fields = ["BH_CumMassGrowth_QM", "BH_CumMassGrowth_RM"]
+        bh_data = bh_daq.get_most_massive_blackhole(
+            base_path,
+            snap_num,
+            hid,
+            fields=fields,
+        )
+        return (
+            bh_data["BH_CumMassGrowth_QM"] + bh_data["BH_CumMassGrowth_RM"]
+        )
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_black_hole_total_mass,
+        "BH total mass accreted",
+        mass_field,
+    )
+
+
+def _get_bh_cumulative_kinetic_mass(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the cumulative mass accreted in kinetic mode.
+
+    :return: Array of cumulative mass accreted in kinetic mode of most
+        massive BH for every cluster.
+    """
+
+    # helper func
+    def get_black_hole_kinetic_mass(base_path: str, hid: int) -> float:
+        """
+        Return the black hole cumulative mass accreted in kinetic mode.
+
+        :param base_path: Sim base path.
+        :param hid: Halo ID.
+        :return: The mass accreted in kinetic mode.
+        """
+        # load all required data
+        bh_data = bh_daq.get_most_massive_blackhole(
+            base_path,
+            snap_num,
+            hid,
+            fields=["BH_CumMassGrowth_RM"],
+        )
+        return bh_data["BH_CumMassGrowth_RM"]
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_black_hole_kinetic_mass,
+        "BH kinetic mass accretion",
+        mass_field,
+    )
+
+
+def _get_bh_cumulative_thermal_mass(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the cumulative mass accreted in thermal mode.
+
+    :return: Array of cumulative mass accreted in thermal mode of most
+        massive BH for every cluster.
+    """
+
+    # helper func
+    def get_black_hole_thermal_mass(base_path: str, hid: int) -> float:
+        """
+        Return the black hole cumulative thermal mass accreted.
+
+        :param base_path: Sim base path.
+        :param hid: Halo ID.
+        :return: The mass accreted in thermal mode.
+        """
+        # load all required data
+        bh_data = bh_daq.get_most_massive_blackhole(
+            base_path,
+            snap_num,
+            hid,
+            fields=["BH_CumMassGrowth_QM"],
+        )
+        return bh_data["BH_CumMassGrowth_QM"]
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_black_hole_thermal_mass,
+        "BH thermal mass accretion",
+        mass_field,
+    )
+
+
+def _get_bh_number_of_progenitors(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the number of progenitors of the most massive BH per cluster.
+
+    :return: Array of number of progenitors of most massive BH.
+    """
+
+    # helper func
+    def get_black_hole_number_of_progenitors(
+        base_path: str, hid: int
+    ) -> float:
+        """
+        Return the black hole number of progenitors.
+
+        :param base_path: Sim base path.
+        :param hid: Halo ID.
+        :return: The number of progenitor BHs.
+        """
+        # load all required data
+        bh_data = bh_daq.get_most_massive_blackhole(
+            base_path,
+            snap_num,
+            hid,
+            fields=["BH_Progs"],
+        )
+        return bh_data["BH_Progs"]
+
+    return _acquire_cluster_quantity(
+        snap_num,
+        get_black_hole_number_of_progenitors,
+        "BH number of progenitors",
         mass_field,
     )
 

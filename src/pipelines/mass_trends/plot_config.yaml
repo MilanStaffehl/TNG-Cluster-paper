@@ -18,6 +18,26 @@ sfr:
     limits-log: [-1, 1]
     limits-linear: [0, 4]
 
+sfr-core:
+  default-scale: log
+  daq-field-name: SFRCore
+  label:
+    log: "Central SFR [$\\log(M_\\odot / yr)$]"
+    linear: "Central SFR [$M_\\odot / yr$]"
+    dev: "SFR_c"
+  cbar-config:
+    norm: default
+    vmin:
+      log: -1.0
+    vmax:
+      log: 2.0
+    cmap: viridis
+    caps: both
+  dev-config:
+    default-scale: log
+    limits-log: [-1, 1]
+    limits-linear: [0, 4]
+
 gas-metallicity:
   default-scale: linear
   daq-field-name: GroupGasMetallicity
@@ -31,6 +51,24 @@ gas-metallicity:
   dev-config:
     default-scale: log
     limits-log: [-0.075, 0.075]
+    limits-linear: [0.8, 1.2]
+
+gas-metallicity-core:
+  default-scale: linear
+  daq-field-name: GasMetallicityCore
+  label:
+    log: "Central gas metallicity [$\\log Z_\\odot$]"
+    linear: "Central gas metallicity [$Z_\\odot$]"
+    dev: "Z_c"
+  cbar-config:
+    norm: default
+    cmap: cividis
+    vmax:
+      linear: 0.7
+    caps: max
+  dev-config:
+    default-scale: log
+    limits-log: [-0.2, 0.2]
     limits-linear: [0.8, 1.2]
 
 total-bh-mass:
@@ -112,10 +150,55 @@ bh-cumulative-energy-frac:
     dev: "$E_{kin} / E_{tot}$"
   cbar-config:
     norm: default
-    cmap: Wistia
+    cmap: cmr.emerald
   dev-config:
     default-scale: log
     limits-log: [-1, 1]
+    limits-linear: [0, 4]
+
+bh-cumulative-energy-total:
+  default-scale: log
+  daq-field-name: BHCumTotalEnergy
+  label:
+    log: "Cumulative energy [$\\log(M_\\odot kpc^2 / Gyr^2)$]"
+    linear: "Cumulative energy [$M_\\odot kpc^2 / Gyr^2$]"
+    dev: "E_{cum,tot}"
+  cbar-config:
+    norm: default
+    cmap: cmr.dusk
+  dev-config:
+    default-scale: log
+    limits-log: [-0.4, 0.4]
+    limits-linear: [0, 4]
+
+bh-cumulative-energy-kinetic:
+  default-scale: log
+  daq-field-name: BHCumKineticEnergy
+  label:
+    log: "Cumulative kinetic energy [$\\log(M_\\odot kpc^2 / Gyr^2)$]"
+    linear: "Cumulative kinetic energy [$M_\\odot kpc^2 / Gyr^2$]"
+    dev: "E_{cum,kin}"
+  cbar-config:
+    norm: default
+    cmap: cmr.cosmic
+  dev-config:
+    default-scale: log
+    limits-log: [-0.4, 0.4]
+    limits-linear: [0, 4]
+
+bh-cumulative-energy-thermal:
+  default-scale: log
+  daq-field-name: BHCumThermalEnergy
+  label:
+    log: "Cumulative thermal energy [$\\log(M_\\odot kpc^2 / Gyr^2)$]"
+    linear: "Cumulative thermal energy [$M_\\odot kpc^2 / Gyr^2$]"
+    dev: "E_{cum,th}"
+  cbar-config:
+    norm: default
+    cmap: cmr.ember
+  dev-config:
+    default-scale: log
+    limits-log: [-0.3, 0.3]
     limits-linear: [0, 4]
 
 bh-cumulative-mass-frac:
@@ -131,6 +214,69 @@ bh-cumulative-mass-frac:
   dev-config:
     default-scale: log
     limits-log: [-1, 1]
+    limits-linear: [0, 4]
+
+bh-cumulative-mass-total:
+  default-scale: log
+  daq-field-name: BHCumTotalMass
+  label:
+    log: "Cumulative accreted mass [$\\log_{10}(M_\\odot)$]"
+    linear: "Cumulative accreted mass [$M_\\odot$]"
+    dev: "M_{cum,tot}"
+  cbar-config:
+    norm: default
+    cmap: cmr.tree
+  dev-config:
+    default-scale: log
+    limits-log: [-0.4, 0.4]
+    limits-linear: [0, 4]
+
+bh-cumulative-mass-kinetic:
+  default-scale: log
+  daq-field-name: BHCumKineticMass
+  label:
+    log: "Accreted mass (kinetic mode) [$\\log_{10}(M_\\odot)$]"
+    linear: "Accreted mass (kinetic mode) [$M_\\odot$]"
+    dev: "M_{cum,kin}"
+  cbar-config:
+    norm: default
+    cmap: cmr.sapphire
+  dev-config:
+    default-scale: log
+    limits-log: [-0.4, 0.4]
+    limits-linear: [0, 4]
+
+bh-cumulative-mass-thermal:
+  default-scale: log
+  daq-field-name: BHCumThermalMass
+  label:
+    log: "Accreted mass (thermal mode) [$\\log_{10}(M_\\odot)$]"
+    linear: "Accreted mass (thermal mode) [$M_\\odot$]"
+    dev: "M_{cum,th}"
+  cbar-config:
+    norm: default
+    cmap: cmr.amber
+  dev-config:
+    default-scale: log
+    limits-log: [-0.3, 0.3]
+    limits-linear: [0, 4]
+
+bh-progenitors:
+  default-scale: log
+  daq-field-name: BHProgenitors
+  label:
+    log: "Number of progenitors [$\\log_{10}$]"
+    linear: "Number of progenitors"
+    dev: "N_{prog}"
+  cbar-config:
+    norm: default
+    cmap: cmr.chroma
+    vmin:
+      log: 2.0
+    caps: min
+  dev-config:
+    default-scale: log
+    limits-log: [-0.3, 0.3]
     limits-linear: [0, 4]
 
 relaxedness-by-distance:

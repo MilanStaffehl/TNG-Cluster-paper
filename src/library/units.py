@@ -53,11 +53,16 @@ class UnitConverter:
                 "Coordinates",
             ],
         "velocityLike": ["Velocities"],
-        "sfrLike": ["GroupSFR", "StarFormationRate"],
+        "sfrLike": ["GroupSFR", "StarFormationRate", "SubhaloSFR"],
         "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],
         "energyLike": ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"],
-        "metallicityLike": ["GroupGasMetallicity", "GFM_Metallicity"],
-        "unitless": ["count", "IDs", "GroupLen"]
+        "metallicityLike":
+            [
+                "GroupGasMetallicity",
+                "GFM_Metallicity",
+                "SubhaloGasMetallicity"
+            ],  # noqa: E123
+        "unitless": ["count", "IDs", "GroupLen", "GroupFirstSub", "BH_Progs"]
     }
 
     @classmethod
