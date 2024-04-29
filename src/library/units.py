@@ -42,6 +42,8 @@ class UnitConverter:
                 "BH_Mass",
                 "BH_CumMassGrowth_QM",
                 "BH_CumMassGrowth_RM",
+                "SubhaloMass",
+                "SubhaloMassInRadType",
             ],
         "distanceLike":
             [
@@ -62,7 +64,15 @@ class UnitConverter:
                 "GFM_Metallicity",
                 "SubhaloGasMetallicity"
             ],  # noqa: E123
-        "unitless": ["count", "IDs", "GroupLen", "GroupFirstSub", "BH_Progs"]
+        "unitless":
+            [
+                "count",
+                "IDs",
+                "GroupLen",
+                "GroupFirstSub",
+                "GroupNsubs",
+                "BH_Progs"
+            ],  # noqa: E123
     }
 
     @classmethod

@@ -61,6 +61,7 @@ def get_cluster_property(
     special_fields = {
         "SFRCore": _get_sfr_core,
         "GasMetallicityCore": _get_metallicity_core,
+        "MassiveSatellites": _get_number_of_massive_satellites,
         "TotalBHMass": _get_total_bh_mass,
         "TotalBHMdot": _get_total_bh_mdot,
         "CentralBHMass": _get_central_bh_mass,
@@ -74,6 +75,8 @@ def get_cluster_property(
         "BHCumKineticMass": _get_bh_cumulative_kinetic_mass,
         "BHCumThermalMass": _get_bh_cumulative_thermal_mass,
         "BHProgenitors": _get_bh_number_of_progenitors,
+        "TotalStellarMass": _get_total_stellar_mass,
+        "CentralStellarMass": _get_central_stellar_mass,
         "RelaxednessDist": _get_relaxedness_dist,
         "RelaxednessMass": _get_relaxedness_mass,
         "FormationRedshift": _get_formation_redshift,
@@ -230,6 +233,84 @@ def _get_metallicity_core(
         "primary subhalo metallicity",
         mass_field
     )
+
+
+def _get_number_of_massive_satellites(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return number of satellites above 10^9 solar masses of all clusters.
+
+    :param snap_num: Snapshot number to load.
+    :param mass_field: Mass field name.
+    :return: Array of shape (632, ) of the number of satellites with
+        mass > 10^9 solar masses per cluster.
+    """
+    n_massive_satellites = np.zeros(N_CLUSTERS)
+    tng_300_base_path = config.get_simulation_base_path("TNG300-1")
+    tng_cluster_basepath = config.get_simulation_base_path("TNG-Cluster")
+
+    # load mass for all subhalos in TNG300-1
+    logging.info("Loading subhalo masses for TNG300-1 subhalos.")
+    satellite_masses = il.groupcat.loadSubhalos(
+        tng_300_base_path, snap_num, fields=["SubhaloMass"]
+    )
+    satellite_masses = units.UnitConverter.convert(
+        satellite_masses, "SubhaloMass"
+    )
+
+    # load cluster data for TNG300-1
+    halo_data = halos_daq.get_halo_properties(
+        tng_300_base_path,
+        snap_num,
+        fields=["GroupFirstSub", "GroupNsubs", mass_field],
+    )
+    cluster_data = selection.select_clusters(
+        halo_data, mass_field, expected_number=N_TNG300
+    )
+
+    # for every cluster, find the number of massive satellites
+    logging.debug("Start processing TNG300-1")
+    for i, n_satellites in enumerate(cluster_data["GroupNsubs"]):
+        # get ID/index of the first subhalo, excluding the primary subhalo
+        first_idx = cluster_data["GroupFirstSub"][i] + 1
+        # select masses of subhalos belonging to current cluster
+        cur_masses = satellite_masses[first_idx:first_idx + n_satellites - 1]
+        # select from those only massive subhalos
+        massive_satellites = cur_masses[cur_masses > 1e9]
+        # count number of massive subhalos
+        n_massive_satellites[i] = len(massive_satellites)
+
+    # load mass for all subhalos in TNG-Cluster
+    logging.info("Loading subhalo masses for TNG-Cluster subhalos.")
+    satellite_masses = il.groupcat.loadSubhalos(
+        tng_cluster_basepath, snap_num, fields=["SubhaloMass"]
+    )
+    satellite_masses = units.UnitConverter.convert(
+        satellite_masses, "SubhaloMass"
+    )
+
+    # load cluster data for TNG-Cluster
+    halo_data = halos_daq.get_halo_properties(
+        tng_cluster_basepath,
+        snap_num,
+        fields=["GroupFirstSub", "GroupNsubs"],
+        cluster_restrict=True,
+    )
+
+    # find number of massive satellites per cluster
+    logging.info("Start processing TNG-Cluster")
+    for i, n_satellites in enumerate(halo_data["GroupNsubs"]):
+        # get ID/index of the first subhalo, excluding the primary subhalo
+        first_idx = halo_data["GroupFirstSub"][i] + 1
+        # select masses of subhalos belonging to current cluster
+        cur_masses = satellite_masses[first_idx:first_idx + n_satellites - 1]
+        # select from those only massive subhalos
+        massive_satellites = cur_masses[cur_masses > 1e9]
+        # count number of massive subhalos
+        n_massive_satellites[i + N_TNG300] = len(massive_satellites)
+
+    return n_massive_satellites
 
 
 def _get_central_bh_mass(
@@ -772,6 +853,91 @@ def _get_bh_number_of_progenitors(
         "BH number of progenitors",
         mass_field,
     )
+
+
+def _get_total_stellar_mass(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the total stellar mass per cluster in the FoF.
+
+    :return: Array of shape (632, ) of stellar masses per cluster.
+    """
+    stellar_masses = np.zeros(N_CLUSTERS)
+
+    # load and restrict TNG300-1 stellar masses
+    halo_data = halos_daq.get_halo_properties(
+        config.get_simulation_base_path("TNG300-1"),
+        snap_num,
+        ["GroupMassType", mass_field],
+    )
+    cluster_data = selection.select_clusters(
+        halo_data, mass_field, expected_number=N_TNG300
+    )
+    stellar_masses[:N_TNG300] = cluster_data["GroupMassType"][:, 4]
+
+    # load TNG-Cluster stellar masses
+    halo_data = halos_daq.get_halo_properties(
+        config.get_simulation_base_path("TNG-Cluster"),
+        snap_num,
+        ["GroupMassType"],
+        cluster_restrict=True,
+    )
+    stellar_masses[N_TNG300:] = halo_data["GroupMassType"][:, 4]
+
+    return stellar_masses
+
+
+def _get_central_stellar_mass(
+    snap_num: int, mass_field: str = "Group_M_Crit200"
+) -> NDArray:
+    """
+    Return the stellar mass of the central galaxy.
+
+    :return: Array of shape (632, ) of stellar masses of central subhalo
+        per cluster.
+    """
+    stellar_masses = np.zeros(N_CLUSTERS)
+    tng_300_base_path = config.get_simulation_base_path("TNG300-1")
+    tng_cluster_base_path = config.get_simulation_base_path("TNG-Cluster")
+
+    # load and restrict TNG300-1 primary subhalo IDs
+    halo_data = halos_daq.get_halo_properties(
+        tng_300_base_path,
+        snap_num,
+        ["GroupFirstSub", mass_field],
+    )
+    cluster_data = selection.select_clusters(
+        halo_data, mass_field, expected_number=N_TNG300
+    )
+
+    # load the stellar mass from all subhalos
+    for i, subhalo_id in enumerate(cluster_data["GroupFirstSub"]):
+        fields = il.groupcat.loadSingle(
+            tng_300_base_path, snap_num, subhaloID=subhalo_id
+        )
+        stellar_masses[i] = units.UnitConverter.convert(
+            fields["SubhaloMassInRadType"][4], "SubhaloMassInRadType"
+        )
+
+    # load TNG-Cluster primary subhalos
+    halo_data = halos_daq.get_halo_properties(
+        tng_cluster_base_path,
+        snap_num,
+        ["GroupFirstSub"],
+        cluster_restrict=True,
+    )
+
+    # load the stellar mass from all subhalos
+    for i, subhalo_id in enumerate(halo_data["GroupFirstSub"]):
+        fields = il.groupcat.loadSingle(
+            tng_cluster_base_path, snap_num, subhaloID=subhalo_id
+        )
+        stellar_masses[i + N_TNG300] = units.UnitConverter.convert(
+            fields["SubhaloMassInRadType"][4], "SubhaloMassInRadType"
+        )
+
+    return stellar_masses
 
 
 def _get_relaxedness_dist(

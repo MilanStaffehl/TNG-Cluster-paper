@@ -631,6 +631,11 @@ def pearson_corrcoeff_per_bin(
     correlation coefficient of the y-data with the x-data in that bin
     and returns the results as an array of length ``n_bins``.
 
+    .. note:: The function will disregard all NaN entries in either
+        x- or y-data, ignoring all indices for which either array holds
+        a NaN value. Function warns if this causes non-NaN values in the
+        other array to be ignored.
+
     :param x_data: x values of shape (N, ).
     :param y_data: y values of shape (N, ).
     :param masses: An array of hao masses associated with every (x, y)
@@ -656,7 +661,37 @@ def pearson_corrcoeff_per_bin(
     for i in range(num_bins):
         xs_in_bin = x_data[mask == i + 1]
         ys_in_bin = y_data[mask == i + 1]
-        corrcoeffs[i] = scipy.stats.pearsonr(xs_in_bin, ys_in_bin).statistic
+        # create masks for only non-nan values
+        x_nan_guard = ~np.isnan(xs_in_bin)
+        y_nan_guard = ~np.isnan(ys_in_bin)
+        # warn if the two don't match and create a compound mask
+        if any(np.not_equal(x_nan_guard, y_nan_guard)):
+            logging.warning(
+                f"`pearson_corrcoeff_per_bin` in mass bin {i}: some x-data "
+                f"has NaNs which causes corresponding y-values to be ignored "
+                f"(or vice-versa). See debug log for details."
+            )
+            logging.debug(
+                f"\nx-NaN-guard:\n{x_nan_guard.astype(int)}"
+                f"\ny-NaN-guard:\n{y_nan_guard.astype(int)}"
+            )
+            compound_mask = np.logical_and(x_nan_guard, y_nan_guard)
+            x_nan_guard = compound_mask
+            y_nan_guard = compound_mask
+
+        # mask the NaN values and then find the coefficient
+        actual_xs = xs_in_bin[x_nan_guard]
+        actual_ys = ys_in_bin[y_nan_guard]
+        try:
+            corrcoeffs[i] = scipy.stats.pearsonr(
+                actual_xs, actual_ys
+            ).statistic
+        except ValueError as exc:
+            logging.warning(
+                f"Unable to calculate correlation coefficient for bin {i}. "
+                f"Setting to NaN. Exception follows:\n{exc}"
+            )
+            corrcoeffs[i] = np.nan
 
     return corrcoeffs
 
@@ -717,8 +752,8 @@ def two_side_difference_ratio(
         # find median y
         y_median = np.nanmedian(ys_in_bin)
         # find mean color above and below median
-        mean_above = np.mean(color_in_bin[ys_in_bin > y_median])
-        mean_below = np.mean(color_in_bin[ys_in_bin < y_median])
+        mean_above = np.nanmean(color_in_bin[ys_in_bin > y_median])
+        mean_below = np.nanmean(color_in_bin[ys_in_bin < y_median])
         # place difference in result array
         ratios[i] = mean_above / mean_below
 

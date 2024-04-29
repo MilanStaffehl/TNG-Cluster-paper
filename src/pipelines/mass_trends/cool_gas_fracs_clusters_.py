@@ -501,6 +501,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         logging.info("Plotting cool gas fraction mass trend for clusters.")
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
+        axes.set_xlim([13.95, 15.45])
         axes.set_xticks(np.linspace(14.0, 15.4, num=8))
         if self.gas_domain == "central":
             axes.set_ylabel(r"Cool gas fraction within $0.05R_{200c}$")
@@ -512,7 +513,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # make zero-values visible; scatter them a little
         rng = np.random.default_rng(42)
         n_zeros = len(gas_fraction) - np.count_nonzero(gas_fraction)
-        logging.debug(f"Number of zero entries: {n_zeros}")
+        logging.debug(f"Number of zero entries in gas fractions: {n_zeros}")
         randnums = np.power(5, rng.random(n_zeros))
         gas_fraction[gas_fraction == 0] = 1e-7 * randnums
 
@@ -713,16 +714,15 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         :return: Dict of keyword argument.
         """
         dev_cfg = self.plot_config[self.field]["dev-config"]
-        descr = self.plot_config[self.field]["label"]["dev"]
+        shorthand, description = self.plot_config[self.field]["label"]["dev"]
         if self.deviation_scale == "log":
             label = (
-                rf"Deviation from median [$\log_{{10}}({descr}/"
-                rf"\tilde{{{descr}}})$]"
+                rf"$\Delta ({shorthand})$ ({description}) [$\log_{{10}}$]"
             )
             limits = dev_cfg["limits-log"]
             norm_config = {"vmin": limits[0], "vcenter": 0, "vmax": limits[1]}
         else:
-            label = rf"Deviation from median [${descr}/\tilde{{{descr}}}$]"
+            label = rf"$\Delta ({shorthand})$ ({description}) [\log_{{10}}]"
             limits = dev_cfg["limits-linear"]
             norm_config = {"vmin": limits[0], "vcenter": 1, "vmax": limits[1]}
 
