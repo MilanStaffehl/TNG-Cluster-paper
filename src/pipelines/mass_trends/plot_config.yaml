@@ -18,7 +18,7 @@ sfr:
     limits-log: [-1, 1]
     limits-linear: [0, 4]
 
-sfr-core:
+sfr-central:
   default-scale: log
   daq-field-name: SFRCore
   label:
@@ -35,7 +35,7 @@ sfr-core:
     caps: both
   dev-config:
     default-scale: log
-    limits-log: [-1, 1]
+    limits-log: [-3, 3]
     limits-linear: [0, 4]
 
 gas-metallicity:
@@ -53,7 +53,7 @@ gas-metallicity:
     limits-log: [-0.075, 0.075]
     limits-linear: [0.8, 1.2]
 
-gas-metallicity-core:
+gas-metallicity-central:
   default-scale: linear
   daq-field-name: GasMetallicityCore
   label:
@@ -68,7 +68,7 @@ gas-metallicity-core:
     caps: max
   dev-config:
     default-scale: log
-    limits-log: [-0.2, 0.2]
+    limits-log: [-0.3, 0.3]
     limits-linear: [0.8, 1.2]
 
 massive-satellites:
@@ -101,7 +101,7 @@ stellar-mass:
     limits-log: [-0.2, 0.2]
     limits-linear: [0, 4]
 
-stellar-mass-core:
+stellar-mass-central:
   default-scale: log
   daq-field-name: CentralStellarMass
   label:
@@ -152,7 +152,7 @@ bh-mdot:
   label:
     log: "BH accretion rate [$\\log (M_\\odot / Gyr)$]"
     linear: "BH accretion rate [$M_\\odot / Gyr$]"
-    dev: ["\\dot{M}", "Total BH accretion rate"]
+    dev: ["\\dot{M}_{BH, tot}", "Total BH accretion rate"]
   cbar-config:
     norm: default
     cmap: magma
@@ -167,7 +167,7 @@ bh-mode:
   label:
     log: "BH mode [$\\log_{10}(\\mu = (\\dot{M} / \\dot{M}_{Edd}) / \\chi)$]"
     linear: "BH mode [$\\mu = (\\dot{M} / \\dot{M}_{Edd}) / \\chi$]"
-    dev: ["\\mu", "Black hole mode index"]
+    dev: ["\\mu_{\\rm mode}", "Black hole mode index"]
   cbar-config:
     norm: twoslope
     cmap: ["winter", "autumn"]
@@ -330,7 +330,7 @@ relaxedness-by-distance:
   label:
     log: "$\\log_{10} (|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200c})$"
     linear: "$|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200c}$"
-    dev: ["$\\varrho$", "relaxedness by distance"]
+    dev: ["\\delta r", "relaxedness by distance"]
   cbar-config:
     norm: twoslope
     cmap: ["gray_r", "autumn"]
@@ -355,7 +355,7 @@ relaxedness-by-mass:
   label:
     log: "$\\log_{10} (M_{central} / M_{tot})$"
     linear: "$M_{central} / M_{tot}$"
-    dev: ["$M_{central} / M_{tot}$", "relaxedness by mass"]
+    dev: ["M_{central} / M_{tot}", "relaxedness by mass"]
   cbar-config:
     norm: twoslope
     cmap: ["gray_r", "autumn"]
@@ -371,7 +371,7 @@ relaxedness-by-mass:
     caps: both
   dev-config:
     default-scale: log
-    limits-log: [ -1, 1 ]
+    limits-log: [ -0.1, 0.1 ]
     limits-linear: [ 0, 4 ]
 
 formation-redshift:
@@ -380,7 +380,7 @@ formation-redshift:
   label:
     log: "Redshift [$\\log_{10}(z)$]$"
     linear: "Redshift z"
-    dev: ["z", "formation redshift"]
+    dev: ["z_{\\rm form}", "formation redshift"]
   cbar-config:
     norm: default
     cmap: gist_heat

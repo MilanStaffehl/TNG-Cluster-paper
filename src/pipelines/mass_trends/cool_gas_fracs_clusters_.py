@@ -28,7 +28,7 @@ from library.data_acquisition import clusters_daq, gas_daq, halos_daq
 from library.loading import load_radial_profiles
 from library.plotting import colormaps, common
 from library.processing import selection, statistics
-from pipelines.base import DiagnosticsPipeline
+from pipelines.base import Pipeline
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
+class ClusterCoolGasMassTrendPipeline(Pipeline):
     """
     Pipeline to create plots of cool gas fraction vs halo mass.
 
@@ -174,7 +174,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             # since there is color data, save it to file
             if self.to_file:
                 logging.info(f"Writing color data {self.field} to file.")
-                filename = f"{self.paths['data_file_stem']}.npy"
+                filename = f"clusters_color_{self.field.replace('-', '_')}.npy"
                 filepath = self.paths["data_dir"] / "color_data"
                 np.save(filepath / filename, color_quantity)
 
@@ -577,7 +577,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             markersize=3,
             label="TNG-Cluster",
         )
-        axes.legend(handles=[tng300_handle, tngclstr_handle])
+        axes.legend(handles=[tng300_handle, tngclstr_handle]).set_zorder(20)
         return fig, axes
 
     @staticmethod
@@ -805,7 +805,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
         cool_gas_fracs[cool_gas_fracs == 0] = 1e-7 * randnums
 
         # load color data
-        filename = f"{self.paths['data_file_stem']}.npy"
+        filename = f"clusters_color_{self.field.replace('-', '_')}.npy"
         filepath = self.paths["data_dir"] / "color_data"
         color_data = np.load(filepath / filename)
         color_kwargs = self._get_plot_kwargs()
