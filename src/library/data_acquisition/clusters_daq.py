@@ -1011,13 +1011,29 @@ def _get_central_cooling_time(
     :return: Central cooling time in Gyr.
     """
     cct = np.zeros(N_CLUSTERS)
-    cct[:N_TNG300] = np.nan
+
+    # TNG300-1
+    path = (
+        Path(config.get_simulation_base_path("TNG300-1")).parent
+        / "postprocessing" / "released" / "CCcriteria.hdf5"
+    )
+    with h5py.File(path, "r") as file:
+        ids = file["HaloIDs"]
+        sorting_indices = np.argsort(ids)
+        # need to slice the array of CCs as it is accidentally 352 entries long
+        unsorted_ccts = file["centralCoolingTime"][:N_TNG300, snap_num]
+        cct[:N_TNG300] = unsorted_ccts[sorting_indices]
+
+    # TNG-Cluster
     path = (
         Path(config.get_simulation_base_path("TNG-Cluster")).parent
         / "postprocessing" / "released" / "CCcriteria.hdf5"
     )
     with h5py.File(path, "r") as file:
-        cct[N_TNG300:] = np.array(file["centralCoolingTime"][:, 99])
+        ids = file["HaloIDs"]
+        sorting_indices = np.argsort(ids)
+        unsorted_ccts = np.array(file["centralCoolingTime"][:, snap_num])
+        cct[N_TNG300:] = unsorted_ccts[sorting_indices]
     return cct
 
 
