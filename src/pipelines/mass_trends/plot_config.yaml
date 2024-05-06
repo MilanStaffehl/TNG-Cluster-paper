@@ -146,7 +146,7 @@ bh-mass:
     limits-log: [-0.5, 0.35]
     limits-linear: [0.0, 4.0]
 
-bh-mdot:
+total-bh-mdot:
   default-scale: log
   daq-field-name: TotalBHMdot
   label:
@@ -258,7 +258,7 @@ bh-cumulative-mass-frac:
     cmap: magma
   dev-config:
     default-scale: log
-    limits-log: [-1, 1]
+    limits-log: [-0.25, 0.6]
     limits-linear: [0, 4]
 
 bh-cumulative-mass-total:
