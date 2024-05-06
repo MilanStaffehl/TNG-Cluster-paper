@@ -41,8 +41,8 @@ def main(args: argparse.Namespace) -> None:
 
     # create a figure
     fig, axes = plt.subplots(figsize=(10, 2.5))
-    if args.what == "pcc":
-        key = "correlation_coefficients"
+    if args.what in ["pcc", "pcc-log", "pcc-loglog"]:
+        key = args.what.replace("-", "_")
         axes.set_ylabel("R (Pearson CC)")
         if args.core:
             ylims = [-0.9, 1.05]
@@ -143,7 +143,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     figurepath = cfg.figures_home / "mass_trends" / "clusters"
-    sfx = f"{args.what}{addin}"
+    sfx = f"{key}{addin}"
     filename = f"mass_trends_statistical_measure_{sfx}.{args.fig_ext}"
     if not figurepath.exists():
         logging.info(f"Creating missing figures directory {figurepath}.")
@@ -245,7 +245,7 @@ if __name__ == "__main__":
             "mean color ratio. Defaults to Pearson correlation coefficient."
         ),
         dest="what",
-        choices=["pcc", "ratio"],
+        choices=["pcc", "pcc-log", "pcc-loglog", "ratio"],
         default="pcc",
     )
     parser.add_argument(

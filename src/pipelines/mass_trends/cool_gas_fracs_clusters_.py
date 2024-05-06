@@ -217,7 +217,23 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             min_mass=14.0,
             max_mass=15.4,
             num_bins=7,
-        )
+        )  # PCC for direct linear relation
+        corcoef_log = statistics.pearson_corrcoeff_per_bin(
+            cool_gas_fracs,
+            np.log10(color_quantity),
+            np.log10(halo_masses),
+            min_mass=14.0,
+            max_mass=15.4,
+            num_bins=7,
+        )  # PCC for exponential relations
+        corcoef_loglog = statistics.pearson_corrcoeff_per_bin(
+            np.log10(cool_gas_fracs),
+            np.log10(color_quantity),
+            np.log10(halo_masses),
+            min_mass=14.0,
+            max_mass=15.4,
+            num_bins=7,
+        )  # PCC for polynomial relations
         ratios = statistics.two_side_difference_ratio(
             cool_gas_fracs,
             color_quantity,
@@ -232,7 +248,9 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             filename = f"{self.paths['data_file_stem']}_statistics.npz"
             np.savez(
                 filepath / filename,
-                correlation_coefficients=corcoef,
+                pcc=corcoef,
+                pcc_log=corcoef_log,
+                pcc_loglog=corcoef_loglog,
                 ratios=ratios,
             )
         # overplot statistical measures as text
