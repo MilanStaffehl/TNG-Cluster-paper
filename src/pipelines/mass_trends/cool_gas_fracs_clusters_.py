@@ -857,7 +857,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             max_mass=15.4,
             num_bins=7,
         )
-        deltas = statistics.two_side_difference_ratio(
+        ratios = statistics.two_side_difference_ratio(
             cool_gas_fracs,
             color_data,
             np.log10(halo_masses),
@@ -874,7 +874,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             deviation_color,
             dev_kwargs,
         )
-        self._add_statistics_labels(a, corcoef, deltas)
+        self._add_statistics_labels(a, corcoef, ratios)
         self._save_fig(f, ident_flag="median_dev")
         logging.info(
             f"Successfully plotted mass trend median deviation of field "
