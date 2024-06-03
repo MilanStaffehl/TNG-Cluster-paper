@@ -71,7 +71,10 @@ class UnitConverter:
                 "GroupLen",
                 "GroupFirstSub",
                 "GroupNsubs",
-                "BH_Progs"
+                "BH_Progs",
+                "ParticleIDs",
+                "ParentID",
+                "TracerID",
             ],  # noqa: E123
     }
 

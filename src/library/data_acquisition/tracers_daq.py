@@ -4,11 +4,11 @@ Data acquisition functions for tracer particles
 from __future__ import annotations
 
 import logging
-from typing import NotRequired, TypedDict
 
 import illustris_python as il
 import numpy as np
 from numpy.typing import NDArray
+from typing_extensions import NotRequired, TypedDict
 
 
 class TracerInfo(TypedDict):
@@ -75,9 +75,14 @@ def load_tracers(
         tracer_data = {fields[0]: tracer_data}
 
     # coerce type
-    for key, data in tracer_data:
-        logging.debug(f"Tracer field {key} has dtype {data.dtype}.")
-        if not np.issubdtype(data.dtype, int):
+    for key, data in tracer_data.items():
+        if key == "count":
+            continue
+        if not np.issubdtype(data.dtype, np.uint64):
+            logging.debug(
+                f"Tracer field {key} has dtype {data.dtype}. "
+                f"Correcting to uint64."
+            )
             tracer_data[key] = data.astype(np.uint64)
 
     return tracer_data
