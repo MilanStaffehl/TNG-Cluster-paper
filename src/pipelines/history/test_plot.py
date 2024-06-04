@@ -112,7 +112,7 @@ class FollowParticlesPipeline(Pipeline):
         self.particle_type_flags[99, 0] = 5  # type BH
 
         # Step 4: Step through the snapshots backwards in time
-        for snap_num in reversed(range(16, 99, 1)):
+        for snap_num in reversed(range(0, 99, 1)):
             logging.info(
                 f"Finding tracers and associated particles in snapshot "
                 f"{snap_num}."
@@ -151,7 +151,7 @@ class FollowParticlesPipeline(Pipeline):
             )
 
         # Step 6: plot the data
-        f, a = self._plot()
+        f, a = self._plot_scatter()
         self._save_fig(f)
 
         return 0
@@ -181,6 +181,9 @@ class FollowParticlesPipeline(Pipeline):
         for part_type in [0, 4, 5]:
             # load all particles of this type
             particle_data = self._load_particle_properties(part_type, snap_num)
+            if particle_data["count"] == 0:
+                logging.debug(f"PartType {part_type}: indices []")
+                continue
             # check if there are any of the desired particles
             indices = selection.select_if_in(
                 particle_data["ParticleIDs"], parent_ids
@@ -219,6 +222,13 @@ class FollowParticlesPipeline(Pipeline):
             fields=fields,
         )
 
+        if gas_data["count"] == 0:
+            logging.warning(
+                f"Loaded data structure is empty, no particles of type "
+                f"{part_type} exist in snapshot {snap_num} for this zoom-in "
+                f"region."
+            )
+
         # convert units
         gas_data_physical = {}
         for field, data in gas_data.items():
@@ -226,14 +236,15 @@ class FollowParticlesPipeline(Pipeline):
 
         return gas_data_physical
 
-    def _plot(self) -> tuple[Figure, Axes]:
+    def _plot_scatter(self) -> tuple[Figure, Axes]:
         """
         Plot the movement of particles over time into the central BH.
 
         :return: Tuple of figure and axes, with plot drawn on.
         """
-        fig, axes = plt.subplots(figsize=(5, 4))
+        fig, axes = plt.subplots(figsize=(4, 4))
         fig.set_tight_layout(True)
+        axes.set_aspect("equal", adjustable="datalim")
         axes.set_xlabel("x [cMpc]")
         axes.set_ylabel("y [cMpc]")
 
@@ -249,7 +260,7 @@ class FollowParticlesPipeline(Pipeline):
             colors = [
                 flag_to_color[x] if not np.isnan(x) else "red" for x in ptypes
             ]
-            snapnum = np.linspace(0, 100, 100)
+            snapnum = np.linspace(0, 99, 100, dtype=int)
 
             cb = axes.scatter(
                 xs,
@@ -259,7 +270,9 @@ class FollowParticlesPipeline(Pipeline):
                 linewidths=0.5,
                 marker="o",
                 s=8,
-                cmap="inferno"
+                cmap="inferno",
+                vmin=0,
+                vmax=99,
             )
 
         # legend
@@ -313,7 +326,7 @@ class FollowParticlesFromFilePipeline(FollowParticlesPipeline):
             self.particle_positions = data_file["particle_positions"]
             self.particle_type_flags = data_file["particle_type_flags"]
 
-        f, _ = self._plot()
+        f, _ = self._plot_scatter()
         self._save_fig(f)
 
         return 0
