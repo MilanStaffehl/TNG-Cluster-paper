@@ -58,14 +58,10 @@ def load_tracers(
         fields = ["TracerID", "ParentID"]
 
     if cluster_id > -1:
-        logging.info(
-            f"Loading tracer data for cluster {cluster_id} of TNG-Cluster."
-        )
         tracer_data = _load_original_zoom_tracers(
             base_path, snap_num, cluster_id, fields
         )
     else:
-        logging.info("Loading tracer data for full simulation.")
         tracer_data = il.snapshot.loadSubset(
             base_path, snap_num, 3, fields=fields
         )
