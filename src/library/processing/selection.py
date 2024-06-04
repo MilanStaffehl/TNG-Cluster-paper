@@ -282,6 +282,7 @@ def select_if_in(
     mode: Literal["iterate", "searchsorted", "detect"] = "iterate",
     warn_if_not_unique: bool = False,
     warn_if_not_subset: bool = False,
+    assume_unique: bool = False,
 ) -> NDArray:
     """
     Return indices of entries in ``a`` that are also in ``s``.
@@ -373,6 +374,11 @@ def select_if_in(
         but correct in both other modes. For large ``a`` and ``s`` this
         will add computational overhead that might be noticeable. Has no
         effect in mode ``detect``. Defaults to False.
+    :param assume_unique: When using the ``iterate`` method, with both
+        ``a`` and ``s`` assuredly being unique, this can be set to True
+        to help speed up the calculation. However, if this is falsely
+        set to True while either ``a`` or ``s`` are in fact not unique,
+        the results returned by this function may be wrong.
     :return: A list of indices into ``a`` that select all those values
         that are also in ``s``. When using ``mode=iterate``, this will
         also correctly point to multiple occurrences of the same value
@@ -382,8 +388,8 @@ def select_if_in(
     """
     # If warnings were enabled, check if something needs to be logged.
     # Since the same checks are performed in mode `detect`, we skip them
-    # here since we will need to repeat them later anyhow and mode
-    # `detect` issues no warnings.
+    # here as we will need to repeat them later anyhow and mode `detect`
+    # issues no warnings.
     if warn_if_not_unique and mode != "detect":
         if len(np.unique(a.copy())) != len(a):
             logging.warning("`select_if_in`: `a` contains duplicate entries!")
@@ -421,7 +427,7 @@ def select_if_in(
         indices = np.searchsorted(a[a_sorted_indices], s)
         return a_sorted_indices[indices]
     elif mode == "iterate":
-        return np.nonzero(np.isin(a, s))[0]
+        return np.nonzero(np.isin(a, s, assume_unique=assume_unique))[0]
     else:
         logging.error(f"Unsupported mode {mode} for `selection.select_if_in`.")
         return np.array([np.nan])
