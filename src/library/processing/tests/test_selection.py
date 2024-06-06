@@ -30,26 +30,23 @@ def test_select_if_in_s_is_subset_of_a(subtests: SubTests) -> None:
     s = np.array([2, 4, 6])
     expected = np.array([1, 3, 5])  # indices of a where s is found
 
-    for mode in ["iterate", "searchsorted"]:
+    for mode in ["iterate", "intersect", "searchsort"]:
         with subtests.test(msg=f"mode {mode}", mode=mode):
             output = selection.select_if_in(a, s, mode=mode)
             np.testing.assert_equal(output, expected)
 
 
-def test_select_if_in_s_is_not_subset_of_a() -> None:
+def test_select_if_in_s_is_not_subset_of_a(subtests: SubTests) -> None:
     """Test for case: a unique, s is not subset of a"""
     a = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
     s = np.array([2, 4, 0])  # zero not in a
-
-    # for mode iterate this should return a correct result
     expected = np.array([1, 3])
-    output = selection.select_if_in(a, s, mode="iterate")
-    np.testing.assert_equal(output, expected)
 
-    # in mode searchsorted, execution passes with wrong result
-    expected = np.array([1, 3, 0])  # last entry is wrong
-    output = selection.select_if_in(a, s, mode="searchsorted")
-    np.testing.assert_equal(output, expected)
+    # for both modes, the result should be the same
+    for mode in ["iterate", "intersect", "searchsort"]:
+        with subtests.test(msg=f"mode {mode}", mode=mode):
+            output = selection.select_if_in(a, s, mode=mode)
+            np.testing.assert_equal(output, expected)
 
 
 def test_select_if_in_a_is_not_unique_s_is_subset() -> None:
@@ -62,10 +59,14 @@ def test_select_if_in_a_is_not_unique_s_is_subset() -> None:
     output = selection.select_if_in(a, s, mode="iterate")
     np.testing.assert_equal(output, expected)
 
-    # in mode searchsorted, the function falls short and returns only
+    # in mode searchsort, the function falls short and returns only
     # the first index of every duplicated value
     expected = np.array([0, 3, 7])  # duplicate entries are missing
-    output = selection.select_if_in(a, s, mode="searchsorted")
+    output = selection.select_if_in(a, s, mode="searchsort")
+    np.testing.assert_equal(output, expected)
+
+    # for mode intersect we also expect the multiples to be missed
+    output = selection.select_if_in(a, s, mode="intersect")
     np.testing.assert_equal(output, expected)
 
 
@@ -79,10 +80,15 @@ def test_select_if_in_a_is_not_unique_s_is_not_subset() -> None:
     output = selection.select_if_in(a, s, mode="iterate")
     np.testing.assert_equal(output, expected)
 
-    # in mode searchsorted, entries are missing and there is a wrong
-    # entry present due to the zero being sorted in as well
-    expected = np.array([0, 3, 7, 0])
-    output = selection.select_if_in(a, s, mode="searchsorted")
+    # in mode searchsort, entries are missing but there is no wrong
+    # entry present due to the zero being sorted!
+    expected = np.array([0, 3, 7])
+    output = selection.select_if_in(a, s, mode="searchsort")
+    np.testing.assert_equal(output, expected)
+
+    # again, we expect the non-uniqueness of a to cause problems in
+    # mode intersect
+    output = selection.select_if_in(a, s, mode="searchsort")
     np.testing.assert_equal(output, expected)
 
 
@@ -95,11 +101,25 @@ def test_select_if_in_with_unsorted_input() -> None:
     expected = np.array([0, 2, 5])
     output = selection.select_if_in(a, s, mode="iterate")
     np.testing.assert_equal(output, expected)
+    # test that indexing with result returns array in order of indices
+    s_sorted = np.array([0, 8, 1])
+    np.testing.assert_equal(s_sorted, a[output])
 
-    # in mode searchsorted, the indices are in order of occurrence in s
-    expected = np.array([5, 2, 0])
-    output = selection.select_if_in(a, s, mode="searchsorted")
+    # in mode intersect, the indices are sorted such that the values the
+    # indices point to are sorted
+    expected = np.array([0, 5, 2])
+    output = selection.select_if_in(a, s, mode="intersect")
     np.testing.assert_equal(output, expected)
+    # test that indexing with result returns sorted values
+    s_sorted = np.array([0, 1, 8])  # sorted
+    np.testing.assert_equal(s_sorted, a[output])
+
+    # in mode searchsort, the indices are in order of occurrence in s
+    expected = np.array([5, 2, 0])
+    output = selection.select_if_in(a, s, mode="searchsort")
+    np.testing.assert_equal(output, expected)
+    # test that indexing with result retains order
+    np.testing.assert_equal(s, a[output])
 
 
 def test_select_if_in_unknown_mode(caplog) -> None:
@@ -116,76 +136,6 @@ def test_select_if_in_unknown_mode(caplog) -> None:
     assert msg in caplog.text
 
 
-def test_select_if_in_mode_detect_s_subset_a_unique(caplog) -> None:
-    """Test mode detect for: a unique, s subset of a"""
-    a = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
-    s = np.array([1, 3, 7])
-    expected = np.array([0, 2, 6])
-
-    with caplog.at_level(logging.DEBUG):
-        output = selection.select_if_in(a, s, mode="detect")
-    np.testing.assert_equal(output, expected)
-    msg = (
-        "`select_if_in1: mode `detect` found `a` has only unique "
-        "entries; `s` is a subset of `a`. Set mode to `searchsorted`."
-    )
-    assert msg in caplog.text
-
-
-def test_select_if_inf_mode_detect_s_subset_a_not_unique(caplog) -> None:
-    """Test mode detect for: a not unique, s subset of a"""
-    a = np.array([1, 1, 1, 2, 3, 3, 4, 5, 5, 5, 6, 7, 8, 8, 9])
-    s = np.array([1, 2, 5])
-    expected = np.array([0, 1, 2, 3, 7, 8, 9])
-
-    with caplog.at_level(logging.DEBUG):
-        output = selection.select_if_in(a, s, mode="detect")
-    np.testing.assert_equal(output, expected)
-    msg = (
-        "`select_if_in`: mode `detect` found duplicate entries in "
-        "array `a`. Set mode to `iterate`."
-    )
-    assert msg in caplog.text
-
-
-def test_select_if_in_mode_detect_s_not_subset_a_unique(caplog) -> None:
-    """Test mode detect for: a unique, s not subset of a"""
-    a = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
-    s = np.array([1, 2, 5, 0])
-    expected = np.array([0, 1, 4])
-
-    with caplog.at_level(logging.DEBUG):
-        output = selection.select_if_in(a, s, mode="detect")
-    np.testing.assert_equal(output, expected)
-    msg = (
-        "`select_if_in`: mode `detect` found `s` to not be a subset "
-        "of `a`. Set mode to `iterate`."
-    )
-    assert msg in caplog.text
-
-
-def test_select_if_in_mode_detect_s_not_subset_a_not_unique(caplog) -> None:
-    """Test mode detect for:  not unique, s not subset of a"""
-    a = np.array([1, 1, 1, 2, 3, 3, 4, 4, 5, 6, 7, 8, 9])
-    s = np.array([1, 2, 5, 0])
-    expected = np.array([0, 1, 2, 3, 8])
-
-    with caplog.at_level(logging.DEBUG):
-        output = selection.select_if_in(a, s, mode="detect")
-    np.testing.assert_equal(output, expected)
-    msg = (
-        "`select_if_in`: mode `detect` found duplicate entries in "
-        "array `a`. Set mode to `iterate`."
-    )
-    assert msg in caplog.text
-    # assert that no unnecessary checks were performed
-    msg = (
-        "`select_if_in`: mode `detect` found `s` to not be a subset "
-        "of `a`. Set mode to `iterate`."
-    )
-    assert msg not in caplog.text
-
-
 def test_select_if_in_s_not_unique() -> None:
     """Test the behavior when s contains duplicates"""
     a = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
@@ -196,23 +146,39 @@ def test_select_if_in_s_not_unique() -> None:
     output = selection.select_if_in(a, s, mode="iterate")
     np.testing.assert_equal(output, expected)
 
-    # in mode searchsorted, the duplicate element causes a duplicate idx
+    # intersect mode is equivalent to iterate here
+    output = selection.select_if_in(a, s, mode="intersect")
+    np.testing.assert_equal(output, expected)
+
+    # in mode searchsort, the duplicate element causes a duplicate idx
     expected = np.array([0, 2, 4, 0])
-    output = selection.select_if_in(a, s, mode="searchsorted")
+    output = selection.select_if_in(a, s, mode="searchsort")
     np.testing.assert_equal(output, expected)
 
 
-def test_select_if_in_s_and_a_not_unique() -> None:
+def test_select_if_in_s_and_a_not_unique(subtests: SubTests) -> None:
     """Test the behavior when both s and a contain duplicates"""
     a = np.array([1, 1, 1, 2, 3, 4, 5, 5, 6, 7, 7, 7, 8, 9, 9])
-    s = np.array([1, 3, 5, 1])
+    s_opt = {
+        "s is subset": np.array([1, 3, 5, 1]),
+        "s is not subset": np.array([1, 3, 5, 1, 0])
+    }
 
-    # in mode iterate, the duplicate element is not duplicated
-    expected = np.array([0, 1, 2, 4, 6, 7])
-    output = selection.select_if_in(a, s, mode="iterate")
-    np.testing.assert_equal(output, expected)
+    for descr, s in s_opt.items():
+        with subtests.test(msg=descr):
+            # in mode iterate, the duplicate element is not duplicated
+            expected = np.array([0, 1, 2, 4, 6, 7])
+            output = selection.select_if_in(a, s, mode="iterate")
+            np.testing.assert_equal(output, expected)
 
-    # in mode searchsorted, the duplicate element causes a duplicate idx
-    expected = np.array([0, 4, 6, 0])  # completely wrong
-    output = selection.select_if_in(a, s, mode="searchsorted")
-    np.testing.assert_equal(output, expected)
+            # mode intersect cannot handle `a` being non-unique, and it
+            # does not duplicate indices for duplicate values in `s`
+            expected = np.array([0, 4, 6])
+            output = selection.select_if_in(a, s, mode="intersect")
+            np.testing.assert_equal(output, expected)
+
+            # in mode searchsort, the duplicate element in s causes
+            # duplicate idx, but the value not in `a` causes no issue
+            expected = np.array([0, 4, 6, 0])
+            output = selection.select_if_in(a, s, mode="searchsort")
+            np.testing.assert_equal(output, expected)

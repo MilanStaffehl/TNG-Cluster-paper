@@ -279,112 +279,162 @@ def select_clusters(
 def select_if_in(
     a: NDArray,
     s: NDArray,
-    mode: Literal["iterate", "searchsorted", "detect"] = "iterate",
+    mode: Literal["iterate", "searchsort", "intersect"] = "iterate",
     warn_if_not_unique: bool = False,
     warn_if_not_subset: bool = False,
     assume_unique: bool = False,
+    assume_subset: bool = False,
 ) -> NDArray:
     """
     Return indices of entries in ``a`` that are also in ``s``.
 
     Function compares the entries of ``a`` with those of ``s`` and
     returns a list of array indices that point to those entries of ``a``
-    that are also present in ``s``. This is equivalent to the Python
-    code
+    that are also present in ``s``. Depending on the mode chosen, the
+    result is a bit different. In modes ``iterate`` and ``intersect``,
+    this function is the optimized equivalent to the Python code
 
     .. code:: python
 
         return [idx for idx, val in enumerate(a) if val in s]
 
-    The function can determine the list of indices one of two ways and
-    does so depending on the ``mode`` of operation chosen:
+    In mode ``searchsort`` however, the function also returns indices
+    multiple times if they are present in ``s`` multiple times:
+
+    >>> a = np.array([2, 3, 6, 8, 9, 1, 0])
+    >>> s = np.array([6, 1, 1, 1])
+    >>> select_if_in(a, s, mode="iterate")
+    array([2, 5])
+    >>> select_if_in(a, s, mode="searchsort")
+    array([2, 5, 5, 5])
+
+    The function can determine the list of indices using of three methods,
+    which differ slightly in the output, performance and most importantly
+    in the requirements on ``a`` and ``s`` they have. The method can be
+    chosen with the ``mode`` parameter. It can have one of these values:
 
     - ``iterate``: This is the default option and the most robust one.
       It works for all cases, including those where entries to ``a`` are
       not unique and cases where ``s`` is not a subset of ``a``, i.e.
       where ``s`` includes values that are not in ``a``, but it is slower
-      for cases where ``s`` is considerably smaller than ``a``, and it
-      returns the array of indices sorted.
-    - ``searchsorted``: This option is typically faster for cases where
-      ``s`` is considerably smaller than ``a``, but it comes with two
-      significant limitations: ``searchsorted`` only works if ``a`` has
-      only unique entries _and_ only if ``s`` is a subset of ``a``. This
-      function will not attempt to limit ``s`` to a subset of ``a``, so
-      if this is desired, it must be done ahead of calling this function.
-      This mode returns the array of indices in such an order that each
-      index points to the corresponding value in ``s``, i.e.
-      ``select_if_in(s, a, mode="searchsorted")[i]`` is the index which
-      points to the entry of ``a`` that has the value ``s[i]``. Unless
-      you know what you are doing, avoid this mode.
-    - ``detect``: This option will detect whether ``s`` is a subset of
-      ``a`` and whether ``a`` contains only unique entries and chooses
-      the appropriate method from the two choices above accordingly.
-      While convenient, this is discouraged as it requires additional
-      intensive computations that will add noticeable overhead when ``a``
-      and/or ``s`` are very large. If you cannot be sure ``a`` and ``s``
-      will fulfill the requirements for mode ``searchsorted`` however,
-      it is recommended to set the mode to ``detect``.
-
-    .. warning:
-
-        When using mode ``searchsorted`` with ``s`` not being a subset
-        of ``a``, the function will pass execution without any error and
-        will return an array of indices that might seem correct, but it
-        will point to wrong entries in ``a`` due to the entries in ``s``
-        that are not in ``a``. This is a side effect of the method used.
-        To prevent this, check whether ``s`` is a subset of ``a`` before
-        calling the function or use mode ``detect`` instead.
-
-        Similarly, using ``searchsorted`` when ``a`` is not unique will
-        not cause an error either and will produce an array of indices
-        that point to valid entries, but it will miss all duplicate
-        entries in ``a`` except the first in sorted order.
-
-        Both problems can be avoided by using mode ``detect``, at the
-        cost of computational overhead.
+      for cases where ``s`` is considerably smaller than ``a``. It only
+      returns one index per unique value in ``s`` and the indices will
+      be in sorted order. This also means however, that given an output
+      ``output`` of this function, indexing ``a`` with it will **not**
+      retain the order of ``s``, i.e. ``a[output] != s`` pair-wise.
+    - ``intersect``: This mode is functionally equivalent to ``iterate``
+      but can be faster when ``s`` is similar in size to ``a``. It has
+      some additional constraints compared to ``intersect``: ``a`` must
+      be unique, meaning no value can be in ``a`` more than once. It
+      also explicitly requires both ``a`` and ``s`` to be 1D arrays.
+      It returns the indices into ``a`` such that when indexing ``a``
+      with them, the resulting array is sorted: ``a[output]`` is a
+      sorted array when using mode ``intersect``.
+    - ``searchsort``: This option has the benefit of returning an index
+      multiple times if the corresponding value appears multiple times
+      in ``s``, but it comes with a significant limitation: ``searchsort``
+      only works if ``a`` has only unique entries! This function will
+      not attempt to make ``a`` unique, so this mode can only be used
+      if ``a`` is already unique. This mode returns the array of indices
+      in such an order that each index is at the same position as the
+      value in it points to is in ``s``, i.e.
+      ``select_if_in(a, s, mode="searchsort")[i]`` is the index which
+      points to the entry of ``a`` that has the value ``s[i]``. This
+      also means that the order is retained when indexing ``a`` with the
+      output of this function in mode ``searchsort``: ``a[output] == s``.
+      Mode ``searchsort`` is typically much slower than the other modes
+      due to additional computations required, but when ``assume_unique``
+      is set to True, it can be faster for cases where ``s`` is much
+      smaller than ``a``. However, in such a scenario, it loses its
+      benefit over the other modes, since all three modes return the
+      same result if ``s`` is unique. Therefore, it is recommended to
+      use ``searchsort`` if and only if ``s`` is not unique _and_ one
+      requires an index for every duplicate value in ``s``.
 
     Optionally, the function can log a warning if not all entries to
     ``a`` are unique, or if ``s`` is not  subset to ``a``, but this will
     add computational overhead, which might become noticeable for very
     large arrays ``a`` and/or ``s``.
 
-    Note that this function assumes all entries in ``s`` to be unique.
-    If they are not, mode ``searchsorted`` will return a list of indices
-    that also contains duplicates. Avoid this by either making ``s``
-    unique, or by making the list of indices unique after running this
-    function. In mode ``iterate``, the indices into ``a`` will not
-    contain duplicates.
+    .. warning:
+
+        When using mode ``searchsorted`` with ``a`` not being unique,
+        i.e. with ``a`` containing the duplicate values, the function
+        will pass execution without any error and will return an array
+        of indices that might seem correct, but they will point to wrong
+        entries in ``a``. This is a side effect of the method used.
+        To prevent this, check whether ``a`` is unique before calling
+        the function or use the ``warn_if_not_unique`` option.
+
+    The function also allows the user to supply some a-priori assumption
+    about the ``a`` and ``s``: If both ``a`` and ``s`` can be assumed to
+    be unique, setting ``assume_unique`` to True is recommended as it can
+    give considerable performance improvements in both ``iterate`` and
+    ``intersect`` mode. If ``s`` can be assumed to be a subset of ``a``,
+    i.e. all values in ``s`` are also in ``a``, setting ``assume_subset``
+    to True is recommended when using mode ``searchsort``, which will
+    shave off a lot of overhead and improve performance drastically for
+    large arrays.
+
+    .. caution::
+
+        When setting ``assume_unique`` to True in modes ``iterate`` or
+        ``intersect`` while either ``s`` or ``a`` are not actually
+        unique, the function will pass execution silently and return a
+        seemingly valid array of indices. These indices will however be
+        wrong!
+
+        Similarly, setting ``assume_subset`` to True in mode ``searchsort``
+        while ``s`` is not in fact a subset of ``a``, the function will
+        also pass with a wrong result.
+
+        To be certain ``a`` and ``s`` are unique, you can use the option
+        ``warn_if_not_unique`` which will log a warning if either is in
+        fact not unique. Similarly, set ``warn_if_not_subset`` to True
+        for an equivalent warning about ``s`` not being a subset of ``a``.
+        Note that this option will **not** halt execution on a warning
+        though!
 
     :param a: The array of values which is to be indexed.
     :param s: The array of values for which to search for in ``a``.
     :param mode: The mode of determining the indices. Options are
-        ``iterate``, ``searchsorted``, and ``detect``. For details, see
+        ``iterate``, ``searchsort``, and ``intersect``. For details, see
         above. Defaults to ``iterate``.
-    :param warn_if_not_unique: Whether to check ``a`` for uniqueness of
-        all its entries. If set to True and ``a`` contains duplicate
-        values, a warning is logged, but the method will continue to run.
-        The resulting return will be wrong in mode ``searchsorted`` but
-        correct in both other modes. For large ``a`` setting this to
-        True might add noticeable computational overhead. Has no effect
-        in mode ``detect``. Defaults to False.
+    :param warn_if_not_unique: Whether to check ``a`` and ``s`` for
+        uniqueness of all their entries. If set to True and ``a`` or
+        ``s`` contain duplicate values, a warning is logged, but the
+        method will continue to run. In such a case, the resulting
+        return will be wrong if ``assume_unique`` is set to True, but
+        correct otherwise. For large ``a`` setting this to True might
+        add noticeable computational overhead. Defaults to False.
     :param warn_if_not_subset: Whether to check if ``s`` is a subset of
         ``a``. If set to True and there are entries is ``s`` that are
         not in ``a``, a warning is logged, but the method will continue
-        to run. The resulting return will be wrong in mode ``searchsorted``
-        but correct in both other modes. For large ``a`` and ``s`` this
+        to run. This is useful for cases where one expects the putput
+        from all three modes to be identical, which is the case only if
+        ``s`` . For large ``a`` and ``s`` this
         will add computational overhead that might be noticeable. Has no
         effect in mode ``detect``. Defaults to False.
-    :param assume_unique: When using the ``iterate`` method, with both
-        ``a`` and ``s`` assuredly being unique, this can be set to True
-        to help speed up the calculation. However, if this is falsely
-        set to True while either ``a`` or ``s`` are in fact not unique,
-        the results returned by this function may be wrong.
+    :param assume_unique: When using the ``iterate`` or ``intersect``
+        modes, with both ``a`` and ``s`` assuredly being unique, this
+        can be set to True to help speed up the calculation. However,
+        if this is falsely set to True while either ``a`` or ``s`` are
+        in fact not unique, the results returned by this function will
+        be wrong.
+    :param assume_subset: When using mode ``searchsort`` with ``s``
+        assuredly being a subset of ``a``, this can be set to True to
+        help speed up the calculation _considerably_. However, if this
+        is falsely set to True while ``s`` does in fact contain values
+        that are not present in ``a``, the results returned by this
+        function will be wrong.
     :return: A list of indices into ``a`` that select all those values
-        that are also in ``s``. When using ``mode=iterate``, this will
+        that are also in ``s``. When using mode ``iterate``, this will
         also correctly point to multiple occurrences of the same value
-        in ``a``. If an error occurs (for example due to a wrong mode),
-        the function returns an array of shape (1, ) containing only
-        one NaN value.
+        in ``a``. When using mode ``searchsort``, this will also include
+        an index multiple times if the corresponding value was included
+        in ``s`` multiple times. If an error occurs (for example due to
+        a wrong mode), the function returns an array of shape (1, )
+        containing only one NaN value.
     """
     # If warnings were enabled, check if something needs to be logged.
     # Since the same checks are performed in mode `detect`, we skip them
@@ -422,12 +472,27 @@ def select_if_in(
             mode = "searchsorted"
 
     # find indices
-    if mode == "searchsorted":
-        a_sorted_indices = np.argsort(a)
-        indices = np.searchsorted(a[a_sorted_indices], s)
-        return a_sorted_indices[indices]
+    if mode == "searchsort":
+        # make use of a-priori assumptions:
+        if assume_subset:
+            a_sorted_indices = np.argsort(a)
+            indices = np.searchsorted(a[a_sorted_indices], s)
+            return a_sorted_indices[indices]
+        else:
+            # `s` is not a subset of `a`, must mask invalid indices
+            a_sorted_indices = np.argsort(a)
+            a_sorted = a[a_sorted_indices]
+            sorted_indices = np.searchsorted(a_sorted, s)
+            selected_indices = np.take(
+                a_sorted_indices, sorted_indices, mode="clip"
+            )
+            return selected_indices[a[selected_indices] == s]
     elif mode == "iterate":
         return np.nonzero(np.isin(a, s, assume_unique=assume_unique))[0]
+    elif mode == "intersect":
+        return np.intersect1d(
+            a, s, assume_unique=assume_unique, return_indices=True
+        )[1]
     else:
         logging.error(f"Unsupported mode {mode} for `selection.select_if_in`.")
         return np.array([np.nan])
