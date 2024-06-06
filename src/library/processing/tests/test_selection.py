@@ -182,3 +182,81 @@ def test_select_if_in_s_and_a_not_unique(subtests: SubTests) -> None:
             expected = np.array([0, 4, 6, 0])
             output = selection.select_if_in(a, s, mode="searchsort")
             np.testing.assert_equal(output, expected)
+
+
+def test_select_if_in_with_assume_subset_s_subset(subtests: SubTests) -> None:
+    """Test the optional parameter `assume_subset`"""
+    a = np.array([1, 4, 2, 6, 7, 3, 9, 5, 8])
+    s = np.array([4, 8, 2])
+    expected = {
+        "iterate": np.array([1, 2, 8]),
+        "intersect": np.array([2, 1, 8]),
+        "searchsort": np.array([1, 8, 2]),
+    }
+    # all modes should return the same result, no matter what
+    for mode in ["iterate", "intersect", "searchsort"]:
+        for assume_subset in [True, False]:
+            with subtests.test(msg=f"mode {mode}, assume {assume_subset}"):
+                output = selection.select_if_in(
+                    a, s, mode=mode, assume_subset=assume_subset
+                )
+                np.testing.assert_equal(expected[mode], output)
+
+
+def test_select_if_in_with_assume_subset_s_not_subset(
+    subtests: SubTests
+) -> None:
+    """Test the optional parameter `assume_subset` when s is not subset"""
+    a = np.array([1, 4, 2, 6, 7, 3, 9, 5, 8])
+    s = np.array([4, 8, 2, 0])
+
+    expected = {
+        "iterate": np.array([1, 2, 8]),
+        "intersect": np.array([2, 1, 8]),
+    }
+
+    # no difference for modes iterate and intersect
+    for mode in ["iterate", "intersect"]:
+        for assume_subset in [True, False]:
+            with subtests.test(msg=f"mode {mode}, assume {assume_subset}"):
+                output = selection.select_if_in(
+                    a, s, mode=mode, assume_subset=assume_subset
+                )
+                np.testing.assert_equal(expected[mode], output)
+
+    # searchsort: without assumption, result is correct
+    expected = np.array([1, 8, 2])
+    output = selection.select_if_in(
+        a, s, assume_subset=False, mode="searchsort"
+    )
+    np.testing.assert_equal(expected, output)
+
+    # with assumption, result is wrong
+    expected = np.array([1, 8, 2, 0])
+    output = selection.select_if_in(
+        a, s, assume_subset=True, mode="searchsort"
+    )
+    np.testing.assert_equal(expected, output)
+
+
+def test_select_if_in_with_assume_unique(subtests: SubTests) -> None:
+    """Test parameter `assume_unique`.
+    Test does not check scenarios where a or s are not unique since the
+    behavior of the methods is not defined in these cases, and testing
+    it is the responsibility of the numpy test suites.
+    """
+    a = np.array([1, 4, 2, 6, 7, 3, 9, 5, 8])
+    s = np.array([4, 8, 2])
+    expected = {
+        "iterate": np.array([1, 2, 8]),
+        "intersect": np.array([2, 1, 8]),
+        "searchsort": np.array([1, 8, 2]),
+    }
+    # all modes should return the same result, no matter what
+    for mode in ["iterate", "intersect", "searchsort"]:
+        for assume_unique in [True, False]:
+            with subtests.test(msg=f"mode {mode}, assume {assume_unique}"):
+                output = selection.select_if_in(
+                    a, s, mode=mode, assume_unique=assume_unique
+                )
+                np.testing.assert_equal(expected[mode], output)
