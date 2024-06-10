@@ -46,6 +46,10 @@ scripts/tmp*.py
 scripts/*tmp.*
 scripts/**/*tmp.*
 
+# temporary images and diagnostics
+scripts/**/*.png
+scripts/**/*.pdf
+
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
