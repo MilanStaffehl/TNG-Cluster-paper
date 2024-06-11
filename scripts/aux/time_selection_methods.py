@@ -121,7 +121,19 @@ def main():
             color=color
         )
 
-    fig.savefig("timeit.png", bbox_inches="tight")
+    if is_subset:
+        filename = "timeit_subset"
+    else:
+        filename = "timeit_not_subset"
+    fig.savefig(f"{filename}.pdf", bbox_inches="tight")
+
+    # save data
+    np.savez(
+        f"{filename}.npz",
+        iterate_times=iterate_times,
+        intersect_times=intersect_times,
+        searchsort_times=searchsort_times,
+    )
 
 
 if __name__ == '__main__':
