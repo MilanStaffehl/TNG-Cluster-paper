@@ -24,6 +24,12 @@ def main(args: argparse.Namespace) -> None:
         type_flag,
     )
 
+    pipeline_config.update(
+        {
+            "max_tracers": args.max_tracers, "plot_lines": args.plot_lines
+        }
+    )
+
     if args.from_file:
         pipeline = FollowParticlesFromFilePipeline(**pipeline_config)
     else:
@@ -38,6 +44,21 @@ if __name__ == "__main__":
     )
     parser.remove_argument("sim")
     parser.remove_argument("processes")
+    parser.add_argument(
+        "-m",
+        "--max-tracers",
+        help="Maximum number of tracers to follow. Defaults to 5.",
+        dest="max_tracers",
+        type=int,
+        default=5,
+    )
+    parser.add_argument(
+        "-pl",
+        "--plot-lines",
+        help="Plot positions connected by lines instead of as points.",
+        action="store_true",
+        dest="plot_lines",
+    )
 
     # parse arguments
     try:

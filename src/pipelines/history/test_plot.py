@@ -3,6 +3,7 @@ Pipeline to plot movement of a few particles with time.
 """
 from __future__ import annotations
 
+import dataclasses
 import logging
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,7 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
+@dataclasses.dataclass
 class FollowParticlesPipeline(Pipeline):
     """
     Pipeline to follow a few selected particles back in time.
@@ -36,6 +38,7 @@ class FollowParticlesPipeline(Pipeline):
     cluster_id: int = 0  # which cluster to use
     particle_positions: NDArray | None = None
     particle_type_flags: NDArray | None = None
+    plot_lines: bool = False
 
     def run(self) -> int:
         """
@@ -91,9 +94,8 @@ class FollowParticlesPipeline(Pipeline):
             )
             n_tracers = self.max_tracers
             tracer_indices = tracer_indices[:self.max_tracers]
-            selected_tracers_id = tracer_data["TracerID"][tracer_indices]
-        else:
-            selected_tracers_id = tracer_data["TracerID"]
+        # select the tracers which we have settled on
+        selected_tracers_id = tracer_data["TracerID"][tracer_indices]
         logging.debug(
             f"Selected {n_tracers} with IDs {selected_tracers_id} at array "
             f"positions {tracer_indices}"
@@ -105,8 +107,8 @@ class FollowParticlesPipeline(Pipeline):
         # and not worry about them in plotting.
         self.particle_positions = np.empty((100, n_tracers, 2))
         self.particle_positions[:] = np.nan  # initialize to all NaN
-        self.particle_type_flags = np.empty((100, n_tracers))
-        self.particle_type_flags[:] = np.nan  # initialize to all NaN
+        self.particle_type_flags = np.empty((100, n_tracers), dtype=np.uint8)
+        self.particle_type_flags[:] = 99  # initialize all to 99
         # set first values (only one, since all tracers are in the same BH
         self.particle_positions[99, 0] = particle_data["Coordinates"][:-1]
         self.particle_type_flags[99, 0] = 5  # type BH
@@ -143,7 +145,7 @@ class FollowParticlesPipeline(Pipeline):
         # Step 5: save data to file
         if self.to_file:
             logging.info("Saving traced particle data to file.")
-            filename = f"{self.paths['data_file_stem']}.npz"
+            filename = f"{self.paths['data_file_stem']}_n{self.max_tracers}.npz"
             np.savez(
                 self.paths['data_dir'] / filename,
                 particle_positions=self.particle_positions,
@@ -151,8 +153,15 @@ class FollowParticlesPipeline(Pipeline):
             )
 
         # Step 6: plot the data
-        f, a = self._plot_scatter()
-        self._save_fig(f)
+        if self.plot_lines:
+            logging.info("Plotting particle positions as line plot.")
+            f, a = self._plot_lines()
+            ident_flag = f"lines_{n_tracers}_tracers"
+        else:
+            logging.info("Plotting particle positions as scatter plot.")
+            f, a = self._plot_scatter()
+            ident_flag = f"scatter_{n_tracers}_tracers"
+        self._save_fig(f, ident_flag=ident_flag)
 
         return 0
 
@@ -173,38 +182,63 @@ class FollowParticlesPipeline(Pipeline):
         :return: None, data is saved in attribute array.
         """
         logging.debug(
-            f"Attempting to find particles {parent_ids} in snapshot "
-            f"{snap_num}."
+            f"Attempting to find {len(parent_ids)} particles with particle "
+            f"IDs {parent_ids} in snapshot {snap_num}."
         )
-        # counter for how many particles have been found
-        particles_found = 0
+
+        # lists to temporarily store data before concatenating it
+        particle_ids_list = list()
+        coordinates_list = list()
+        type_flags_list = list()
+
+        # load all coordinates for the particles
         for part_type in [0, 4, 5]:
             # load all particles of this type
             particle_data = self._load_particle_properties(part_type, snap_num)
             if particle_data["count"] == 0:
-                logging.debug(f"PartType {part_type}: indices []")
-                continue
-            # check if there are any of the desired particles
-            indices = selection.select_if_in(
-                particle_data["ParticleIDs"], parent_ids
-            )
-            logging.debug(f"PartType {part_type}: indices {indices}")
-            if indices.size > 0:
-                start = particles_found
-                stop = particles_found + len(indices)
-                self.particle_positions[snap_num, start:stop] = (
-                    particle_data["Coordinates"][indices][:, :-1]
+                # no particles available, so no data to append
+                logging.debug(
+                    f"Skipping part type {part_type}: no particles found."
                 )
-                self.particle_type_flags[snap_num, start:stop] = part_type
-                # increment counter
-                particles_found += len(indices)
+                continue
+            # place data in corresponding list
+            particle_ids_list.append(particle_data["ParticleIDs"])
+            coordinates_list.append(particle_data["Coordinates"][:, :-1])
+            # generate an array of identical type flag integers
+            cur_type_flags = np.empty_like(
+                particle_data["ParticleIDs"], dtype=np.uint8
+            )
+            cur_type_flags[:] = part_type
+            type_flags_list.append(cur_type_flags)
+
+        # concatenate all data for all three particle types
+        particle_ids = np.concatenate(particle_ids_list, axis=0)
+        coordinates = np.concatenate(coordinates_list, axis=0)
+        type_flags = np.concatenate(type_flags_list, axis=0)
+
+        # check if the desired particles are available. Use mode
+        # `searchsort` to receive one index per ID, regardless of
+        # uniqueness of ID:
+        indices = selection.select_if_in(
+            particle_ids,
+            parent_ids,
+            mode="searchsort",
+            assume_subset=True,
+        )
+        # verify found indices via IDs, including correct ordering
+        np.testing.assert_equal(particle_ids[indices], parent_ids)
+
+        # index particle positions and type flag and safe them
+        self.particle_positions[snap_num] = coordinates[indices]
+        self.particle_type_flags[snap_num] = type_flags[indices]
 
         logging.debug(
-            f"Found {particles_found} particles with IDs {parent_ids} with "
-            f"types {self.particle_type_flags[snap_num]}"
+            f"Found {len(np.unique(indices))} unique particles with IDs "
+            f"{parent_ids} with types {self.particle_type_flags[snap_num]}"
         )
 
-    def _load_particle_properties(self, part_type: int, snap_num: int):
+    def _load_particle_properties(self, part_type: int,
+                                  snap_num: int) -> dict[str, NDArray]:
         """
         Load the particle ID and coordinates of the given particle type.
 
@@ -248,7 +282,7 @@ class FollowParticlesPipeline(Pipeline):
         axes.set_xlabel("x [cMpc]")
         axes.set_ylabel("y [cMpc]")
 
-        flag_to_color = {0: "dodgerblue", 1: "red", 4: "gold", 5: "black"}
+        flag_to_color = {0: "dodgerblue", 4: "gold", 5: "black", 99: "red"}
 
         for tracer_idx in range(self.particle_type_flags.shape[-1]):
             xs = self.particle_positions[:, tracer_idx, 0] / 1000
@@ -309,6 +343,78 @@ class FollowParticlesPipeline(Pipeline):
 
         return fig, axes
 
+    def _plot_lines(self) -> tuple[Figure, Axes]:
+        """
+        Plot the positions of the tracers connected by lines.
+
+        :return: Tuple of figure and axes.
+        """
+        fig, axes = plt.subplots(figsize=(4, 4))
+        fig.set_tight_layout(True)
+        axes.set_aspect("equal", adjustable="datalim")
+        axes.set_xlabel("x [cMpc]")
+        axes.set_ylabel("y [cMpc]")
+
+        # sum of type flags of two points gives color
+        flag_sum_to_color = {
+            0: "dodgerblue",  # two type 0
+            8: "gold",  # two type 4
+            10: "black",  # two type 5
+            4: "mediumspringgreen",  # one type 0, one type 4
+            5: "indigo",  # one type 0, one type 5
+            9: "sienna",  # one type 4, one type 5
+            99: "red",  # failure: one type 0, one type 99
+            103: "red",  # failure: one type 4, one type 99
+            104: "red",  # failure: one type 5, one type 99
+            198: "red",  # failure: two type 99
+        }
+
+        # yes, I know this is horribly slow and ineffective, but this is
+        # a test script and I didn't want to spend a day optimizing it...
+        for k in range(self.particle_type_flags.shape[-1]):
+            for i in range(99):
+                pos_now = self.particle_positions[i, k]
+                type_now = self.particle_type_flags[i, k]
+                pos_next = self.particle_positions[i + 1, k]
+                type_next = self.particle_type_flags[i + 1, k]
+                try:
+                    color = flag_sum_to_color[type_now + type_next]
+                except KeyError:
+                    color = "red"
+                except ValueError:
+                    color = "red"
+                axes.plot(
+                    [pos_now[0], pos_next[0]],
+                    [pos_now[1], pos_next[1]],
+                    marker=None,
+                    linestyle="solid",
+                    color=color,
+                )
+
+        # add a legend
+        handles = [
+            matplotlib.lines.Line2D(
+                [], [],
+                marker="none",
+                color="dodgerblue",
+                ls="solid",
+                label="Gas"
+            ),
+            matplotlib.lines.Line2D(
+                [], [], marker="none", color="gold", ls="solid", label="Stars"
+            ),
+            matplotlib.lines.Line2D(
+                [], [],
+                marker="none",
+                color="black",
+                ls="solid",
+                label="Black holes"
+            )
+        ]
+        axes.legend(handles=handles)
+
+        return fig, axes
+
 
 class FollowParticlesFromFilePipeline(FollowParticlesPipeline):
     """
@@ -321,12 +427,20 @@ class FollowParticlesFromFilePipeline(FollowParticlesPipeline):
 
         :return: Exit code.
         """
-        filename = f"{self.paths['data_file_stem']}.npz"
+        filename = f"{self.paths['data_file_stem']}_n{self.max_tracers}.npz"
         with np.load(self.paths["data_dir"] / filename) as data_file:
             self.particle_positions = data_file["particle_positions"]
             self.particle_type_flags = data_file["particle_type_flags"]
 
-        f, _ = self._plot_scatter()
-        self._save_fig(f)
+        n_tracers = self.particle_type_flags.shape[-1]
+        if self.plot_lines:
+            logging.info("Ploting particle positions as lines plot")
+            f, _ = self._plot_lines()
+            ident_flag = f"lines_{n_tracers}_tracers"
+        else:
+            logging.info("Plotting particle positions as scatter plot.")
+            f, _ = self._plot_scatter()
+            ident_flag = f"scatter_{n_tracers}_tracers"
+        self._save_fig(f, ident_flag=ident_flag)
 
         return 0
