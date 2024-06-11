@@ -440,36 +440,13 @@ def select_if_in(
     # Since the same checks are performed in mode `detect`, we skip them
     # here as we will need to repeat them later anyhow and mode `detect`
     # issues no warnings.
-    if warn_if_not_unique and mode != "detect":
+    if warn_if_not_unique:
         if len(np.unique(a.copy())) != len(a):
             logging.warning("`select_if_in`: `a` contains duplicate entries!")
 
-    if warn_if_not_subset and mode != "detect":
-        if len(np.intersect1d(a, s)) < len(s):
+    if warn_if_not_subset:
+        if len(np.intersect1d(a, s)) < len(np.unique(s)):
             logging.warning("`select_if_in`: `s` is not a subset of `a`!")
-
-    # if mode is `detect`, find out which one to use
-    if mode == "detect":
-        # check for uniqueness
-        if len(np.unique(a.copy())) != len(a):
-            logging.debug(
-                "`select_if_in`: mode `detect` found duplicate entries in "
-                "array `a`. Set mode to `iterate`."
-            )
-            mode = "iterate"
-        # check for subset
-        elif len(np.intersect1d(a, s)) < len(s):
-            logging.debug(
-                "`select_if_in`: mode `detect` found `s` to not be a subset "
-                "of `a`. Set mode to `iterate`."
-            )
-            mode = "iterate"
-        else:
-            logging.debug(
-                "`select_if_in1: mode `detect` found `a` has only unique "
-                "entries; `s` is a subset of `a`. Set mode to `searchsorted`."
-            )
-            mode = "searchsorted"
 
     # find indices
     if mode == "searchsort":

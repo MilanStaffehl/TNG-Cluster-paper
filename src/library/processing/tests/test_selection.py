@@ -260,3 +260,20 @@ def test_select_if_in_with_assume_unique(subtests: SubTests) -> None:
                     a, s, mode=mode, assume_unique=assume_unique
                 )
                 np.testing.assert_equal(expected[mode], output)
+
+
+def test_select_if_in_warning_if_not_subset(
+    subtests: SubTests, caplog
+) -> None:
+    """Test the option to warn if s is not a subset of a"""
+    a = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9])
+    scenarios = {
+        "s unique": np.array([2, 4, 5, 0]),
+        "s not unique": np.array([2, 2, 2, 2, 4, 5, 5, 0, 0]),
+    }
+
+    for scenario, s in scenarios.items():
+        with subtests.test(msg=scenario):
+            selection.select_if_in(a, s, warn_if_not_subset=True)
+            msg = "`select_if_in`: `s` is not a subset of `a`!"
+            assert msg in caplog.text
