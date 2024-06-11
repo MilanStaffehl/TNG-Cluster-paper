@@ -493,7 +493,7 @@ class StackProfilesBinnedPipeline(Pipeline):
             axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
         else:
             axes.set_xlabel("Distance from halo center [kpc]")
-        axes.set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
+        axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
         if self.log:
             axes.set_yscale("log")
 
@@ -726,7 +726,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
             axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
         else:
             axes.set_xlabel("Distance from halo center [kpc]")
-        axes.set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
+        axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
         if self.core_only:
             axes.set_ylim((1e1, 1e8))
         else:
@@ -1032,7 +1032,7 @@ class StackDensityProfilesByVelocityPipeline(
             xlabel = "Distance from halo center [kpc]"
         axes[0].set_xlabel(xlabel)
         axes[1].set_xlabel(xlabel)
-        axes[0].set_ylabel(r"Mean density in radial shell [$M_\odot / kpc^3$]")
+        axes[0].set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
 
         if self.core_only:
             ylim = (1e1, 1e7)
