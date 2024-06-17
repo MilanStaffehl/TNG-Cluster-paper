@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import illustris_python as il
+import matplotlib.collections
 import matplotlib.lines
 import matplotlib.pyplot as plt
 import numpy as np
@@ -356,40 +357,46 @@ class FollowParticlesPipeline(Pipeline):
         axes.set_ylabel("y [cMpc]")
 
         # sum of type flags of two points gives color
+        a = 122  # alpha
         flag_sum_to_color = {
-            0: "dodgerblue",  # two type 0
-            8: "gold",  # two type 4
-            10: "black",  # two type 5
-            4: "mediumspringgreen",  # one type 0, one type 4
-            5: "indigo",  # one type 0, one type 5
-            9: "sienna",  # one type 4, one type 5
-            99: "red",  # failure: one type 0, one type 99
-            103: "red",  # failure: one type 4, one type 99
-            104: "red",  # failure: one type 5, one type 99
-            198: "red",  # failure: two type 99
+            0: np.array((30, 144, 255, a)),  # two type 0, dodgerblue
+            8: np.array((255, 215, 0, a)),  # two type 4, gold
+            10: np.array((0, 0, 0, a)),  # two type 5, black
+            4: np.array((0, 207, 175, a)),  # one type 0, one type 4
+            5: np.array((90, 59, 106, a)),  # one type 0, one type 5
+            9: np.array((158, 81, 55, a)),  # one type 4, one type 5, sienna
+            99: np.array((255, 0, 0, a)),  # failure: one type 0, one type 99
+            103: np.array((255, 0, 0, a)),  # failure: one type 4, one type 99
+            104: np.array((255, 0, 0, a)),  # failure: one type 5, one type 99
+            198: np.array((255, 0, 0, a)),  # failure: two type 99
         }
 
-        # yes, I know this is horribly slow and ineffective, but this is
-        # a test script and I didn't want to spend a day optimizing it...
         for k in range(self.particle_type_flags.shape[-1]):
-            for i in range(99):
-                pos_now = self.particle_positions[i, k]
-                type_now = self.particle_type_flags[i, k]
-                pos_next = self.particle_positions[i + 1, k]
-                type_next = self.particle_type_flags[i + 1, k]
-                try:
-                    color = flag_sum_to_color[type_now + type_next]
-                except KeyError:
-                    color = "red"
-                except ValueError:
-                    color = "red"
-                axes.plot(
-                    [pos_now[0], pos_next[0]],
-                    [pos_now[1], pos_next[1]],
-                    marker=None,
-                    linestyle="solid",
-                    color=color,
-                )
+            logging.debug(f"Plotting LineCollection for tracer {k + 1}.")
+            xs = self.particle_positions[:, k, 0] / 1000
+            ys = self.particle_positions[:, k, 1] / 1000
+            pairs = np.array([xs, ys]).transpose().reshape(-1, 1, 2)
+            lines = np.hstack([pairs[:-1], pairs[1:]])
+            color_idx = (
+                self.particle_type_flags[:-1, k]
+                + self.particle_type_flags[1:, k]
+            )
+            colors = [flag_sum_to_color[i] / 255 for i in color_idx]
+            lc = matplotlib.collections.LineCollection(
+                lines, linewidths=0.1, colors=colors
+            )
+            axes.add_collection(lc)
+            axes.autoscale_view()
+
+        # mark final position with an x
+        axes.plot(
+            self.particle_positions[99, 0, 0] / 1000,
+            self.particle_positions[99, 0, 1] / 1000,
+            marker="x",
+            color="red",
+            markersize=8,
+            linestyle="none",
+        )
 
         # add a legend
         handles = [
@@ -434,7 +441,7 @@ class FollowParticlesFromFilePipeline(FollowParticlesPipeline):
 
         n_tracers = self.particle_type_flags.shape[-1]
         if self.plot_lines:
-            logging.info("Ploting particle positions as lines plot")
+            logging.info("Plotting particle positions as lines plot")
             f, _ = self._plot_lines()
             ident_flag = f"lines_{n_tracers}_tracers"
         else:
