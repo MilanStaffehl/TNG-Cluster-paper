@@ -121,7 +121,12 @@ def get_cluster_temperature(
         zoom, including non-FoF particles, while the other only loads
         particles associated with the FoF-group.
 
-    :return:
+    :param halo_id: The ID of the halo for which to find temperatures.
+        This must be the actual ID, not the original halo ID.
+    :param base_path: Base directory of the TNG-Cluster simulation data.
+    :param snap_num: The snapshot from which to load the data.
+    :return: Temperature of all particles in the original zoom-in region,
+        in units of Kelvin.
     """
     fields = ["InternalEnergy", "ElectronAbundance", "StarFormationRate"]
     # acquire the necessary data from the zoom simulation

@@ -125,11 +125,11 @@ def main():
         filename = "timeit_subset"
     else:
         filename = "timeit_not_subset"
-    fig.savefig(f"{filename}.pdf", bbox_inches="tight")
+    fig.savefig(f"tmp/{filename}.pdf", bbox_inches="tight")
 
     # save data
     np.savez(
-        f"{filename}.npz",
+        f"tmp/{filename}.npz",
         iterate_times=iterate_times,
         intersect_times=intersect_times,
         searchsort_times=searchsort_times,

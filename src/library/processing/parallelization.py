@@ -1,5 +1,5 @@
 """
-Fuctions for parallelization of data processing.
+Functions for parallelization of data processing.
 """
 from __future__ import annotations
 

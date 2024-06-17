@@ -45,6 +45,7 @@ scripts/**/batch/output/
 scripts/tmp*.py
 scripts/*tmp.*
 scripts/**/*tmp.*
+scripts/**/tmp/*
 
 # temporary images and diagnostics
 scripts/**/*.png
