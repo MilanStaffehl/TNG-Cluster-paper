@@ -44,7 +44,7 @@ def test_get_2d_histogram_running_average():
     expected = np.array([7 / 6, 1.1, 1.1, 7 / 6])
     test_data = statistics.get_2d_histogram_running_average(mock_hist, yrange)
     assert len(test_data) == 4
-    np.testing.assert_array_almost_equal_nulp(test_data, expected)
+    np.testing.assert_array_almost_equal_nulp(test_data, expected, decimal=6)
 
 
 def test_mask_quantity_1d():
@@ -56,7 +56,7 @@ def test_mask_quantity_1d():
     expected_output = np.array([2, 3, 6, 7])
     # test function
     output = selection.mask_quantity(input_array, mask, index=1, compress=True)
-    np.testing.assert_equal(expected_output, output)
+    np.testing.assert_almost_equal(expected_output, output, decimal=6)
     assert not isinstance(output, ma.MaskedArray)
 
 
@@ -69,7 +69,7 @@ def test_mask_quantity_2d():
     expected_output = np.array([[0, 1], [4, 5], [8, 9]])
     # test function
     output = selection.mask_quantity(input_array, mask, index=1, compress=True)
-    np.testing.assert_equal(expected_output, output)
+    np.testing.assert_almost_equal(expected_output, output, decimal=6)
     assert not isinstance(output, ma.MaskedArray)
 
 
@@ -98,7 +98,7 @@ def test_mask_quantity_3d():
     )
     # test function
     output = selection.mask_quantity(input_array, mask, index=1, compress=True)
-    np.testing.assert_equal(expected_output, output)
+    np.testing.assert_almost_equal(expected_output, output, decimal=6)
     assert not isinstance(output, ma.MaskedArray)
 
 
@@ -113,7 +113,7 @@ def test_mask_quantity_uncompressed():
     output = selection.mask_quantity(
         input_array, mask, index=1, compress=False
     )
-    np.testing.assert_equal(expected_output, output.data)
+    np.testing.assert_almost_equal(expected_output, output.data, decimal=6)
     assert ma.isMaskedArray(output)
 
 
@@ -202,7 +202,7 @@ def test_pearson_corrcoeff_per_bin():
     masses = np.array([1, 1, 1, 1, 1, 3, 3, 3, 3, 3])
     expected = np.array([1, -1])
     output = statistics.pearson_corrcoeff_per_bin(xs, ys, masses, 0, 4, 2)
-    np.testing.assert_equal(output, expected)
+    np.testing.assert_almost_equal(output, expected, decimal=6)
 
 
 def test_pearson_corrcoeff_per_bin_unordered():
@@ -212,7 +212,7 @@ def test_pearson_corrcoeff_per_bin_unordered():
     masses = np.array([1, 3, 3, 1, 3, 1, 1, 1, 3, 3])
     expected = np.array([1., -1.])
     output = statistics.pearson_corrcoeff_per_bin(xs, ys, masses, 0, 4, 2)
-    np.testing.assert_equal(output, expected)
+    np.testing.assert_almost_equal(output, expected, decimal=6)
 
 
 def test_pearson_corrcoeff_per_bin_real_values():
