@@ -210,7 +210,7 @@ def test_pearson_corrcoeff_per_bin_unordered():
     xs = np.array([4, 0, 3, 1, 4, 2, 3, 0, 2, 1])
     ys = np.array([6, 6, 3, 3, 2, 4, 5, 2, 4, 5])
     masses = np.array([1, 3, 3, 1, 3, 1, 1, 1, 3, 3])
-    expected = np.array([1, -1])
+    expected = np.array([1., -1.])
     output = statistics.pearson_corrcoeff_per_bin(xs, ys, masses, 0, 4, 2)
     np.testing.assert_equal(output, expected)
 
