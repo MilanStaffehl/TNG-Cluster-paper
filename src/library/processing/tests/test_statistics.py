@@ -44,7 +44,7 @@ def test_get_2d_histogram_running_average():
     expected = np.array([7 / 6, 1.1, 1.1, 7 / 6])
     test_data = statistics.get_2d_histogram_running_average(mock_hist, yrange)
     assert len(test_data) == 4
-    np.testing.assert_array_almost_equal_nulp(test_data, expected, decimal=6)
+    np.testing.assert_array_almost_equal_nulp(test_data, expected)
 
 
 def test_mask_quantity_1d():

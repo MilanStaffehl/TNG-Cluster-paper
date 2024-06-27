@@ -4,7 +4,9 @@ Data acquisition functions for tracer particles
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
+import h5py
 import illustris_python as il
 import numpy as np
 from numpy.typing import NDArray
@@ -13,6 +15,7 @@ from typing_extensions import NotRequired, TypedDict
 
 class TracerInfo(TypedDict):
     """Dictionary containing tracer info. Has at most two fields."""
+    count: int
     ParentID: NotRequired[NDArray]
     TracerID: NotRequired[NDArray]
 
@@ -103,17 +106,46 @@ def _load_original_zoom_tracers(
     :param fields:
     :return:
     """
-    try:
-        tracer_data = il.snapshot.loadOriginalZoom(
-            base_path, snap_num, cluster_id, 3, fields=fields
+    base_path = Path(base_path)
+    offset_file = base_path / "../postprocessing/offsets/offsets_099.hdf5"
+
+    # check if we are actually working with TNG-Cluster
+    test_data = il.groupcat.loadSingle(str(base_path), snap_num, haloID=0)
+    if "GroupOrigHaloID" not in test_data.keys():
+        logging.error(
+            "Tried loading original zoom-in of a simulation that is not "
+            "TNG-Cluster. Returning empty data."
         )
-    except AssertionError:
-        logging.fatal(
-            "Attempted to restrict tracer data to a zoom-in region for a "
-            "simulation that is not TNG Cluster, exception will be raised."
+        return {"count": 0}
+
+    # load cluster IDs to get to file index
+    with h5py.File(str(offset_file.resolve()), "r") as file:
+        cluster_ids = np.array(file["FileOffsets"]["Group"]).tolist()
+
+    # load the tracer data from the two files
+    file_index = cluster_ids.index(cluster_id)
+    snapshot_path = (base_path / f"snapdir_{snap_num:03d}/")
+
+    fof_file = f"snap_{snap_num:03d}.{file_index}.hdf5"
+    with h5py.File(str(snapshot_path / fof_file), "r") as file:
+        tracer_ids_fof = np.array(file["PartType3"]["TracerID"], np.uint64)
+        parent_ids_fof = np.array(file["PartType3"]["ParentID"], np.uint64)
+
+    fuzz_file = f"snap_{snap_num:03d}.{file_index + 352}.hdf5"
+    with h5py.File(str(snapshot_path / fuzz_file), "r") as file:
+        tracer_ids_fuzz = np.array(file["PartType3"]["TracerID"], np.uint64)
+        parent_ids_fuzz = np.array(file["PartType3"]["ParentID"], np.uint64)
+
+    # construct and return data array
+    tracer_data = {
+        "count": len(tracer_ids_fof) + len(tracer_ids_fuzz),
+    }
+    if "TracerID" in fields:
+        tracer_data.update(
+            {"TracerID": np.concatenate([tracer_ids_fof, tracer_ids_fuzz])}
         )
-        raise KeyError(
-            "The simulation group catalogue does not provide the field "
-            "'GroupPrimaryZoomTarget'."
+    if "ParentID" in fields:
+        tracer_data.update(
+            {"ParentID": np.concatenate([parent_ids_fof, parent_ids_fuzz])}
         )
     return tracer_data
