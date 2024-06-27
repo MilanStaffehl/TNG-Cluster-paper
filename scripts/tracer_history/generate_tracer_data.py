@@ -21,17 +21,19 @@ def main(args: argparse.Namespace) -> None:
     # base pipeline config dict
     pipeline_config = scriptparse.startup(
         args,
-        "history",
+        "tracer_history",
         "tracer_data",
     )
+    # update config snap num
+    pipeline_config["config"].snap_num = args.start_snapshot
 
     match args.runtype:
-        case "redshift-zero":
+        case "identify":
             pipeline = GenerateTNGClusterTracerIDsAtRedshiftZero
-        case "get-indices":
+        case "trace-back":
             if args.snap_num is None:
                 logging.fatal(
-                    "Must specify snap num for run-type `get-indices`."
+                    "Must specify snap num for run-type `trace-back`."
                 )
                 sys.exit(2)
             pipeline = FindTracedParticleIDsInSnapshot
@@ -56,11 +58,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "runtype",
         help=(
-            "The type of pipeline to run. Options are `redshift-zero` to "
-            "find the tracer IDs of tracers in cool gas at redshift zero."
+            "The type of pipeline to run. Options are `identify` to "
+            "find the tracer IDs of tracers in cool gas at redshift zero,"
+            "or `trace-back` to save to file the indices of particles in a"
+            "specified snapshot that end up in cool gas at redshift zero."
         ),
-        choices=["redshift-zero", "get-indices"],
-        default="redshift-zero",
+        choices=["identify", "trace-back"],
+        default="identify",
         metavar="RUNTYPE",
     )
     parser.add_argument(
@@ -68,10 +72,23 @@ if __name__ == "__main__":
         "--snap-num",
         help=(
             "The snapshot to process. Has no effect when using run type "
-            "`redshift-zero`"
+            "`identify`."
         ),
         dest="snap_num",
         type=int,
+    )
+    parser.add_argument(
+        "-sn",
+        "--start-snapshot",
+        help=(
+            "The snapshot from which to start the analysis. This is the "
+            "snapshot in which the `identify` run type will look for cool "
+            "gas and identify its tracers, and save the IDs of these tracers."
+            "Defaults to snapshot 99 (redshift zero)."
+        ),
+        dest="start_snapshot",
+        type=int,
+        default=99,
     )
 
     # parse arguments

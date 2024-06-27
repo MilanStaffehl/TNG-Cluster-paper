@@ -35,7 +35,10 @@ class GenerateTNGClusterTracerIDsAtRedshiftZero(base.DiagnosticsPipeline):
         :return: Exit code.
         """
         # Step 0: create directories
-        self._create_directories(subdirs=["cool_gas_tracer_ids"], force=True)
+        self._create_directories(
+            subdirs=[f"cool_gas_tracer_ids_{self.config.snap_num}"],
+            force=True,
+        )
 
         # Step 1: Load cluster properties
         cluster_data = halos_daq.get_halo_properties(
@@ -117,7 +120,10 @@ class GenerateTNGClusterTracerIDsAtRedshiftZero(base.DiagnosticsPipeline):
 
             # Step 7: save data to file
             filepath = self.paths["data_dir"] / "cool_gas_tracer_ids"
-            filename = f"tracer_ids_snapshot99_cluster_{halo_id}.npz"
+            filename = (
+                f"tracer_ids_snapshot{self.config.snap_num}"
+                f"_cluster_{halo_id}.npz"
+            )
             logging.debug(
                 f"Halo {i + 1}: Writing data to file under "
                 f"{str(filepath / filename)}."
@@ -151,7 +157,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
     def __post_init__(self):
         super().__post_init__()
-        self.data_save_subdir = f"particle_ids/snapshot_{self.snap_num:02d}"
+        self.data_save_subdir = f"particle_ids/snapshot_{self.snap_num:02d}/"
 
     def run(self) -> int:
         """
@@ -160,106 +166,113 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         :return: Exit code.
         """
         # Step 0: check directories exist, create new directories
-        self._create_directories(subdirs=[self.data_save_subdir])
+        self._create_directories(subdirs=[self.data_save_subdir], force=True)
 
         # Step 1: Load cluster data to get IDs
         cluster_data = halos_daq.get_halo_properties(
             self.config.base_path,
             self.config.snap_num,
-            fields=[self.config.radius_field,
-                    "GroupPos"],  # arbitrary dummy field
+            fields=[self.config.radius_field],
             cluster_restrict=True,
         )
 
-        for i, halo_id in enumerate(cluster_data["IDs"]):
-            logging.info(f"Processing halo {i + 1}/352.")
-            # Step 2: Load tracer IDs we wish to follow
-            filepath = self.paths["data_dir"] / "cool_gas_tracer_ids"
-            filename = f"tracer_ids_snapshot99_cluster_{halo_id}.npz"
-            with np.load(filepath / filename) as data_file:
-                selected_tracers = data_file["tracer_ids"]
+        for halo_id in cluster_data["IDs"]:
+            self._generate_particle_indices(halo_id)
+
+        return 0
+
+    def _generate_particle_indices(self, halo_id: int) -> int:
+        """
+        Find indices of particles that end up in cool gas for this cluster.
+
+        Function loads the tracer IDs of all tracers in cool gas at
+        redshift zero and matches them against tracers in the current
+        snapshot. It then correlates these tracers to their parent
+        particles and saves the indices of these particles to file,
+        such that one can load the indices from file and use them to
+        directly select only particles that will end up in cool gas at
+        redshift zero.
+
+        The indices will be saved all together, with an additional
+        array that identifies their particle type; the final data file
+        has two fields:
+
+        - ``particle_ids``
+        - ``particle_type``
+
+        These indices are indices into the list of all particles _of
+        the zoom-in region of the associated cluster_, i.e. the list of
+        particles loaded with
+        :func:`~library.data_acquisition.gas_daq.get_gas_properties`.
+        Note that to use them on just one type of particles, they will
+        have to be reduced to only indices of that type. 
+
+        This function can be run in parallel for different clusters.
+
+        .. attention:: This function contains DEBUG level logs. When
+            run in parallel, these will not be emitted!
+
+        :param halo_id: The ID of the halo. Must not be the original
+            halo ID but the actual halo ID.
+        :return: Status of success. Zero for successful execution, one
+            for failure to execute.
+        """
+        if self.processes <= 1:
+            logging.debug(f"Processing halo {halo_id}.")
+        # Step 1: Load tracer IDs we wish to follow
+        filepath = self.paths["data_dir"] / "cool_gas_tracer_ids"
+        filename = (
+            f"tracer_ids_snapshot{self.config.snap_num}_cluster_"
+            f"{halo_id}.npz"
+        )
+        with np.load(filepath / filename) as data_file:
+            selected_tracers = data_file["tracer_ids"]
+        if self.processes <= 1:
             logging.debug(
                 f"Loaded {len(selected_tracers)} tracer IDs from file."
             )
 
-            # Step 3: load tracers at the current snapshot
-            tracer_data = tracers_daq.load_tracers(
-                self.config.base_path, self.snap_num, cluster_id=halo_id
-            )
-            logging.debug(f"Loaded tracer data of halo {halo_id}.")
+        # Step 2: load tracers at the current snapshot
+        tracer_data = tracers_daq.load_tracers(
+            self.config.base_path, self.snap_num, cluster_id=halo_id
+        )
 
-            # Step 4: match selected IDs to all IDs, find parent IDs
-            tracer_indices = selection.select_if_in(
-                tracer_data["TracerID"],
-                selected_tracers,
-                assume_unique=True,
-                assume_subset=True,
-            )
-            selected_particle_ids = tracer_data["ParentID"][tracer_indices]
+        # Step 3: match selected IDs to all IDs, find parent IDs
+        tracer_indices = selection.select_if_in(
+            tracer_data["TracerID"],
+            selected_tracers,
+            assume_unique=True,
+            assume_subset=True,
+        )
+        selected_particle_ids = tracer_data["ParentID"][tracer_indices]
+        if self.processes <= 1:
             logging.debug(
                 f"Selected {len(selected_particle_ids)} particles from list "
                 f"of particle IDs."
             )
 
-            # Step 5: match selected parent IDs to particles
-            logging.debug("Begin matching PIDs to particles.")
-            ids = self._match_particle_ids_to_particles(
-                selected_particle_ids, halo_id
-            )
-            logging.debug("Found indices of particles.")
+        # Step 4: match selected parent IDs to particles
+        ids = self._match_particle_ids_to_particles(
+            selected_particle_ids, halo_id
+        )
 
-            # TODO: remove me! Check: load particle temperature and position
-            #  and verify that they meet the requirement at snapshot 99
-            if self.snap_num == 99:
-                gas_temperatures = gas_daq.get_cluster_temperature(
-                    halo_id, self.config.base_path, self.snap_num
-                )
-                if not np.all(gas_temperatures[ids[0]] <= 10**4.5):
-                    logging.warning(
-                        f"Not all selected gas temperatures are valid: "
-                        f"Highest gas temperature found was 10^"
-                        f"{np.max(np.log10(gas_temperatures[ids[0]]))} K."
-                    )
-                else:
-                    logging.info("Selected temperatures OK.")
-                gas_coords = gas_daq.get_gas_properties(
-                    self.config.base_path,
-                    self.snap_num,
-                    fields=["Coordinates"],
-                    cluster=halo_id,
-                )
-                center = cluster_data["GroupPos"][i]
-                r_vir = cluster_data[self.config.radius_field][i]
-                distances = np.linalg.norm(
-                    gas_coords["Coordinates"][ids[0]] - center, axis=1
-                )
-                if not np.all(distances <= 2 * r_vir):
-                    logging.warning(
-                        f"Not all selected gas particles are within 2 R_vir: "
-                        f"Furthest distance was {np.max(distances) / r_vir} "
-                        f"R_vir."
-                    )
-                else:
-                    logging.info("Selected distances OK.")
-                continue
-
-            # Step 6: save particle IDs and type flag to file
-            filepath = self.paths["data_dir"] / self.data_save_subdir
-            filename = f"particle_ids_halo_{halo_id}.npz"
-            np.savez(
-                filepath / filename,
-                particle_ids_gas=ids[0],
-                particle_ids_stars=ids[1],
-                particle_ids_bhs=ids[2],
-            )
-
+        # Step 5: save particle IDs and type flag to file
+        filepath = self.paths["data_dir"] / self.data_save_subdir
+        filename = f"particle_ids_halo_{halo_id}.npz"
+        np.savez(
+            filepath / filename,
+            particle_ids=ids[0],
+            particle_type=ids[1],
+        )
+        if self.processes <= 1:
+            logging.debug(f"Saved indices to file {filename}.")
         return 0
 
     def _match_particle_ids_to_particles(
         self,
         parent_ids: NDArray,
         cluster_id: int,
-    ) -> list[NDArray, NDArray, NDArray]:
+    ) -> list[NDArray]:
         """
         Return indices of particles with the given particle IDs.
 
@@ -273,13 +286,14 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
         :param parent_ids: Array of unique particle IDs to search for.
             Shape (N, ).
-        :param cluster_id: IDof the cluster for which to load the zoom-in
-            regions particles.
+        :param cluster_id: ID of the cluster for which to load the
+            zoom-in regions particles.
         :return: Three arrays giving the indices into the list of particle
             data for gas cells, star cells, and BH cells respectively,
             such that the particles selected with these indices have
             the particle IDs provided. Shapes (A, ), (B, ), and (C, ),
-            such that A + B + C = N.
+            such that A + B + C = N. Note that in principle A, B and/or
+            C can be zero.
         """
         indices = []
         for part_type in [0, 4, 5]:
