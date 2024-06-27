@@ -71,6 +71,7 @@ class Pipeline:
         """
         logging.debug("Checking if data directories exist.")
         if not hasattr(self, "to_file"):
+            logging.debug("Pipeline has no attr `to_file`, skipping checks.")
             return
         if subdirs is None:
             subdirs = []
@@ -88,7 +89,7 @@ class Pipeline:
                     logging.info(
                         f"Creating missing subdirectory {subdirectory}."
                     )
-                    additional_path.mkdir()
+                    additional_path.mkdir(parents=True)
 
     def _verify_directories(self) -> int:
         """

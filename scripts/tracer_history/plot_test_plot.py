@@ -6,7 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.history.test_plot import (
+from pipelines.tracer_history.test_plot import (
     FollowParticlesFromFilePipeline,
     FollowParticlesPipeline,
 )
@@ -15,7 +15,6 @@ from pipelines.history.test_plot import (
 def main(args: argparse.Namespace) -> None:
     """Create plot of gas velocity distribution"""
     args.sim = "TNG-Cluster"
-
     type_flag = "test_plot"
 
     pipeline_config = scriptparse.startup(
