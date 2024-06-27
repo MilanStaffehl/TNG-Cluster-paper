@@ -12,7 +12,7 @@ import typedef
 from library.config import config, logging_config
 
 # type def
-PipelineKwargs: TypeAlias = dict[str, bool | str | int]
+PipelineKwargs: TypeAlias = dict[str, bool | str | int | config.Config]
 
 
 class BaseScriptParser(argparse.ArgumentParser):
