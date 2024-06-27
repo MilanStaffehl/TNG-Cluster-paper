@@ -28,6 +28,10 @@ class GenerateTNGClusterTracerIDsAtRedshiftZero(base.DiagnosticsPipeline):
     to file.
     """
 
+    def __post_init__(self):
+        super().__post_init__()
+        self.data_subdir = f"cool_gas_tracer_ids_{self.config.snap_num}"
+
     def run(self) -> int:
         """
         Generate tracer ID files.
@@ -36,7 +40,7 @@ class GenerateTNGClusterTracerIDsAtRedshiftZero(base.DiagnosticsPipeline):
         """
         # Step 0: create directories
         self._create_directories(
-            subdirs=[f"cool_gas_tracer_ids_{self.config.snap_num}"],
+            subdirs=[self.data_subdir],
             force=True,
         )
 
@@ -119,7 +123,7 @@ class GenerateTNGClusterTracerIDsAtRedshiftZero(base.DiagnosticsPipeline):
                 )
 
             # Step 7: save data to file
-            filepath = self.paths["data_dir"] / "cool_gas_tracer_ids"
+            filepath = self.paths["data_dir"] / self.data_subdir
             filename = (
                 f"tracer_ids_snapshot{self.config.snap_num}"
                 f"_cluster_{halo_id}.npz"
@@ -136,7 +140,7 @@ class GenerateTNGClusterTracerIDsAtRedshiftZero(base.DiagnosticsPipeline):
             logging.debug(
                 f"Halo {i + 1}: Found {len(indices)} cool gas tracers in "
                 f"cluster {halo_id} with PIDs "
-                f"{tracer_data['ParentID'][indices]} Saved them to file."
+                f"{tracer_data['ParentID'][indices]}. Saved them to file."
             )
 
         return 0
@@ -205,7 +209,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         particles loaded with
         :func:`~library.data_acquisition.gas_daq.get_gas_properties`.
         Note that to use them on just one type of particles, they will
-        have to be reduced to only indices of that type. 
+        have to be reduced to only indices of that type.
 
         This function can be run in parallel for different clusters.
 
@@ -252,7 +256,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             )
 
         # Step 4: match selected parent IDs to particles
-        ids = self._match_particle_ids_to_particles(
+        ids, ptypes = self._match_particle_ids_to_particles(
             selected_particle_ids, halo_id
         )
 
@@ -261,8 +265,8 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         filename = f"particle_ids_halo_{halo_id}.npz"
         np.savez(
             filepath / filename,
-            particle_ids=ids[0],
-            particle_type=ids[1],
+            particle_ids=ids,
+            particle_type=ptypes,
         )
         if self.processes <= 1:
             logging.debug(f"Saved indices to file {filename}.")
@@ -272,7 +276,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         self,
         parent_ids: NDArray,
         cluster_id: int,
-    ) -> list[NDArray]:
+    ) -> tuple[NDArray, NDArray]:
         """
         Return indices of particles with the given particle IDs.
 
@@ -295,7 +299,11 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             such that A + B + C = N. Note that in principle A, B and/or
             C can be zero.
         """
-        indices = []
+        # gather all particle data for all three types
+        particle_ids_list = []
+        particle_types_list = []
+
+        # load data and append it to lists
         for part_type in [0, 4, 5]:
             cur_particle_ids = il.snapshot.loadOriginalZoom(
                 self.config.base_path,
@@ -304,12 +312,23 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
                 partType=part_type,
                 fields=["ParticleIDs"],
             )
-            # match particle IDs
-            cur_indices = selection.select_if_in(
-                cur_particle_ids,
-                parent_ids,
-                mode="searchsort",
-                assume_subset=False
-            )
-            indices.append(cur_indices)
-        return indices
+            if cur_particle_ids.size == 0:
+                continue  # no particle data available, skip
+            particle_ids_list.append(cur_particle_ids)
+            # create a list of part type indices
+            cur_type_flags = np.empty_like(cur_particle_ids, dtype=np.int8)
+            cur_type_flags[:] = part_type
+            particle_types_list.append(cur_type_flags)
+
+        # concatenate data and select only desired
+        particle_ids = np.concatenate(particle_ids_list, axis=0)
+        particle_types = np.concatenate(particle_types_list, axis=0)
+
+        indices = selection.select_if_in(
+            particle_ids,
+            parent_ids,
+            mode="searchsort",
+            assume_subset=True,
+        )
+        np.testing.assert_equal(particle_ids[indices], parent_ids)
+        return particle_ids[indices], particle_types[indices]

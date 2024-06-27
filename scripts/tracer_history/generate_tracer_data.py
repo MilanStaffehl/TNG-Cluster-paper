@@ -10,7 +10,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.history.generate.generate_data import (
+from pipelines.tracer_history.generate.generate_data import (
     FindTracedParticleIDsInSnapshot,
     GenerateTNGClusterTracerIDsAtRedshiftZero,
 )
@@ -83,8 +83,9 @@ if __name__ == "__main__":
         help=(
             "The snapshot from which to start the analysis. This is the "
             "snapshot in which the `identify` run type will look for cool "
-            "gas and identify its tracers, and save the IDs of these tracers."
-            "Defaults to snapshot 99 (redshift zero)."
+            "gas and identify its tracers, and save the IDs of these tracers. "
+            "In all other modes, analysis will start from this snapshot and "
+            "go back in time. Defaults to snapshot 99 (redshift zero)."
         ),
         dest="start_snapshot",
         type=int,
