@@ -24,7 +24,8 @@ def load_tracers(
     base_path: str,
     snap_num: int,
     fields: list[str] | None = None,
-    cluster_id: int = -1
+    cluster_id: int = -1,
+    zoom_id: int = -1,
 ) -> TracerInfo:
     """
     Load tracer info from the given simulation and snapshot.
@@ -51,6 +52,9 @@ def load_tracers(
         to restrict the tracer data. Optional, defaults to -1 which is
         equivalent to loading all tracers from the simulation. Will not
         work for any simulation except TNG-Cluster and equivalent sims.
+    :param zoom_id: The ID of the zoom-in region to load. When specified,
+        this takes precedence over the ``cluster_id`` argument, i.e. if
+        specified, this zoom-in region will be loaded.
     :raises KeyError: When attempting to restrict tracer data to a
         zoom-in region for a simulation that does not have zoom-ins.
     :return: The tracer data as a dictionary mapping the field names to
@@ -60,9 +64,9 @@ def load_tracers(
     if fields is None:
         fields = ["TracerID", "ParentID"]
 
-    if cluster_id > -1:
+    if cluster_id > -1 or zoom_id > -1:
         tracer_data = _load_original_zoom_tracers(
-            base_path, snap_num, cluster_id, fields
+            base_path, snap_num, cluster_id, zoom_id, fields
         )
     else:
         tracer_data = il.snapshot.loadSubset(
@@ -88,7 +92,11 @@ def load_tracers(
 
 
 def _load_original_zoom_tracers(
-    base_path: str, snap_num: int, cluster_id: int, fields: list[str]
+    base_path: str,
+    snap_num: int,
+    cluster_id: int,
+    zoom_id: int,
+    fields: list[str],
 ) -> TracerInfo:
     """
     Load tracer data only for original zoom-in region of TNG-Cluster.
@@ -100,11 +108,13 @@ def _load_original_zoom_tracers(
     provide the ``GroupOrigHaloID`` field for halos), an error message
     is logged and a KeyError raised.
 
-    :param base_path:
-    :param snap_num:
-    :param cluster_id:
-    :param fields:
-    :return:
+    :param base_path: Base path of TNG-Cluster.
+    :param snap_num: The snapshot to load.
+    :param cluster_id: The ID of the cluster whose zoom-in to load.
+    :param zoom_id: The ID of the zoom-in region to load. Takes precedence
+        over ``cluster_id``.
+    :param fields: List of fields to load.
+    :return: Dictionary of tracer data.
     """
     base_path = Path(base_path)
     offset_file = base_path / "../postprocessing/offsets/offsets_099.hdf5"
@@ -118,12 +128,15 @@ def _load_original_zoom_tracers(
         )
         return {"count": 0}
 
-    # load cluster IDs to get to file index
-    with h5py.File(str(offset_file.resolve()), "r") as file:
-        cluster_ids = np.array(file["FileOffsets"]["Group"]).tolist()
+    if zoom_id > -1:
+        file_index = zoom_id
+    else:
+        # load cluster IDs to get to file index
+        with h5py.File(str(offset_file.resolve()), "r") as file:
+            cluster_ids = np.array(file["FileOffsets"]["Group"]).tolist()
+        file_index = cluster_ids.index(cluster_id)
 
     # load the tracer data from the two files
-    file_index = cluster_ids.index(cluster_id)
     snapshot_path = (base_path / f"snapdir_{snap_num:03d}/")
 
     fof_file = f"snap_{snap_num:03d}.{file_index}.hdf5"
