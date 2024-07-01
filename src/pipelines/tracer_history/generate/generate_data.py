@@ -180,6 +180,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             cluster_restrict=True,
         )
 
+        # Step 2: For every cluster, find the corresponding tracers
         for halo_id in cluster_data["IDs"]:
             self._generate_particle_indices(halo_id)
 
@@ -224,7 +225,10 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         if self.processes <= 1:
             logging.debug(f"Processing halo {halo_id}.")
         # Step 1: Load tracer IDs we wish to follow
-        filepath = self.paths["data_dir"] / "cool_gas_tracer_ids"
+        filepath = (
+            self.paths["data_dir"]
+            / f"cool_gas_tracer_ids_{self.config.snap_num}"
+        )
         filename = (
             f"tracer_ids_snapshot{self.config.snap_num}_cluster_"
             f"{halo_id}.npz"
@@ -259,6 +263,11 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         ids, ptypes = self._match_particle_ids_to_particles(
             selected_particle_ids, halo_id
         )
+        if self.processes <= 1:
+            logging.debug(
+                f"Found {len(ids)} particles matching the "
+                f"{len(selected_particle_ids)} tracer parent IDs."
+            )
 
         # Step 5: save particle IDs and type flag to file
         filepath = self.paths["data_dir"] / self.data_save_subdir
@@ -283,21 +292,23 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         Method takes a list of unique particle IDs of gas, star and BH
         particles, and finds the position of them inside the array of
         all particles of their respective type from a zoom-in region.
-        This means that the return value of this method is three arrays
-        which index the list of all gas, star and BH particles from a
-        zoom-in region respectively, such that the particles selected
-        have the particle IDs provided.
+        This means that the return value of this method is two arrays,
+        the first of which which indexes the list of all gas, star and
+        BH particles from a zoom-in region when concatenated into one
+        array of that order, while the second aray gives the particle
+        type as an integer flag (0 for gas, 4 for stars and wind, 5 for
+        black holes) so that the indices can be restricted to only one
+        particle type.
 
         :param parent_ids: Array of unique particle IDs to search for.
             Shape (N, ).
         :param cluster_id: ID of the cluster for which to load the
             zoom-in regions particles.
-        :return: Three arrays giving the indices into the list of particle
-            data for gas cells, star cells, and BH cells respectively,
-            such that the particles selected with these indices have
-            the particle IDs provided. Shapes (A, ), (B, ), and (C, ),
-            such that A + B + C = N. Note that in principle A, B and/or
-            C can be zero.
+        :return: Two arrays, the first giving the indices into the list
+            of particle data for gas cells, star cells, and BH cells
+            when concatenated in that order, and the second one giving
+            the particle type as an integer for every corresponding index.
+            This allows filtering the indices to only one particle type.
         """
         # gather all particle data for all three types
         particle_ids_list = []
