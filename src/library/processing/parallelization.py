@@ -73,7 +73,7 @@ def process_data_parallelized(
 
 
 def process_data_starmap(
-    callback: Callable[..., NDArray],
+    callback: Callable[..., NDArray | int],
     processes: int,
     *input_args: NDArray,
     chunksize: int | None = None,
@@ -93,7 +93,7 @@ def process_data_starmap(
     )
     ```
 
-    would result in the following parallelized function calls:
+    would result in the following parallelized function calls on 16 cores:
 
     ```
     myfunc(0, 5)
@@ -112,7 +112,7 @@ def process_data_starmap(
     :param callback: A function to process halo properties. Must take as
         many positional arguments as input args are given.
     :param processes: The number of processes to use.
-    :param *input_args: One-dimensional NDArrays of the same length. Must
+    :param input_args: One-dimensional NDArrays of the same length. Must
         be as many as ``callback`` takes positional arguments.
     :param chunksize: The number of halos to process per subprocess. If
         left empty, an appropriate chunk size will be automatically

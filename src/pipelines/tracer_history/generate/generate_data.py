@@ -7,11 +7,10 @@ import dataclasses
 import logging
 from typing import TYPE_CHECKING
 
-import illustris_python as il
 import numpy as np
 
-from library.data_acquisition import gas_daq, halos_daq, tracers_daq
-from library.processing import selection
+from library.data_acquisition import gas_daq, halos_daq, particle_daq, tracers_daq
+from library.processing import parallelization, selection
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -180,13 +179,32 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             cluster_restrict=True,
         )
 
-        # Step 2: For every cluster, find the corresponding tracers
-        for halo_id in cluster_data["IDs"]:
-            self._generate_particle_indices(halo_id)
+        # TODO: remove me!
+        cluster_data["IDs"] = cluster_data["IDs"][:4]
 
+        # Step 2: For every cluster, find the corresponding tracers
+        n_halos = len(cluster_data["IDs"])
+        if self.processes > 1:
+            parallelization.process_data_starmap(
+                self._generate_particle_indices,
+                self.processes,
+                cluster_data["IDs"],
+                np.linspace(0, n_halos - 1, n_halos),
+                chunksize=1,  # one halo per process
+            )
+        else:
+            for i, halo_id in enumerate(cluster_data["IDs"]):
+                self._generate_particle_indices(halo_id, i)
+
+        logging.info(
+            f"Completed job! Found particle indices for snapshot "
+            f"{self.snap_num} and saved them to file."
+        )
         return 0
 
-    def _generate_particle_indices(self, halo_id: int) -> int:
+    def _generate_particle_indices(
+        self, halo_id_at_zero: int, zoom_id: int
+    ) -> int:
         """
         Find indices of particles that end up in cool gas for this cluster.
 
@@ -200,7 +218,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
         The indices will be saved all together, with an additional
         array that identifies their particle type; the final data file
-        has two fields:
+        has two fields:selected
 
         - ``particle_ids``
         - ``particle_type``
@@ -217,13 +235,20 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         .. attention:: This function contains DEBUG level logs. When
             run in parallel, these will not be emitted!
 
-        :param halo_id: The ID of the halo. Must not be the original
-            halo ID but the actual halo ID.
+        :param halo_id_at_zero: The halo ID of the current halo at
+            redshift zero, i.e. in snapshot 99.
+        :param zoom_id: The ID of the zoom-in region.
         :return: Status of success. Zero for successful execution, one
             for failure to execute.
         """
+        # ensure correct type (needed for multi-processing)
+        if not isinstance(halo_id_at_zero, int):
+            halo_id_at_zero = int(halo_id_at_zero)
+        if not isinstance(zoom_id, int):
+            zoom_id = int(zoom_id)
+
         if self.processes <= 1:
-            logging.debug(f"Processing halo {halo_id}.")
+            logging.debug(f"Processing zoom-in {zoom_id}/352.")
         # Step 1: Load tracer IDs we wish to follow
         filepath = (
             self.paths["data_dir"]
@@ -231,7 +256,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         )
         filename = (
             f"tracer_ids_snapshot{self.config.snap_num}_cluster_"
-            f"{halo_id}.npz"
+            f"{halo_id_at_zero}.npz"
         )
         with np.load(filepath / filename) as data_file:
             selected_tracers = data_file["tracer_ids"]
@@ -242,7 +267,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
         # Step 2: load tracers at the current snapshot
         tracer_data = tracers_daq.load_tracers(
-            self.config.base_path, self.snap_num, cluster_id=halo_id
+            self.config.base_path, self.snap_num, zoom_id=zoom_id
         )
 
         # Step 3: match selected IDs to all IDs, find parent IDs
@@ -261,7 +286,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
         # Step 4: match selected parent IDs to particles
         ids, ptypes = self._match_particle_ids_to_particles(
-            selected_particle_ids, halo_id
+            selected_particle_ids, zoom_id
         )
         if self.processes <= 1:
             logging.debug(
@@ -271,20 +296,20 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
         # Step 5: save particle IDs and type flag to file
         filepath = self.paths["data_dir"] / self.data_save_subdir
-        filename = f"particle_ids_halo_{halo_id}.npz"
+        filename = f"particle_ids_zoom_region_{zoom_id}.npz"
         np.savez(
             filepath / filename,
             particle_ids=ids,
             particle_type=ptypes,
         )
         if self.processes <= 1:
-            logging.debug(f"Saved indices to file {filename}.")
+            logging.debug(f"Saved indices to file '{filename}'.")
         return 0
 
     def _match_particle_ids_to_particles(
         self,
         parent_ids: NDArray,
-        cluster_id: int,
+        zoom_id: int,
     ) -> tuple[NDArray, NDArray]:
         """
         Return indices of particles with the given particle IDs.
@@ -293,7 +318,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         particles, and finds the position of them inside the array of
         all particles of their respective type from a zoom-in region.
         This means that the return value of this method is two arrays,
-        the first of which which indexes the list of all gas, star and
+        the first of which indexes the list of all gas, star and
         BH particles from a zoom-in region when concatenated into one
         array of that order, while the second aray gives the particle
         type as an integer flag (0 for gas, 4 for stars and wind, 5 for
@@ -316,12 +341,11 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
         # load data and append it to lists
         for part_type in [0, 4, 5]:
-            cur_particle_ids = il.snapshot.loadOriginalZoom(
+            cur_particle_ids = particle_daq.get_particle_ids(
                 self.config.base_path,
                 self.snap_num,
-                cluster_id,
-                partType=part_type,
-                fields=["ParticleIDs"],
+                part_type=part_type,
+                zoom_id=zoom_id,
             )
             if cur_particle_ids.size == 0:
                 continue  # no particle data available, skip

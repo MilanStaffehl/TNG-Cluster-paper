@@ -221,6 +221,7 @@ class DiagnosticsPipeline(Pipeline):
     """
 
     def __post_init__(self):
+        tracemalloc.start()
         return super().__post_init__()
 
     @abstractmethod
