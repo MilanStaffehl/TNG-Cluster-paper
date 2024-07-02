@@ -179,11 +179,12 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             cluster_restrict=True,
         )
 
-        # TODO: remove me!
-        cluster_data["IDs"] = cluster_data["IDs"][:4]
-
         # Step 2: For every cluster, find the corresponding tracers
         n_halos = len(cluster_data["IDs"])
+        logging.debug(
+            f"Will process {n_halos} halos in {self.processes} processes."
+        )
+        # depending on number of processes, use multiprocessing or not:
         if self.processes > 1:
             parallelization.process_data_starmap(
                 self._generate_particle_indices,
