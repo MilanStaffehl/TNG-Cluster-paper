@@ -108,11 +108,17 @@ def _load_original_zoom_particle_ids(
     snapshot_path = base_path + f"/snapdir_{snap_num:03d}/"
     fof_file = f"snap_{snap_num:03d}.{zoom_id}.hdf5"
     with h5py.File(str(snapshot_path + fof_file), "r") as file:
-        particle_ids_fof = file[f"PartType{part_type}"]["ParticleIDs"][()]
+        try:
+            particle_ids_fof = file[f"PartType{part_type}"]["ParticleIDs"][()]
+        except KeyError:
+            particle_ids_fof = np.empty((0, ), dtype=np.uint64)
 
     fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
     with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
-        particle_ids_fuzz = file[f"PartType{part_type}"]["ParticleIDs"][()]
+        try:
+            particle_ids_fuzz = file[f"PartType{part_type}"]["ParticleIDs"][()]
+        except KeyError:
+            particle_ids_fuzz = np.empty((0, ), dtype=np.uint64)
 
     # concatenate data
     return np.concatenate([particle_ids_fof, particle_ids_fuzz], axis=0)
