@@ -3,6 +3,7 @@ Utilities for unit conversion.
 """
 from typing import ClassVar, TypeVar
 
+import numpy as np
 from numpy.typing import NDArray
 
 from library import constants
@@ -55,6 +56,7 @@ class UnitConverter:
                 "Coordinates",
             ],  # noqa: E123
         "velocityLike": ["Velocities"],
+        "groupVelocityLike": ["GroupVel"],
         "sfrLike": ["GroupSFR", "StarFormationRate", "SubhaloSFR"],
         "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],
         "energyLike": ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"],
@@ -89,12 +91,13 @@ class UnitConverter:
         return supported
 
     @classmethod
-    def convert(cls, quantity: N, field: str) -> N:
+    def convert(cls, quantity: N, field: str, snap_num: int = 99) -> N:
         """
         Automatically convert the quantity into physical units.
 
         :param quantity: Quantitiy in code units.
         :param field: Name of the field of the quantity.
+        :param snap_num: Number of the snapshot in which unit is located.
         :raises UnsupportedUnitError: When the field has no supported
             unit conversion available.
         :return: Quantity in physical units.
@@ -104,7 +107,9 @@ class UnitConverter:
         elif field in cls.fields["distanceLike"]:
             return cls.convert_distancelike(quantity)
         elif field in cls.fields["velocityLike"]:
-            return quantity
+            return cls.convert_velocitylike(quantity, snap_num)
+        elif field in cls.fields["groupVelocityLike"]:
+            return cls.convert_groupvelocitylike(quantity, snap_num)
         elif field in cls.fields["massFlowLike"]:
             return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:
@@ -137,6 +142,30 @@ class UnitConverter:
         :return: Distance-like quantity in ckpc.
         """
         return quantity / constants.HUBBLE
+
+    @staticmethod
+    def convert_velocitylike(quantity: N, snap_num: int) -> N:
+        """
+        Return the velocity-like quantity in km/s.
+
+        :param quantity: Velocity-like quantity in km/s * sqrt(a).
+        :param snap_num: The snapshot number.
+        :return: Velocity-like quantity in km/s.
+        """
+        a = 1 / (1 + constants.REDSHIFTS[snap_num])
+        return quantity * np.sqrt(a)
+
+    @staticmethod
+    def convert_groupvelocitylike(quantity: N, snap_num: int) -> N:
+        """
+        Return the group-velocity-like quantity in km/s.
+
+        :param quantity: Velocity-like quantity in km/s/sqrt(a).
+        :param snap_num: The snapshot number.
+        :return: Group-velocity-like in km/s.
+        """
+        a = 1 / (1 + constants.REDSHIFTS[snap_num])
+        return quantity / a
 
     @staticmethod
     def convert_massflowlike(quantity: N) -> N:

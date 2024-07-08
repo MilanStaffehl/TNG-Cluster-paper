@@ -119,7 +119,10 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         halo_radii[:self.n300] = tng_300_data[self.config.radius_field]
         # Load masses for TNG-Cluster
         cluster_fields = [
-            self.config.mass_field, self.config.radius_field, "GroupPos"
+            self.config.mass_field,
+            self.config.radius_field,
+            "GroupPos",
+            "GroupVel",
         ]
         tng_cluster_data = halos_daq.get_halo_properties(
             self.tngclstr_basepath,
@@ -203,6 +206,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             lim = 0.05 if self.core_only else 2.0
             radial_vel_in_cluster = compute.get_radial_velocities(
                 tng_cluster_data["GroupPos"][i],
+                tng_cluster_data["GroupVel"][i],
                 masked_data["Coordinates"][distances <= lim],
                 masked_data["Velocities"][distances <= lim],
             )

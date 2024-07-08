@@ -123,7 +123,12 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
         begin = time.time()
 
         # Step 1: acquire halo data
-        fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
+        fields = [
+            self.config.mass_field,
+            self.config.radius_field,
+            "GroupPos",
+            "GroupVel",
+        ]
         halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
@@ -190,6 +195,7 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
                 gas_data,
                 halo_id,
                 selected_halos["GroupPos"][i],
+                selected_halos["GroupVel"][i],
                 selected_halos[self.config.radius_field][i],
             )
             # save data to file
@@ -300,6 +306,7 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
         gas_data: dict[str, NDArray],
         halo_id: int,
         halo_pos: NDArray,
+        halo_vel: NDArray,
         halo_radius: float,
     ) -> dict[str, NDArray]:
         """
@@ -314,6 +321,8 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
         :param halo_id: ID of the halo.
         :param halo_pos: The 3D cartesian vector giving the coordinates
             of the halo position. In units of kpc.
+        :param halo_vel: The peculiar velocity 3D vector of the halo in
+            km/s.
         :param halo_radius: The virial radius of the halo in units of
             kpc.
         :return: The dictionary of gas data, but only containing as
@@ -347,8 +356,9 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
         # calculate radial velocities
         radial_vel = compute.get_radial_velocities(
             halo_pos,
+            halo_vel,
             restricted_gas_data["Coordinates"],
-            restricted_gas_data["Velocities"]
+            restricted_gas_data["Velocities"],
         )
         restricted_gas_data.update({"RadialVelocities": radial_vel})
 

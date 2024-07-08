@@ -121,30 +121,37 @@ def get_virial_temperature_only_mass(mass: float | NDArray) -> NDArray:
 
 
 def get_radial_velocities(
-    center: NDArray, positions: NDArray, velocities: NDArray
+    center: NDArray,
+    halo_velocity: NDArray,
+    positions: NDArray,
+    velocities: NDArray,
 ) -> NDArray:
     """
     Calculate the radial velocities in direction of ``center``.
 
     The returned array is the radial velocities. Positive value denote
-    velocities towards the center, negative velocities denote velocities
-    away from the center.
+    velocities away from the center (outflowing), negative velocities
+    denote velocities towards the center (infalling).
 
     :param center: Position vector of the center of the sphere, shape
         (3, ).
+    :param halo_velocity: Velocity vector of the halo center, shape
+        (3, 0). Must be in units of km/s. Set this to ``[0, 0, 0]`` if
+        the velocities are already w.r.t. the halo center.
     :param positions: Array of position vectors of the objects whose
         radial velocity to find. Shape (N, 3).
     :param velocities: Array of velocity vectors of the objects for
-        which to find the radial velocity w.r.t. center. Shape (N, 3).
+        which to find the radial velocity. Shape (N, 3).
     :return: Array of shape (N, ) of velocity components of the given
         velocities in direction of the center. Positive values denote
-        velocity towards center, negative values denote velocity away
-        from center. In units of km/s.
+        velocity away from the halo center, negative values denote
+        velocity towards the halo center. In units of km/s.
     """
+    relative_vel = velocities - halo_velocity
     radial_vectors = positions - center
     norms = np.linalg.norm(radial_vectors, axis=1)
     unit_vectors = np.divide(radial_vectors, norms[:, np.newaxis])
-    return np.sum(velocities * unit_vectors, axis=1)  # pair-wise dot product
+    return np.sum(relative_vel * unit_vectors, axis=1)  # pair-wise dot product
 
 
 def get_virial_velocity(

@@ -134,7 +134,12 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             )
 
         # Step 1: acquire halo data
-        fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
+        fields = [
+            self.config.mass_field,
+            self.config.radius_field,
+            "GroupPos",
+            "GroupVel"
+        ]
         halo_data = halos_daq.get_halo_properties(
             self.config.base_path, self.config.snap_num, fields=fields
         )
@@ -159,6 +164,10 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             "positions":
                 selection.mask_quantity(
                     halo_data["GroupPos"], mask, index=2, compress=True
+                ),
+            "velocities":
+                selection.mask_quantity(
+                    halo_data["GroupVel"], mask, index=2, compress=True
                 ),
             "radii":
                 selection.mask_quantity(
@@ -245,6 +254,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             kwargs = {
                 "halo_id": selected_halos["ids"][i],
                 "halo_position": selected_halos["positions"][i],
+                "halo_velocity": selected_halos["velocities"][i],
                 "halo_mass": selected_halos["masses"][i],
                 "virial_radius": selected_halos["radii"][i],
                 "virial_temperature": selected_halos["virial_temperatures"][i],
@@ -338,6 +348,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         self,
         halo_id: int,
         halo_position: NDArray,
+        halo_velocity: NDArray,
         halo_mass: float,
         virial_radius: float,
         virial_temperature: float,
@@ -350,6 +361,8 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :param halo_id: The ID of the halo.
         :param halo_position: The 3D vector pointing to the position
             of the halo, in units of kpc.
+        :param halo_velocity: The 3D vector of the halo peculiar velocity
+            in units of km/s
         :param halo_mass: The mass of the halo in units of solar masses.
         :param virial_radius: The virial radius of the halo, in units
             of kpc.
@@ -363,7 +376,12 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :return: None
         """
         restricted_gas_data = self._restrict_gas_data_to_halo(
-            gas_data, halo_id, halo_position, virial_radius, positions_tree
+            gas_data,
+            halo_id,
+            halo_position,
+            halo_velocity,
+            virial_radius,
+            positions_tree
         )
 
         # weight by gas mass
@@ -429,6 +447,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         self,
         halo_id: int,
         halo_position: NDArray,
+        halo_velocity: NDArray,
         halo_mass: float,
         virial_radius: float,
         gas_data: dict[str, NDArray],
@@ -440,6 +459,8 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         :param halo_id: The ID of the halo.
         :param halo_position: The 3D vector pointing to the position
             of the halo, in units of kpc.
+        :param halo_velocity: The 3D vector of the peculiar velocity of
+            the halo in km/s.
         :param halo_mass: The mass of the halo in units of solar masses.
         :param virial_radius: The viriral radius of the halo, in units
             of kpc.
@@ -452,7 +473,12 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         """
         logging.debug(f"Processing halo {halo_id} into plot.")
         restricted_gas_data = self._restrict_gas_data_to_halo(
-            gas_data, halo_id, halo_position, virial_radius, positions_tree
+            gas_data,
+            halo_id,
+            halo_position,
+            halo_velocity,
+            virial_radius,
+            positions_tree
         )
 
         # bin gas particles by temperature:
@@ -586,6 +612,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         gas_data: dict[str, NDArray],
         halo_id: int,
         halo_pos: NDArray,
+        halo_vel: NDArray,
         halo_radius: float,
         positions_tree: KDTree | None
     ) -> dict[str, NDArray]:
@@ -643,8 +670,9 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             # calculate radial velocities
             radial_vel = compute.get_radial_velocities(
                 halo_pos,
+                halo_vel,
                 restricted_gas_data["Coordinates"],
-                restricted_gas_data["Velocities"]
+                restricted_gas_data["Velocities"],
             )
             restricted_gas_data.update({"RadialVelocities": radial_vel})
             if self.to_file:
@@ -1033,7 +1061,12 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
         begin = time.time()
 
         # Step 1: Load and restrict halo data from TNG Cluster
-        fields = [self.config.mass_field, self.config.radius_field, "GroupPos"]
+        fields = [
+            self.config.mass_field,
+            self.config.radius_field,
+            "GroupPos",
+            "GroupVel",
+        ]
         halo_data = halos_daq.get_halo_properties(
             self.config.base_path,
             self.config.snap_num,
@@ -1089,6 +1122,7 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
                 self._process_halo_temperature_profile(
                     halo_id,
                     halo_data["GroupPos"][i],
+                    halo_data["GroupVel"][i],
                     halo_data[self.config.mass_field][i],
                     halo_data[self.config.radius_field][i],
                     halo_data["VirialTemperature"][i],
@@ -1103,6 +1137,7 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
                 )
                 radial_velocities = compute.get_radial_velocities(
                     halo_data["GroupPos"][i],
+                    halo_data["GroupVel"][i],
                     gas_data["Coordinates"],
                     gas_data["Velocities"],
                 )
@@ -1110,6 +1145,7 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
                 self._process_halo_density_profile(
                     halo_id,
                     halo_data["GroupPos"][i],
+                    halo_data["GroupVel"][i],
                     halo_data[self.config.mass_field][i],
                     halo_data[self.config.radius_field][i],
                     gas_data,

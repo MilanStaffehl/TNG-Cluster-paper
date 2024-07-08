@@ -91,7 +91,19 @@ def test_compute_get_radial_velocities():
     test_center = np.array([1, 2])
     pos = np.array([[2, 2], [2, 3], [2, 1], [1, 1], [1, 3]])
     vel = np.array([[0, 1], [1, 1], [-1, 1], [1, -1], [1, -1]])
-    expected = np.array([0, np.sqrt(2), -np.sqrt(2), 1, -1])
 
-    output = compute.get_radial_velocities(test_center, pos, vel)
+    # velocities are w.r.t. halo center
+    test_group_vel = np.array([0, 0])
+    expected = np.array([0, np.sqrt(2), -np.sqrt(2), 1, -1])
+    output = compute.get_radial_velocities(
+        test_center, test_group_vel, pos, vel
+    )
+    np.testing.assert_allclose(output, expected, rtol=1e-4)
+
+    # halo has its own peculiar velocity
+    test_group_vel = np.array([1, -1])
+    expected = np.array([-1, np.sqrt(2), -2 * np.sqrt(2), 0, 0])
+    output = compute.get_radial_velocities(
+        test_center, test_group_vel, pos, vel
+    )
     np.testing.assert_allclose(output, expected, rtol=1e-4)

@@ -138,6 +138,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
 
         # Step 3: Load group data for TNG-Cluster
         fields.append("GroupPos")
+        fields.append("GroupVel")
         tngclstr_data = halos_daq.get_halo_properties(
             self.tngclstr_basepath,
             self.config.snap_num,
@@ -156,6 +157,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
             gas_data = self._get_tngclstr_gas_data(
                 halo_id,
                 tngclstr_data["GroupPos"][i],
+                tngclstr_data["GroupVel"][i],
                 tngclstr_data[self.config.radius_field][i],
             )
             histograms, edges = self._get_profile_of_cluster(
@@ -350,6 +352,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
         self,
         halo_id: int,
         halo_pos: NDArray,
+        halo_vel: NDArray,
         halo_radius: float,
     ) -> dict[str, NDArray]:
         """
@@ -391,6 +394,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
         ) / halo_radius
         radial_velocities = compute.get_radial_velocities(
             halo_pos,
+            halo_vel,
             gas_data["Coordinates"],
             gas_data["Velocities"],
         )
