@@ -11,6 +11,7 @@ sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
 from pipelines.tracer_history.generate.generate_data import (
+    ArchiveTNGClusterTracerDataPipeline,
     FindTracedParticleIDsInSnapshot,
     GenerateTNGClusterTracerIDsAtRedshiftZero,
 )
@@ -38,6 +39,9 @@ def main(args: argparse.Namespace) -> None:
                 sys.exit(2)
             pipeline = FindTracedParticleIDsInSnapshot
             pipeline_config.update({"snap_num": args.snap_num})
+        case "archive":
+            pipeline_config.update({"unlink": args.unlink})
+            pipeline = ArchiveTNGClusterTracerDataPipeline
         case _:
             logging.fatal(f"Unknown run type: {args.runtype}")
             sys.exit(1)
@@ -60,10 +64,12 @@ if __name__ == "__main__":
         help=(
             "The type of pipeline to run. Options are `identify` to "
             "find the tracer IDs of tracers in cool gas at redshift zero,"
-            "or `trace-back` to save to file the indices of particles in a"
-            "specified snapshot that end up in cool gas at redshift zero."
+            "`trace-back` to save to file the indices of particles in a"
+            "specified snapshot that end up in cool gas at redshift zero,"
+            "or `archive` to combine all data files into one h5f5 archive "
+            "and optionally clean up intermediate files."
         ),
-        choices=["identify", "trace-back"],
+        choices=["identify", "trace-back", "archive"],
         default="identify",
         metavar="RUNTYPE",
     )
@@ -72,7 +78,7 @@ if __name__ == "__main__":
         "--snap-num",
         help=(
             "The snapshot to process. Has no effect when using run type "
-            "`identify`."
+            "`identify` or `archive`."
         ),
         dest="snap_num",
         type=int,
@@ -90,6 +96,17 @@ if __name__ == "__main__":
         dest="start_snapshot",
         type=int,
         default=99,
+    )
+    parser.add_argument(
+        "-u",
+        "--unlink",
+        help=(
+            "Used in run type `archive`. When set, all intermediate files "
+            "created by the `trace-back` mode will be deleted after creating "
+            "the hdf5 archive. Has no effect for all other run types."
+        ),
+        dest="unlink",
+        action="store_true",
     )
 
     # parse arguments

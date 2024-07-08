@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
+import h5py
 import numpy as np
 
 from library.data_acquisition import gas_daq, halos_daq, particle_daq, tracers_daq
@@ -328,8 +329,8 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
 
         :param parent_ids: Array of unique particle IDs to search for.
             Shape (N, ).
-        :param cluster_id: ID of the cluster for which to load the
-            zoom-in regions particles.
+        :param zoom_id: ID of the zoom-in region for which to load the
+            particles.
         :return: Two arrays, the first giving the indices into the list
             of particle data for gas cells, star cells, and BH cells
             when concatenated in that order, and the second one giving
@@ -368,3 +369,126 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         )
         np.testing.assert_equal(particle_ids[indices], parent_ids)
         return particle_ids[indices], particle_types[indices]
+
+
+@dataclasses.dataclass
+class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
+    """
+    Write created tracer data to common hdf5 archive and clean up.
+
+    This pipeline finds all tracer data files and places them into a
+    single, common hdf5 file and deletes the files it read afterward.
+    """
+
+    unlink: bool = False
+    n_clusters: ClassVar[int] = 352
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.filepath = (
+            self.paths["data_dir"] / "particle_ids" / "TNG_Cluster"
+            / f"particle_ids_from_snapshot_{self.config.snap_num}.hdf5"
+        )
+
+    def run(self) -> int:
+        """
+        Read tracer data and write it to hdf5 file.
+
+        :return: Exit code.
+        """
+        # Step 0: check all files and directories exist
+        self._create_directories(
+            subdirs=["particle_ids/TNG_Cluster"], force=True
+        )
+
+        logging.info("Checking all required intermediate files exist.")
+        files_exist = True
+        for snap_num in range(100):
+            for zoom_id in range(self.n_clusters):
+                data_subdir = f"particle_ids/snapshot_{snap_num:02d}/"
+                filepath = self.paths["data_dir"] / data_subdir
+                filename = f"particle_ids_zoom_region_{zoom_id}.npz"
+                if not (filepath / filename).exists():
+                    files_exist = False
+                    logging.error(f"Missing file {filename}.")
+        if not files_exist:
+            logging.fatal(
+                "Not all required tracer data files were found. Aborting "
+                "execution."
+            )
+            return 1
+
+        # Step 1: Create a hdf5 archive and its structure from snap 99
+        logging.info("Creating hdf5 archive.")
+        f = h5py.File(self.filepath, "w")
+        snapdir_99 = self.paths["data_dir"] / "particle_ids/snapshot_99/"
+        for zoom_id in range(self.n_clusters):
+            # create hdf5 group for current zoom-in region
+            grp = f.create_group(f"ZoomRegion_{zoom_id:03d}")
+
+            # load data from .npz archive
+            npz_filename = f"particle_ids_zoom_region_{zoom_id}.npz"
+            with np.load(snapdir_99 / npz_filename, "r") as orig_data:
+                indices = orig_data["particle_ids"]
+                type_flags = orig_data["particle_type"]
+
+            # write data to the hdf5 file
+            grp.create_dataset(
+                "particle_indices",
+                shape=(100, indices.size),
+                dtype=indices.dtype,
+            )
+            f[f"{grp.name}/particle_indices"][99, :] = indices
+            grp.create_dataset(
+                "particle_type_flags",
+                shape=(100, type_flags.size),
+                dtype=type_flags.dtype,
+            )
+            f[f"{grp.name}/particle_type_flags"][99, :] = type_flags
+
+            # clean-up
+            if self.unlink:
+                (snapdir_99 / npz_filename).unlink()  # delete old archive
+
+        # Step 2: go through archives and add them to the file
+        for snap_num in range(99):
+            logging.info(f"Archiving data from snapshot {snap_num}.")
+            snapdir = (
+                self.paths["data_dir"]
+                / f"particle_ids/snapshot_{snap_num:03d}/"
+            )
+            for zoom_id in range(self.n_clusters):
+                # load data from .npz archive
+                npz_filename = f"particle_ids_zoom_region_{zoom_id}.npz"
+                with np.load(snapdir / npz_filename, "r") as orig_data:
+                    indices = orig_data["particle_ids"]
+                    type_flags = orig_data["particle_type"]
+
+                # write data to the hdf5 file
+                group = f"ZoomRegion_{zoom_id:03d}"
+                f[f"{group}/particle_indices"][snap_num, :] = indices
+                f[f"{group}/particle_type_flags"][snap_num, :] = type_flags
+
+                # clean-up
+                if self.unlink:
+                    logging.debug(
+                        f"Unlinking intermediate file "
+                        f"{snapdir / npz_filename}."
+                    )
+                    (snapdir / npz_filename).unlink()  # delete old archive
+
+            # clean-up (hopefully) empty dir
+            if self.unlink:
+                logging.debug(f"Cleaning up empty directory {snapdir}.")
+                try:
+                    snapdir.rmdir()
+                except OSError:
+                    logging.error(
+                        f"Unable to remove directory {snapdir}: Directory is "
+                        f"not empty. Manual clean-up is required."
+                    )
+
+        # Step 3: close file
+        f.close()
+        logging.info(f"Successfully wrote all data to file {self.filepath}!")
+        return 0
