@@ -1168,6 +1168,7 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
         gas_data: dict[str, NDArray],
         halo_id: int,
         halo_pos: NDArray,
+        halo_vel: NDArray,
         halo_radius: float,
         positions_tree: KDTree | None
     ) -> dict[str, NDArray]:
@@ -1180,6 +1181,7 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
         :param gas_data: Dictionary of gas data for the TNG-Cluster halo.
         :param halo_id: Dummy parameter.
         :param halo_pos: Dummy parameter.
+        :param halo_vel: Dummy parameter.
         :param halo_radius: Dummy parameter.
         :param positions_tree: Dummy parameter.
         :return: ``gas_data``, unaltered (as it is already restricted).

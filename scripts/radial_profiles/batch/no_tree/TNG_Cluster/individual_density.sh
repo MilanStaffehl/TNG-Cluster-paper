@@ -7,7 +7,7 @@
 #SBATCH --partition=p.large
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=2:00:00
+#SBATCH --time=3:00:00
 
 module purge
 module load gcc/13 impi/2021.9

@@ -7,7 +7,7 @@
 #SBATCH --partition=p.huge
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=700GB
+#SBATCH --mem=900GB
 #SBATCH --time=3:00:00
 
 module purge

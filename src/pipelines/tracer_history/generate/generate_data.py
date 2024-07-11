@@ -410,7 +410,7 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
                 filename = f"particle_ids_zoom_region_{zoom_id}.npz"
                 if not (filepath / filename).exists():
                     files_exist = False
-                    logging.error(f"Missing file {filename}.")
+                    logging.error(f"Missing file {filepath}/{filename}.")
         if not files_exist:
             logging.fatal(
                 "Not all required tracer data files were found. Aborting "
@@ -455,7 +455,7 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
             logging.info(f"Archiving data from snapshot {snap_num}.")
             snapdir = (
                 self.paths["data_dir"]
-                / f"particle_ids/snapshot_{snap_num:03d}/"
+                / f"particle_ids/snapshot_{snap_num:02d}/"
             )
             for zoom_id in range(self.n_clusters):
                 # load data from .npz archive

@@ -4,8 +4,9 @@
 #SBATCH -e ./output/err.%j
 #SBATCH -D ./
 #SBATCH -J M3I3DCS
-#SBATCH --partition=p.large
-# SBATCH --nodes=1            # request a full node
+#SBATCH --partition=p.huge
+#SBATCH --mem=900GB
+#SBATCH --nodes=1            # request a full node
 #SBATCH --ntasks-per-node=1   # only start 1 task via srun because Python multiprocessing starts more tasks internally
 #SBATCH --cpus-per-task=1    # assign all the cores to that first task to make room for Python's multiprocessing tasks
 #SBATCH --time=2:00:00       # maximum time the job is allowed to take
