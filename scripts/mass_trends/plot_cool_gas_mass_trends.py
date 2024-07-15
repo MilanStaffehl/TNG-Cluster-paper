@@ -8,7 +8,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.mass_trends.cool_gas_fracs_clusters_ import (
+from pipelines.mass_trends.cool_gas_fracs_clusters import (
     ClusterCoolGasFromFilePipeline,
     ClusterCoolGasMassTrendPipeline,
 )

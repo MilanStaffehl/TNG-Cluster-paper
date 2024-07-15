@@ -371,7 +371,7 @@ relaxedness-by-mass:
     caps: both
   dev-config:
     default-scale: log
-    limits-log: [ -0.1, 0.1 ]
+    limits-log: [ -0.1, 0.05 ]
     limits-linear: [ 0, 4 ]
 
 formation-redshift:

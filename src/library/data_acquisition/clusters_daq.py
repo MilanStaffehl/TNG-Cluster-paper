@@ -949,14 +949,32 @@ def _get_relaxedness_dist(
     :return: Array of relaxedness according to distance criterion.
     """
     relaxedness = np.zeros(N_CLUSTERS)
-    relaxedness[:N_TNG300] = np.nan
+
+    # TNG300-1
+    base_path = Path(config.get_simulation_base_path("TNG300-1"))
+    path = (
+        base_path.parent / "postprocessing" / "Relaxedness"
+        / f"relaxedness_{snap_num}.hdf5"
+    )
+    with h5py.File(path, "r") as file:
+        all_relaxedness = file["Halo"]["Distance_Criterion"][()]
+    # index only desired entries
+    halo_data = halos_daq.get_halo_properties(
+        str(base_path),
+        snap_num,
+        [mass_field],
+    )
+    cluster_data = selection.select_clusters(halo_data, mass_field)
+    relaxedness[:N_TNG300] = all_relaxedness[cluster_data["IDs"]]
+
+    # TNG-Cluster
     path = (
         Path(config.get_simulation_base_path("TNG-Cluster")).parent
         / "postprocessing" / "released" / "Relaxedness.hdf5"
     )
     with h5py.File(path, "r") as file:
         relaxedness[N_TNG300:] = np.array(
-            file["Halo"]["Distance_Criterion"][99]
+            file["Halo"]["Distance_Criterion"][snap_num]
         )
     return relaxedness
 
@@ -970,13 +988,33 @@ def _get_relaxedness_mass(
     :return: Array of relaxedness according to mass criterion.
     """
     relaxedness = np.zeros(N_CLUSTERS)
-    relaxedness[:N_TNG300] = np.nan
+
+    # TNG300-1
+    base_path = Path(config.get_simulation_base_path("TNG300-1"))
+    path = (
+        base_path.parent / "postprocessing" / "Relaxedness"
+        / f"relaxedness_{snap_num}.hdf5"
+    )
+    with h5py.File(path, "r") as file:
+        all_relaxedness = file["Halo"]["Mass_Criterion"][()]
+    # index only desired entries
+    halo_data = halos_daq.get_halo_properties(
+        str(base_path),
+        snap_num,
+        [mass_field],
+    )
+    cluster_data = selection.select_clusters(halo_data, mass_field)
+    relaxedness[:N_TNG300] = all_relaxedness[cluster_data["IDs"]]
+
+    # TNG-Cluster
     path = (
         Path(config.get_simulation_base_path("TNG-Cluster")).parent
         / "postprocessing" / "released" / "Relaxedness.hdf5"
     )
     with h5py.File(path, "r") as file:
-        relaxedness[N_TNG300:] = np.array(file["Halo"]["Mass_Criterion"][99])
+        relaxedness[N_TNG300:] = np.array(
+            file["Halo"]["Mass_Criterion"][snap_num]
+        )
     return relaxedness
 
 
@@ -988,9 +1026,12 @@ def _get_formation_redshift(
 
     :return: Formation redshifts only for TNG-Cluster clusters.
     """
-    # Load data for TNG-Cluster
     formation_z = np.zeros(N_CLUSTERS)
-    formation_z[:N_TNG300] = np.nan
+
+    # TNG300-1
+    formation_z[:N_TNG300] = np.nan  # no data yet
+
+    # TNG-Cluster
     path = (
         Path(config.get_simulation_base_path("TNG-Cluster")).parent
         / "postprocessing" / "released" / "FormationHistories.hdf5"

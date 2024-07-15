@@ -10,7 +10,7 @@ sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
 from library.config import config, logging_config
-from pipelines.mass_trends.cool_gas_fracs_clusters_ import (
+from pipelines.mass_trends.cool_gas_fracs_clusters import (
     ClusterCoolGasMassTrendPipeline,
 )
 
