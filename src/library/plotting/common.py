@@ -6,6 +6,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Sequence
 
+import numpy as np
+
+from library import constants
+
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.colors import Colormap, Normalize
@@ -239,3 +243,24 @@ def plot_scatterplot(
         figure.colorbar(sc, ax=axes, label=cbar_label, extend=cbar_caps)
 
     return figure, axes
+
+
+def make_redshift_plot(axes: Axes) -> NDArray:
+    """
+    Prepare the given axes to be a plot over redshift.
+
+    Function adds two x-axes to the given ``Axes`` object: one for
+    redshift at the bottom of the figure and one for lookback time at
+    the top. It returns a list of redshift values to use for this type
+    of plot. This array has shape (100, ) and assumes that one data
+    point for every snapshot will be made.
+
+    :param axes: The axis object whose x-axis to transform into a
+        redshift axis.
+    :return: An array of 100 x-values equivalent to the redshifts of
+        the 100 snapshots of the TNG simulations to use in plotting.
+    """
+    axes.set_xlabel("Redshift")
+    xticks = np.array([0, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10])
+    axes.set_xticks(np.log10(xticks + 0.01), labels=xticks)
+    return np.log10(np.array(constants.REDSHIFTS) + 0.01)

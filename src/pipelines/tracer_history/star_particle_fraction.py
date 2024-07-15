@@ -10,7 +10,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 
-from library import constants
+from library.plotting import common as common_plt
 from pipelines.base import Pipeline
 
 
@@ -45,10 +45,8 @@ class PlotStarParticleFractionPipeline(Pipeline):
 
         # Step 3: Create a figure
         fig, axes = plt.subplots()
-        axes.set_xlabel("Redshift")
+        xs = common_plt.make_redshift_plot(axes)
         axes.set_ylabel("Tracer fraction in stars & wind")
-        xticks = [0, 0.01, 0.1, 0.2, 0.5, 1, 2, 3, 5, 10]
-        axes.set_xticks(np.log10(xticks), labels=xticks)
         plot_config = {
             "linestyle": "solid",
             "marker": "none",
@@ -57,11 +55,9 @@ class PlotStarParticleFractionPipeline(Pipeline):
         }
 
         # Step 4: go through clusters and plot their star fraction
-        xs = np.log10(constants.REDSHIFTS)
         for zoom_id in range(352):
             type_flags = f[f"ZoomRegion_{zoom_id:03d}/particle_type_flags"][()]
             stars = np.count_nonzero(type_flags == 4, axis=1)
-            logging.debug(stars)
             star_frac = stars / type_flags.shape[1]
             star_part_frac[zoom_id] = star_frac
             axes.plot(xs, star_frac, **plot_config)
