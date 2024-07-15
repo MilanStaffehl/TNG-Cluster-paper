@@ -55,7 +55,7 @@ def main(args: argparse.Namespace) -> None:
         pipeline = FromFilePipeline(**pipeline_config)
     else:
         pipeline = IndividualsMassTrendPipeline(**pipeline_config)
-    pipeline.run()
+    sys.exit(pipeline.run())
 
 
 if __name__ == "__main__":

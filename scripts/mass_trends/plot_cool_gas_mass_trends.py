@@ -54,7 +54,7 @@ def main(args: argparse.Namespace) -> None:
         pipeline = ClusterCoolGasFromFilePipeline(**pipeline_config)
     else:
         pipeline = ClusterCoolGasMassTrendPipeline(**pipeline_config)
-    pipeline.run()
+    sys.exit(pipeline.run())
 
 
 if __name__ == "__main__":

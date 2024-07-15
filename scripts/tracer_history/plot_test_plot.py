@@ -33,7 +33,7 @@ def main(args: argparse.Namespace) -> None:
         pipeline = FollowParticlesFromFilePipeline(**pipeline_config)
     else:
         pipeline = FollowParticlesPipeline(**pipeline_config)
-    pipeline.run()
+    sys.exit(pipeline.run())
 
 
 if __name__ == "__main__":

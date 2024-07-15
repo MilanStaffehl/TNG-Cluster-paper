@@ -47,7 +47,7 @@ def main(args: argparse.Namespace) -> None:
         "force_tree": args.force_tree,
     }
     pipeline = TabulateClusterDataPipeline(**pipeline_config)
-    pipeline.run()
+    sys.exit(pipeline.run())
 
 
 if __name__ == "__main__":
