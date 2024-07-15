@@ -78,7 +78,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "-c",
         "--combine",
-        help="Combine mean and median per mass bin into one plot.",
+        help="Combine the eight mass bin panels into one plot.",
         dest="combine",
         action="store_true",
     )

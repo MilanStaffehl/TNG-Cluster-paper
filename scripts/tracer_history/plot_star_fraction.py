@@ -32,6 +32,7 @@ if __name__ == "__main__":
             "Plot the fraction of tracers that end up in cool gas at redshift "
             "zero in stars with time."
         ),
+        allowed_sims=["TNG300", "TNG-Cluster"],
     )
     parser.remove_argument("processes")
 

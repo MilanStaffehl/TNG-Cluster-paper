@@ -279,8 +279,9 @@ class StackProfilesBinnedPipeline(Pipeline):
         n_tng300_clusters = 0
         for i, halo_data in enumerate(load_generator):
             masses[i] = halo_data["halo_mass"]
-            hists[i][0
-                     ] = halo_data["total_inflow"] + halo_data["total_outflow"]
+            hists[i][0] = (
+                halo_data["total_inflow"] + halo_data["total_outflow"]
+            )
             hists[i][1] = halo_data["cool_inflow"] + halo_data["cool_outflow"]
             n_tng300_clusters += 1
 
@@ -956,10 +957,12 @@ class StackDensityProfilesByVelocityPipeline(
                     )
                     sys.exit(2)
             masses[i + n_tng300_clusters] = halo_data["halo_mass"]
-            hists[i
-                  + n_tng300_clusters][0] = halo_data[f"{self.regime}_inflow"]
-            hists[i
-                  + n_tng300_clusters][1] = halo_data[f"{self.regime}_outflow"]
+            hists[i + n_tng300_clusters][0] = (
+                halo_data[f"{self.regime}_inflow"]
+            )
+            hists[i + n_tng300_clusters][1] = (
+                halo_data[f"{self.regime}_outflow"]
+            )
 
         # construct and return mapping
         return {"masses": masses, "histograms": hists, "edges": edges}
@@ -1019,8 +1022,12 @@ class StackDensityProfilesByVelocityPipeline(
         :param edges: The edges of the radial bins, shape (B + 1, ).
         :return: Tuple of figure and axes.
         """
+        if self.core_only:
+            figsize = (5, 4)
+        else:
+            figsize = (8, 4)
         fig, axes = plt.subplots(
-            figsize=(8, 4),
+            figsize=figsize,
             ncols=2,
             sharey=True,
             gridspec_kw={"hspace": 0, "wspace": 0},
