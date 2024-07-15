@@ -2,11 +2,8 @@
 Module contains reusable constants.
 """
 import copy
-from typing import TypeVar
 
 import astropy.constants
-import numpy as np
-from numpy.typing import NDArray
 
 # simulation-specific
 HUBBLE = 0.6774
@@ -122,14 +119,3 @@ REDSHIFTS = [
     0.009521666967944764,
     0.0,
 ]
-
-T = TypeVar("T", bound=float | NDArray[np.generic])
-
-
-def redshift_to_snap(z: T) -> T:
-    """
-    Given redshift ``z``, return the corresponding snapshot number.
-
-    :param z: Redshift. Must ma
-    :return:
-    """
