@@ -259,6 +259,21 @@ class CombinedEarliestSnapshotDistributionPipeline(base.Pipeline):
                 ha="center",
             )
 
+        # add notice about the missing clusters
+        missing = snaps_tng_300[snaps_tng_300 > self.highest_bin]
+        missing_list = ", ".join([str(int(m)) for m in missing])
+        bbox_config = {
+            "facecolor": "white",
+            "edgecolor": "black",
+            "boxstyle": "RArrow, pad=0.6",
+        }
+        axes.text(
+            5,
+            150,
+            f"Two more clusters\nat snaps {missing_list}",
+            bbox=bbox_config
+        )
+
         # add a legend
         axes.legend()
 
