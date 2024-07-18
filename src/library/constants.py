@@ -8,6 +8,8 @@ import astropy.constants
 # simulation-specific
 HUBBLE = 0.6774
 X_H = 0.76
+MIN_SNAP = 8
+"""First snapshot at which all clusters progenitors exist"""
 
 # physical constants (copied to minimize lookup time)
 G = copy.copy(astropy.constants.G.cgs.value)
