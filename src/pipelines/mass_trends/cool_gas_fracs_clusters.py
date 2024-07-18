@@ -373,9 +373,9 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
                 print(f"Processing halo {halo_id} ({i + 1}/352).", end="\r")
             # Step 7.1: Load gas cell data for temperature
             cluster_temperatures = gas_daq.get_cluster_temperature(
-                halo_id,
                 self.tngclstr_basepath,
                 self.config.snap_num,
+                halo_id,
             )
 
             # Step 7.2: Load gas cell positions, calculate distance

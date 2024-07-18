@@ -105,9 +105,10 @@ def get_halo_temperatures(
 
 
 def get_cluster_temperature(
-    halo_id: int,
     base_path: str,
     snap_num: int,
+    halo_id: int = -1,
+    zoom_id: int = -1,
 ) -> NDArray:
     """
     Get temperatures for a full TNG Cluster zoom.
@@ -123,18 +124,37 @@ def get_cluster_temperature(
         zoom, including non-FoF particles, while the other only loads
         particles associated with the FoF-group.
 
-    :param halo_id: The ID of the halo for which to find temperatures.
-        This must be the actual ID, not the original halo ID.
+    Note that the halo IDs are not constant throughout snapshots. If
+    you always wish to load the temperatures of the same zoom-in region,
+    you can use the ``zoom_id`` argument to specify that region.
+
     :param base_path: Base directory of the TNG-Cluster simulation data.
     :param snap_num: The snapshot from which to load the data.
+    :param halo_id: The ID of the halo for which to find temperatures.
+        This must be the actual ID, not the original halo ID.
+    :param zoom_id: The ID of the zoom-in region. This must be a number
+        between 0 and 351. When both this and ``halo_id`` are given,
+        the ``halo_id`` takes precedence.
     :return: Temperature of all particles in the original zoom-in region,
         in units of Kelvin.
     """
     fields = ["InternalEnergy", "ElectronAbundance", "StarFormationRate"]
     # acquire the necessary data from the zoom simulation
-    gas_data = il.snapshot.loadOriginalZoom(
-        base_path, snap_num, halo_id, partType=0, fields=fields
-    )
+    if halo_id >= 0:
+        gas_data = il.snapshot.loadOriginalZoom(
+            base_path, snap_num, halo_id, partType=0, fields=fields
+        )
+    elif -1 < zoom_id < 352:
+        gas_data = _load_original_zoom_particles(
+            base_path, snap_num, zoom_id, fields
+        )
+    else:
+        logging.error(
+            "Both zoom ID and halo ID are not specified or invalid: "
+            f"Halo ID {halo_id}, Zoom ID {zoom_id}. Cannot load temperatures."
+        )
+        return np.empty((0, ))
+
     # calculate temperature
     return compute.get_temperature(
         gas_data["InternalEnergy"],
@@ -287,7 +307,8 @@ def _load_original_zoom_particles(
     :param zoom_id: The index/ID of the zoom-in region to load. Must be
         a number between 0 and 351.
     :param fields: A list of field names to load.
-    :return: A mapping of field names to corresponding values.
+    :return: A mapping of field names to corresponding values, all in
+        computational units.
     """
     if zoom_id < 0 or zoom_id > 351:
         logging.error(f"Invalid zoom-in region ID: {zoom_id}.")

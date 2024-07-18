@@ -181,7 +181,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
             logging.debug(f"Processing cluster {halo_id} ({i + 1}/352).")
             # load temperatures and gas data required
             temperatures = gas_daq.get_cluster_temperature(
-                halo_id, self.tngclstr_basepath, self.config.snap_num
+                self.tngclstr_basepath, self.config.snap_num, halo_id
             )
             fields = ["Velocities", "Coordinates", "Masses"]
             gas_data = gas_daq.get_gas_properties(

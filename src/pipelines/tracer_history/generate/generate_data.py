@@ -58,7 +58,7 @@ class GenerateTNGClusterTracerIDsAtRedshiftZero(base.DiagnosticsPipeline):
             # Step 2: calculate temperature of remaining particles
             logging.debug(f"Halo {i + 1}: Calculating gas temperatures.")
             gas_temperatures = gas_daq.get_cluster_temperature(
-                halo_id, self.config.base_path, self.config.snap_num
+                self.config.base_path, self.config.snap_num, halo_id
             )
 
             # Step 3: get gas particles of this zoom-in region
@@ -340,6 +340,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         # gather all particle data for all three types
         particle_ids_list = []
         particle_types_list = []
+        DEBUG_part_type_len = []
 
         # load data and append it to lists
         for part_type in [0, 4, 5]:
@@ -349,6 +350,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
                 part_type=part_type,
                 zoom_id=zoom_id,
             )
+            DEBUG_part_type_len.append(cur_particle_ids.size)
             if cur_particle_ids.size == 0:
                 continue  # no particle data available, skip
             particle_ids_list.append(cur_particle_ids)

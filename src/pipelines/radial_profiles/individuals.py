@@ -1090,9 +1090,9 @@ class IndividualProfilesTNGClusterPipeline(IndividualRadialProfilePipeline):
             logging.debug(f"Processing cluster {halo_id} ({i}/352).")
             # Step 3.1: Load gas cell data for temperature
             gas_temperatures = gas_daq.get_cluster_temperature(
-                halo_id,
                 self.config.base_path,
                 self.config.snap_num,
+                halo_id,
             )
 
             # Step 3.2: Load gas cell position data, calculate distance
