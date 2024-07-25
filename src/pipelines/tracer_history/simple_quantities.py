@@ -72,7 +72,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         tracer_file = h5py.File(self.tracer_filepath, "r")
 
         # Step 4: Loop through snapshots and zooms to get quantity
-        for snap_num in range(constants.MIN_SNAP, 100):
+        for i, snap_num in enumerate(range(constants.MIN_SNAP, 100)):
             logging.info(f"Processing snapshot {snap_num}.")
             for zoom_id in range(self.n_clusters):
                 logging.debug(
@@ -85,20 +85,22 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
                 # 4.2: Find gas particle indices
                 group = f"ZoomRegion_{zoom_id:03d}"
-                ids = tracer_file[f"{group}/particle_indices"][snap_num, :]
-                flags = tracer_file[f"{group}/particle_type_flags"][
-                    snap_num, :]
-                gas_ids = ids[flags == 0]  # select only gas (partType0)
+                indices = tracer_file[f"{group}/particle_indices"][snap_num, :]
+                flags = (
+                    tracer_file[f"{group}/particle_type_flags"][snap_num, :]
+                )
+                gas_indices = indices[flags == 0
+                                      ]  # select only gas (partType0)
 
                 # 4.3: Mask quantity to only the selected indices
-                traced_quantity = quantity[gas_ids]
+                traced_quantity = quantity[gas_indices]
 
                 # 4.4: Fill allocated arrays
-                quantity_mean[zoom_id, snap_num] = np.mean(traced_quantity)
-                quantity_median[zoom_id, snap_num] = np.median(traced_quantity)
+                quantity_mean[zoom_id, i] = np.mean(traced_quantity)
+                quantity_median[zoom_id, i] = np.median(traced_quantity)
                 # TODO: make 2D histogram here
-                quantity_min[zoom_id, snap_num] = np.min(traced_quantity)
-                quantity_max[zoom_id, snap_num] = np.max(traced_quantity)
+                quantity_min[zoom_id, i] = np.min(traced_quantity)
+                quantity_max[zoom_id, i] = np.max(traced_quantity)
 
         tracer_file.close()
 
@@ -156,8 +158,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             )
             # create figure and configure axes
             fig, axes = plt.subplots(figsize=(4, 4))
-            xs = common.make_redshift_plot(axes)
+            xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
             axes.set_ylabel(f"{label_prefix} {self.quantity_label}")
+            axes.set_yscale("log")
 
             # plot mean, median, etc.
             plot_config = {
@@ -166,13 +169,13 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 "alpha": 0.1,
                 "color": self.color,  # TODO: color by cluster mass
             }
-            axes.plot(xs, plot_quantity, **plot_config)
+            axes.plot(xs, plot_quantity.transpose(), **plot_config)
 
             # plot mean and median
             m_config = {"marker": "none", "color": "black"}
-            mean = np.mean(plot_quantity, axis=1)
+            mean = np.mean(plot_quantity, axis=0)
             axes.plot(xs, mean, ls="solid", **m_config)
-            median = np.median(plot_quantity, axis=1)
+            median = np.median(plot_quantity, axis=0)
             axes.plot(xs, median, ls="dashed", **m_config)
 
             # save figure
