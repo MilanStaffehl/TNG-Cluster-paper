@@ -245,7 +245,7 @@ def plot_scatterplot(
     return figure, axes
 
 
-def make_redshift_plot(axes: Axes) -> NDArray:
+def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
     """
     Prepare the given axes to be a plot over redshift.
 
@@ -255,12 +255,25 @@ def make_redshift_plot(axes: Axes) -> NDArray:
     of plot. This array has shape (100, ) and assumes that one data
     point for every snapshot will be made.
 
+    Optionally, the range of snapshots (and therefore redshifts) can be
+    set with the ``start`` and ``stop`` snapshots. The axes will then
+    only go from the redshift associated with ``start`` to that associated
+    with ``stop`` and the returned x-values will have a length and values
+    to match.
+
     :param axes: The axis object whose x-axis to transform into a
         redshift axis.
+    :param start: The snapshot at which to start. The resulting x-values
+        will be limited to start from this snapshot. Defaults to snap 0.
+    :param stop: The snapshot at which to stop. The resulting x-values
+        will be limited to end at this snapshot. The result will include
+        the ``stop`` snapshot. Defaults to snap 99.
     :return: An array of 100 x-values equivalent to the redshifts of
         the 100 snapshots of the TNG simulations to use in plotting.
     """
     axes.set_xlabel("Redshift")
     xticks = np.array([0, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10])
     axes.set_xticks(np.log10(xticks + 0.01), labels=xticks)
-    return np.log10(np.array(constants.REDSHIFTS) + 0.01)
+    zero_offset = 0.01 if stop == 99 else 0
+    redshifts = np.array(constants.REDSHIFTS)[start:stop + 1] + zero_offset
+    return np.log10(redshifts)
