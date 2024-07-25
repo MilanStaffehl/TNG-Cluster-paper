@@ -155,7 +155,7 @@ class Pipeline:
         self,
         figure: Figure,
         ident_flag: str = "",
-        subdirs: Path | str | None = None,
+        subdir: Path | str | None = None,
         tight_layout: bool = True,
     ) -> None:
         """
@@ -175,7 +175,7 @@ class Pipeline:
             as specified in ``self.paths``. Optional, defaults to an
             empty string (i.e. file is saved using the file stem in
             ``self.paths`` alone).
-        :param subdirs: String or Path object of subdirectories, relative
+        :param subdir: String or Path object of subdirectories, relative
             to the figures path given in ``self.paths``. Optional,
             defaults to None, which means the figure will be saved in
             the directory specified in ``self.paths``.
@@ -195,8 +195,8 @@ class Pipeline:
 
         # file path
         filepath = Path(self.paths["figures_dir"])
-        if subdirs:
-            filepath = filepath / Path(subdirs)
+        if subdir:
+            filepath = filepath / Path(subdir)
         if not filepath.exists():
             logging.info("Creating missing figures directory.")
             filepath.mkdir(parents=True)

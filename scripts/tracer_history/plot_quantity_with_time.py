@@ -24,7 +24,7 @@ def main(args: argparse.Namespace) -> None:
         args,
         "tracer_history",
         type_flag,
-        figures_subdirectory=".",
+        figures_subdirectory=f"./{type_flag}",
         data_subdirectory=".",
         suppress_sim_name_in_files=False,
     )

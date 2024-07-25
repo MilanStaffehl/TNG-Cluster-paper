@@ -819,7 +819,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         self._save_fig(
             fig,
             ident_flag=supplementary,
-            subdirs=f"./{supplementary}",
+            subdir=f"./{supplementary}",
         )
 
     def _plot_density_profile(
@@ -953,7 +953,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         self._save_fig(
             fig,
             ident_flag=supplementary,
-            subdirs=f"./{supplementary}",
+            subdir=f"./{supplementary}",
         )
 
 

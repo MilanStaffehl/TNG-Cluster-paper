@@ -179,7 +179,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             axes.plot(xs, median, ls="dashed", **m_config)
 
             # save figure
-            self._save_fig(fig, ident_flag=label_prefix.lower())
+            self._save_fig(
+                fig, ident_flag=label_prefix.lower(), subdir="./1d_plots"
+            )
 
     def _plot_and_save_ridgelineplots(self):
         # TODO: implement
