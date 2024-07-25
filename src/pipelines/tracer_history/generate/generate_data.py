@@ -287,12 +287,12 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             )
 
         # Step 4: match selected parent IDs to particles
-        ids, ptypes = self._match_particle_ids_to_particles(
+        indices, ptypes, lens = self._match_particle_ids_to_particles(
             selected_particle_ids, zoom_id
         )
         if self.processes <= 1:
             logging.debug(
-                f"Found {len(ids)} particles matching the "
+                f"Found {len(indices)} particles matching the "
                 f"{len(selected_particle_ids)} tracer parent IDs."
             )
 
@@ -301,8 +301,9 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         filename = f"particle_ids_zoom_region_{zoom_id}.npz"
         np.savez(
             filepath / filename,
-            particle_ids=ids,
+            particle_indices=indices,
             particle_type=ptypes,
+            total_part_len=lens,
         )
         if self.processes <= 1:
             logging.debug(f"Saved indices to file '{filename}'.")
@@ -312,7 +313,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         self,
         parent_ids: NDArray,
         zoom_id: int,
-    ) -> tuple[NDArray, NDArray]:
+    ) -> tuple[NDArray, NDArray, NDArray]:
         """
         Return indices of particles with the given particle IDs.
 
@@ -331,16 +332,20 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             Shape (N, ).
         :param zoom_id: ID of the zoom-in region for which to load the
             particles.
-        :return: Two arrays, the first giving the indices into the list
+        :return: Three arrays, the first giving the indices into the list
             of particle data for gas cells, star cells, and BH cells
-            when concatenated in that order, and the second one giving
-            the particle type as an integer for every corresponding index.
+            when concatenated in that order, the second one giving the
+            particle type as an integer for every corresponding index.
             This allows filtering the indices to only one particle type.
+            The third array is the number of particles of type 0, 4, and
+            5 in the zoom-region respectively. This is useful to convert
+            indices into the concatenated list of all particles into
+            indices of only one type.
         """
         # gather all particle data for all three types
         particle_ids_list = []
         particle_types_list = []
-        DEBUG_part_type_len = []
+        particle_len_list = []
 
         # load data and append it to lists
         for part_type in [0, 4, 5]:
@@ -350,7 +355,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
                 part_type=part_type,
                 zoom_id=zoom_id,
             )
-            DEBUG_part_type_len.append(cur_particle_ids.size)
+            particle_len_list.append(cur_particle_ids.size)
             if cur_particle_ids.size == 0:
                 continue  # no particle data available, skip
             particle_ids_list.append(cur_particle_ids)
@@ -362,6 +367,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         # concatenate data and select only desired
         particle_ids = np.concatenate(particle_ids_list, axis=0)
         particle_types = np.concatenate(particle_types_list, axis=0)
+        particle_len = np.array(particle_len_list, dtype=np.int64)
 
         indices = selection.select_if_in(
             particle_ids,
@@ -370,7 +376,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             assume_subset=True,
         )
         np.testing.assert_equal(particle_ids[indices], parent_ids)
-        return particle_ids[indices], particle_types[indices]
+        return indices, particle_types[indices], particle_len
 
 
 @dataclasses.dataclass
@@ -431,8 +437,9 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
             # load data from .npz archive
             npz_filename = f"particle_ids_zoom_region_{zoom_id}.npz"
             with np.load(snapdir_99 / npz_filename, "r") as orig_data:
-                indices = orig_data["particle_ids"]
+                indices = orig_data["particle_indices"]
                 type_flags = orig_data["particle_type"]
+                part_num = orig_data["total_part_len"]
 
             # write data to the hdf5 file
             grp.create_dataset(
@@ -447,6 +454,12 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
                 dtype=type_flags.dtype,
             )
             f[f"{grp.name}/particle_type_flags"][99, :] = type_flags
+            grp.create_dataset(
+                "total_particle_num",
+                shape=(100, 3),
+                dtype=part_num.dtype,
+            )
+            f[f"{grp.name}/total_particle_num"][99, :] = part_num
 
             # clean-up
             if self.unlink:
@@ -463,13 +476,15 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
                 # load data from .npz archive
                 npz_filename = f"particle_ids_zoom_region_{zoom_id}.npz"
                 with np.load(snapdir / npz_filename, "r") as orig_data:
-                    indices = orig_data["particle_ids"]
+                    indices = orig_data["particle_indices"]
                     type_flags = orig_data["particle_type"]
+                    part_num = orig_data["total_part_len"]
 
                 # write data to the hdf5 file
                 group = f"ZoomRegion_{zoom_id:03d}"
                 f[f"{group}/particle_indices"][snap_num, :] = indices
                 f[f"{group}/particle_type_flags"][snap_num, :] = type_flags
+                f[f"{group}/total_particle_num"][snap_num, :] = part_num
 
                 # clean-up
                 if self.unlink:

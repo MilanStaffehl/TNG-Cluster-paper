@@ -97,3 +97,4 @@ sbatch --parsable ./TNG_Cluster/generate_tracer_data_95.sh > output/job_ids/TNG_
 sbatch --parsable ./TNG_Cluster/generate_tracer_data_96.sh > output/job_ids/TNG_Cluster_snap_96.id
 sbatch --parsable ./TNG_Cluster/generate_tracer_data_97.sh > output/job_ids/TNG_Cluster_snap_97.id
 sbatch --parsable ./TNG_Cluster/generate_tracer_data_98.sh > output/job_ids/TNG_Cluster_snap_98.id
+sbatch --parsable ./TNG_Cluster/generate_tracer_data_99.sh > output/job_ids/TNG_Cluster_snap_99.id
