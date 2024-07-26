@@ -14,6 +14,7 @@ from pipelines.tracer_history.generate.generate_data import (
     ArchiveTNGClusterTracerDataPipeline,
     FindTracedParticleIDsInSnapshot,
     GenerateTNGClusterTracerIDsAtRedshiftZero,
+    TestArchivedTracerDataTNGClusterPipeline,
 )
 
 
@@ -42,6 +43,8 @@ def main(args: argparse.Namespace) -> None:
         case "archive":
             pipeline_config.update({"unlink": args.unlink})
             pipeline = ArchiveTNGClusterTracerDataPipeline
+        case "test-archive":
+            pipeline = TestArchivedTracerDataTNGClusterPipeline
         case _:
             logging.fatal(f"Unknown run type: {args.runtype}")
             sys.exit(1)
@@ -67,9 +70,10 @@ if __name__ == "__main__":
             "`trace-back` to save to file the indices of particles in a"
             "specified snapshot that end up in cool gas at redshift zero,"
             "or `archive` to combine all data files into one h5f5 archive "
-            "and optionally clean up intermediate files."
+            "and optionally clean up intermediate files. The `test-archive`"
+            "option runs a test on the archived data to ensure it is correct."
         ),
-        choices=["identify", "trace-back", "archive"],
+        choices=["identify", "trace-back", "archive", "test-archive"],
         default="identify",
         metavar="RUNTYPE",
     )

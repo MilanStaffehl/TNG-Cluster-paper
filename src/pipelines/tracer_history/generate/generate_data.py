@@ -509,3 +509,121 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
         f.close()
         logging.info(f"Successfully wrote all data to file {self.filepath}!")
         return 0
+
+
+class TestArchivedTracerDataTNGClusterPipeline(
+        ArchiveTNGClusterTracerDataPipeline):
+    """
+    Pipeline tests that tracer data saved to file is self-consistent.
+
+    Pipeline loads the particle IDs of all particles in every zoom-in
+    region in every snapshot and compares it to the parent IDs of all
+    tracers. It then checks that the correspond tracer IDs of these
+    matching tracers never change across snapshots. Any failures in
+    this check are logged with ``WARNING`` level.
+
+    Pipeline exits with the number of failed snapshot checks.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+
+    def run(self) -> int:
+        """
+        Test tracer data saved to file is self-consistent.
+
+        :return: Exit code (number of failed snapshot checks)
+        """
+        failed = 0
+
+        # Step 0: get cluster IDs
+        cluster_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=[self.config.mass_field],
+            cluster_restrict=True,
+        )
+
+        # Step 1: open hdf5 file
+        f = h5py.File(self.filepath, "r")
+
+        # Step 2: Loop over zoom-in regions
+        for zoom_id in range(self.n_clusters):
+            logging.info(f"Checking zoom-in region {zoom_id}.")
+
+            # Step 2.1: load tracer IDs at redshift zero
+            halo_id = cluster_data["IDs"][zoom_id]
+            path = f"cool_gas_tracer_ids_{self.config.snap_num}"
+            file = f"tracer_ids_snapshot99_cluster_{halo_id}.npz"
+            with np.load(self.paths["data_dir"] / path / file) as data_file:
+                tracer_ids = data_file["tracer_ids"]
+
+            # Step 2.2: loop over snapshots
+            for snap_num in reversed(range(100)):
+                # Get particle IDs at current snap
+                pids = self._get_particle_ids(zoom_id, snap_num)
+
+                # Get tracer data
+                tracer_data = tracers_daq.load_tracers(
+                    self.config.base_path, snap_num, zoom_id=zoom_id
+                )
+
+                # Get indices into particles
+                dataset = f"ZoomRegion_{zoom_id:03d}/particle_indices"
+                indices = f[dataset][snap_num, :]
+
+                # mask particle IDs to only selected
+                selected_pids = pids[indices]
+
+                # match selected indices to tracer parent IDs
+                tracer_indices = selection.select_if_in(
+                    tracer_data["ParentID"],
+                    selected_pids,
+                    mode="searchsort",
+                    assume_unique=False,
+                    assume_subset=False,
+                )
+
+                # mask tracer IDs to only those with matching parent IDs
+                current_tracer_ids = tracer_data["TracerID"][tracer_indices]
+
+                # check they match
+                if not np.array_equal(current_tracer_ids, tracer_ids):
+                    logging.warning(
+                        f"Tracers of zoom-in {zoom_id} at snapshot {snap_num} "
+                        f"do not match the original tracer IDs."
+                    )
+                    logging.debug(
+                        f"Number of differences: "
+                        f"{np.count_nonzero(tracer_ids - current_tracer_ids)}"
+                        f"\nDifferences: {tracer_ids - current_tracer_ids}"
+                    )
+                    failed += 1
+
+                if failed > 1:
+                    break
+            if failed > 1:
+                break
+
+        return failed
+
+    def _get_particle_ids(self, zoom_id: int, snap_num: int) -> NDArray:
+        """Load contiguous array of particle IDs for gas, stars, and BHs"""
+        # gather all particle data for all three types
+        particle_ids_list = []
+
+        # load data and append it to lists
+        for part_type in [0, 4, 5]:
+            cur_particle_ids = particle_daq.get_particle_ids(
+                self.config.base_path,
+                snap_num=snap_num,
+                part_type=part_type,
+                zoom_id=zoom_id,
+            )
+            if cur_particle_ids.size == 0:
+                continue  # no particle data available, skip
+            particle_ids_list.append(cur_particle_ids)
+
+        # concatenate data and select only desired
+        particle_ids = np.concatenate(particle_ids_list, axis=0)
+        return particle_ids
