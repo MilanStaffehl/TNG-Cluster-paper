@@ -367,7 +367,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         # concatenate data and select only desired
         particle_ids = np.concatenate(particle_ids_list, axis=0)
         particle_types = np.concatenate(particle_types_list, axis=0)
-        particle_len = np.array(particle_len_list, dtype=np.int64)
+        particle_len = np.array(particle_len_list, dtype=np.uint64)
 
         indices = selection.select_if_in(
             particle_ids,
