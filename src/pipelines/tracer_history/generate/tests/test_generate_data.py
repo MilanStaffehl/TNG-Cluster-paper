@@ -67,9 +67,9 @@ def patch_particle_daq(mocker: MockerFixture) -> Iterator[Mock]:
     called successively. Yields the resulting mock object.
     """
     # create mock data
-    gas_ids = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
-    star_ids = np.array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19])
-    bh_ids = np.array([20, 21, 22, 23, 24, 25, 26, 27, 28, 29])
+    gas_ids = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) + 12
+    star_ids = np.array([10, 11, 12, 13, 14, 15, 16, 17, 18, 19]) + 15
+    bh_ids = np.array([20, 21, 22, 23, 24, 25, 26, 27, 28, 29]) + 17
 
     # patch corresponding calls
     mock_particle_daq = mocker.patch(
@@ -111,6 +111,10 @@ def patch_numpy_savez(mocker: MockerFixture) -> Iterator[Mock]:
 
 
 SEARCH_IDS = (
+    np.array([14, 15, 16, 18, 20, 27, 29, 33, 34, 37, 39, 44]),  # sorted
+    np.array([14, 27, 40, 17, 31, 32, 45, 21, 26, 25, 41, 21]),  # unsorted
+)
+EXPECTED_INDICES = (
     np.array([2, 3, 4, 6, 8, 12, 14, 18, 19, 20, 22, 27]),  # sorted
     np.array([2, 12, 23, 5, 16, 17, 28, 9, 11, 10, 24, 9]),  # unsorted
 )
@@ -118,13 +122,16 @@ EXPECTED_TYPE_FLAGS = (
     np.array([0, 0, 0, 0, 0, 4, 4, 4, 4, 5, 5, 5]),  # for sorted IDs
     np.array([0, 4, 5, 0, 4, 4, 5, 0, 4, 4, 5, 0]),  # for unsorted IDs
 )
-PARAM_LIST = zip(SEARCH_IDS, EXPECTED_TYPE_FLAGS)
+PARAM_LIST = zip(SEARCH_IDS, EXPECTED_TYPE_FLAGS, EXPECTED_INDICES)
 
 
-@pytest.mark.parametrize("search_ids, expected_type_flags", PARAM_LIST)
+@pytest.mark.parametrize(
+    "search_ids, expected_type_flags, expected_indices", PARAM_LIST
+)
 def test_match_particle_ids_to_particles(
     search_ids: NDArray,
     expected_type_flags: NDArray,
+    expected_indices: NDArray,
     finder_pipeline: FinderPipeline,
     patch_particle_daq: Mock,
 ) -> None:
@@ -132,9 +139,8 @@ def test_match_particle_ids_to_particles(
     # call method with mock data
     output = finder_pipeline._match_particle_ids_to_particles(search_ids, 0)
 
-    # verify output (expected indices match particle IDs since the
-    # array of particle IDs is essentially just an array of indices)
-    np.testing.assert_equal(search_ids, output[0])
+    # verify output
+    np.testing.assert_equal(expected_indices, output[0])
     np.testing.assert_equal(expected_type_flags, output[1])
     np.testing.assert_equal(np.array([10, 10, 10], dtype=np.uint64), output[2])
 
