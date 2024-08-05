@@ -525,6 +525,9 @@ class TestArchivedTracerDataTNGClusterPipeline(
     Pipeline exits with the number of failed snapshot checks.
     """
 
+    # set to True to test intermediate files instead of archive
+    intermediate: ClassVar[bool] = False
+
     def __post_init__(self):
         super().__post_init__()
 
@@ -544,8 +547,12 @@ class TestArchivedTracerDataTNGClusterPipeline(
             cluster_restrict=True,
         )
 
-        # Step 1: open hdf5 file
-        f = h5py.File(self.filepath, "r")
+        # Step 1: open hdf5 file, if required
+        if self.intermediate:
+            logging.info("Testing intermediate files instead of archive.")
+            f = None
+        else:
+            f = h5py.File(self.filepath, "r")
 
         # Step 2: Loop over zoom-in regions
         for zoom_id in range(self.n_clusters):
@@ -557,9 +564,16 @@ class TestArchivedTracerDataTNGClusterPipeline(
             file = f"tracer_ids_snapshot99_cluster_{halo_id}.npz"
             with np.load(self.paths["data_dir"] / path / file) as data_file:
                 tracer_ids = data_file["tracer_ids"]
+            logging.debug(
+                f"Expecting {tracer_ids.size} tracers in zoom-in region "
+                f"{zoom_id}."
+            )
 
             # Step 2.2: loop over snapshots
             for snap_num in reversed(range(100)):
+                logging.debug(
+                    f"Processing snapshot {snap_num} of zoom-in {zoom_id}."
+                )
                 # Get particle IDs at current snap
                 pids = self._get_particle_ids(zoom_id, snap_num)
 
@@ -569,8 +583,8 @@ class TestArchivedTracerDataTNGClusterPipeline(
                 )
 
                 # Get indices into particles
-                dataset = f"ZoomRegion_{zoom_id:03d}/particle_indices"
-                indices = f[dataset][snap_num, :]
+                indices = self._get_indices(f, zoom_id, snap_num)
+                logging.debug(f"Found {indices.size} indices on file.")
 
                 # mask particle IDs to only selected
                 selected_pids = pids[indices]
@@ -579,33 +593,64 @@ class TestArchivedTracerDataTNGClusterPipeline(
                 tracer_indices = selection.select_if_in(
                     tracer_data["ParentID"],
                     selected_pids,
-                    mode="searchsort",
+                    mode="iterate",
                     assume_unique=False,
                     assume_subset=False,
+                )
+                logging.debug(
+                    f"Select-if-in yielded {tracer_indices.size} tracers with "
+                    f"parents that match selected PIDs."
                 )
 
                 # mask tracer IDs to only those with matching parent IDs
                 current_tracer_ids = tracer_data["TracerID"][tracer_indices]
 
                 # check they match
-                if not np.array_equal(current_tracer_ids, tracer_ids):
+                if not np.all(np.isin(tracer_ids, current_tracer_ids)):
                     logging.warning(
                         f"Tracers of zoom-in {zoom_id} at snapshot {snap_num} "
                         f"do not match the original tracer IDs."
                     )
                     logging.debug(
                         f"Number of differences: "
-                        f"{np.count_nonzero(tracer_ids - current_tracer_ids)}"
-                        f"\nDifferences: {tracer_ids - current_tracer_ids}"
+                        f"{np.count_nonzero(np.isin(tracer_ids, current_tracer_ids))}. "
+                        f"Differences: {np.isin(tracer_ids, current_tracer_ids)}"
                     )
                     failed += 1
-
-                if failed > 1:
-                    break
-            if failed > 1:
-                break
+                else:
+                    logging.info(f"Snap {snap_num} of zoom-in {zoom_id} OK.")
 
         return failed
+
+    def _get_indices(
+        self, file: h5py.File | None, zoom_id: int, snap_num: int
+    ) -> NDArray:
+        """
+        Load indices of selected particles from file.
+
+        Depending on whether ``file`` is an hdf5 archive or not, the
+        archive will be used or the intermediate files will be searched
+        for the indices.
+
+        :param file: The hdf5 archive as a ``h5py.File`` object or None.
+            If set to None, the intermediate file for the zoom-in region
+            and snapshot will be used.
+        :param zoom_id: ID of the zoom-in region to use. Must be between
+            0 and 351.
+        :param snap_num: The snapshot to load.
+        :return: The array indices into the contiguous list of particles
+            from the selected zoom-in rgeion at the selected snapshot.
+        """
+        if file is None:
+            # load intermediate file instead
+            filepath = self.filepath.parents[1] / f"snapshot_{snap_num:02d}"
+            filename = f"particle_ids_zoom_region_{zoom_id}.npz"
+            with np.load(filepath / filename) as f:
+                indices = f["particle_indices"]
+        else:
+            dataset = f"ZoomRegion_{zoom_id:03d}/particle_indices"
+            indices = file[dataset][snap_num, :]
+        return indices
 
     def _get_particle_ids(self, zoom_id: int, snap_num: int) -> NDArray:
         """Load contiguous array of particle IDs for gas, stars, and BHs"""
