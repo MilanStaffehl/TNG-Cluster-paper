@@ -28,7 +28,7 @@ def create_config_file():
         "    TNG50-3: /virgotng/universe/IllustrisTNG/TNG50-3/output\n"
         "    TNG-Cluster: /virgotng/mpia/TNG-Cluster/TNG-Cluster/output\n"
         "  data_home: default\n"
-        "  figures_home: default\n",
+        "  figures_home: default\n"
     )
     # yapf: enable
     with open(root_dir / "config.yaml", "w") as config_file:
