@@ -10,7 +10,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.find_mainleaf_progenitor import (
+from pipelines.merger_tree.find_mainleaf_progenitor import (
     CombinedEarliestSnapshotDistributionPipeline,
     PlotEarliestSnapNumDistributionPipeline300,
     PlotEarliestSnapNumDistributionPipelineCluster,
@@ -29,7 +29,7 @@ def main(args: argparse.Namespace) -> None:
         fig_subdir = None
     pipeline_config = scriptparse.startup(
         args,
-        "tracer_history",
+        "merger_tree",
         type_flag,
         figures_subdirectory=fig_subdir,
         data_subdirectory=data_subdir,
