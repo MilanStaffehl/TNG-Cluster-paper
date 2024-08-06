@@ -2,12 +2,53 @@
 import sys
 from pathlib import Path
 
+import yaml
+
+root_dir = Path(__file__).parent.resolve()
+
 
 def install():
     """
-    Installs the project by creating the required directory structure.
+    Install the project by creating a config file and other directories.
     """
-    root_dir = Path(__file__).parent.resolve()
+    config_file = root_dir / "config.yaml"
+    if not config_file.exists():
+        create_config_file()
+    create_dirs()
+
+
+def create_config_file():
+    """
+    Creates a config.yaml file with the default content.
+    """
+    default_config_py = {
+        "paths":
+            {
+                "base_paths":
+                    {
+                        "TNG300-1":
+                            "/virgotng/universe/IllustrisTNG/TNG300-1/output",
+                        "TNG50-4":
+                            "/virgotng/universe/IllustrisTNG/TNG50-4/output",
+                        "TNG50-3":
+                            "/virgotng/universe/IllustrisTNG/TNG50-3/output",
+                        "TNG-Cluster":
+                            "/virgotng/mpia/TNG-Cluster/TNG-Cluster/output",
+                    },
+                "data_home": "default",
+                "figures_home": "default",
+            }
+    }
+    default_config = yaml.dump(default_config_py)
+    with open(root_dir / "config.yaml", "w") as config_file:
+        config_file.write(default_config)
+    print("Created a default config file.")
+
+
+def create_dirs():
+    """
+    Create the required directory structure.
+    """
     with open(root_dir / "config.yaml", "r") as config_file:
         lines = config_file.readlines()
     data_home = None
