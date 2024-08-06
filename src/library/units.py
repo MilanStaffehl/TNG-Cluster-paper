@@ -54,9 +54,11 @@ class UnitConverter:
                 "Group_R_TopHat200",
                 "GroupPos",
                 "Coordinates",
+                "SubhaloPos",
             ],  # noqa: E123
         "velocityLike": ["Velocities"],
         "groupVelocityLike": ["GroupVel"],
+        "subhaloVelocityLike": ["SubhaloVel"],
         "sfrLike": ["GroupSFR", "StarFormationRate", "SubhaloSFR"],
         "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],
         "energyLike": ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"],
@@ -95,7 +97,7 @@ class UnitConverter:
         """
         Automatically convert the quantity into physical units.
 
-        :param quantity: Quantitiy in code units.
+        :param quantity: Quantity in code units.
         :param field: Name of the field of the quantity.
         :param snap_num: Number of the snapshot in which unit is located.
         :raises UnsupportedUnitError: When the field has no supported
@@ -110,6 +112,8 @@ class UnitConverter:
             return cls.convert_velocitylike(quantity, snap_num)
         elif field in cls.fields["groupVelocityLike"]:
             return cls.convert_groupvelocitylike(quantity, snap_num)
+        elif field in cls.fields["subhaloVelocityLike"]:
+            return quantity  # already in km/s
         elif field in cls.fields["massFlowLike"]:
             return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:

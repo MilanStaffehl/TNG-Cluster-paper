@@ -1,0 +1,31 @@
+HaloMass:
+  field: "Group_M_Crit200"
+  label: "Host halo mass $M_{{200c}}$ [$M_\\odot$]"
+  dims: 1
+  log: true
+  ymin: 1e8
+  ymax: 1e16
+
+HaloRadius:
+  field: "Group_R_Crit200"
+  label: "Host halo radius $R_{{200c}}$ [$R_\\odot$]"
+  dims: 1
+  log: true
+  ymin: 8
+  ymax: 5000
+
+SubhaloPos:
+  field: "SubhaloPos"
+  label: "Subhalo {}-position [ckpc]"
+  dims: 3
+  log: false
+  ymin: 0
+  ymax: 1e6
+
+SubhaloVel:
+  field: "SubhaloVel"
+  label: "Subhalo velocity {}-direction [km/s]"
+  dims: 3
+  log: false
+  ymin: null
+  ymax: null
