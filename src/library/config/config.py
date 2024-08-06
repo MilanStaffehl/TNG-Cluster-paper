@@ -1,6 +1,8 @@
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -63,10 +65,21 @@ class InvalidConfigPathError(Exception):
 class InvalidSimulationNameError(KeyError):
     """Raised when an unknown simulation name is used"""
 
-    def __init__(self, name: str, *args: object) -> None:
+    def __init__(self, name: str, *args: Sequence[Any]) -> None:
         msg = (
             f"There is no simulation named {name} in the config.yaml "
             f"configuration file."
+        )
+        super().__init__(msg, *args)
+
+
+class MissingConfigFileError(FileNotFoundError):
+    """Raised when the config file does not exist"""
+
+    def __init__(self, *args: Sequence[Any]) -> None:
+        msg = (
+            "No config file for the project exists. Create a config file "
+            "by running the `install.py` script at the project root."
         )
         super().__init__(msg, *args)
 
@@ -92,6 +105,8 @@ def get_default_config(
     # find directories for data and figures
     cur_dir = Path(__file__).parent.resolve()
     root_dir = cur_dir.parents[2]
+    if not (root_dir / "config.yaml").exists():
+        raise MissingConfigFileError()
     with open(root_dir / "config.yaml", "r") as config_file:
         stream = config_file.read()
     config = yaml.full_load(stream)
