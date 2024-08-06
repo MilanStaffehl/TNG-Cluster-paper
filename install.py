@@ -2,8 +2,6 @@
 import sys
 from pathlib import Path
 
-import yaml
-
 root_dir = Path(__file__).parent.resolve()
 
 
@@ -21,25 +19,18 @@ def create_config_file():
     """
     Creates a config.yaml file with the default content.
     """
-    default_config_py = {
-        "paths":
-            {
-                "base_paths":
-                    {
-                        "TNG300-1":
-                            "/virgotng/universe/IllustrisTNG/TNG300-1/output",
-                        "TNG50-4":
-                            "/virgotng/universe/IllustrisTNG/TNG50-4/output",
-                        "TNG50-3":
-                            "/virgotng/universe/IllustrisTNG/TNG50-3/output",
-                        "TNG-Cluster":
-                            "/virgotng/mpia/TNG-Cluster/TNG-Cluster/output",
-                    },
-                "data_home": "default",
-                "figures_home": "default",
-            }
-    }
-    default_config = yaml.dump(default_config_py)
+    # yapf: disable
+    default_config = (
+        "paths:\n"
+        "  base_paths:\n"
+        "    TNG300-1: /virgotng/universe/IllustrisTNG/TNG300-1/output\n"
+        "    TNG50-4: /virgotng/universe/IllustrisTNG/TNG50-4/output\n"
+        "    TNG50-3: /virgotng/universe/IllustrisTNG/TNG50-3/output\n"
+        "    TNG-Cluster: /virgotng/mpia/TNG-Cluster/TNG-Cluster/output\n"
+        "  data_home: default\n"
+        "  figures_home: default\n",
+    )
+    # yapf: enable
     with open(root_dir / "config.yaml", "w") as config_file:
         config_file.write(default_config)
     print("Created a default config file.")
