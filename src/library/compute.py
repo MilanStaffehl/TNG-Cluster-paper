@@ -6,6 +6,8 @@ data, most prominently temperature: temperature is not directly given
 in the simulation data and instead has to be calculated from internal
 energy and electron abundance.
 """
+import astropy.cosmology
+import astropy.units
 import numpy as np
 from numpy.typing import NDArray
 
@@ -165,3 +167,61 @@ def get_virial_velocity(
     :return: The virial velocity of the halo in km/s.
     """
     return np.sqrt(G * virial_mass * M_sol / (virial_radius * kpc)) / 100000
+
+
+def lookback_time_from_redshift(redshift: NDArray) -> NDArray:
+    """
+    Return the lookback time for a set of redshifts.
+
+    Function computes the lookback time in Gyr for an array of redshifts.
+    The lookback time is calculated using the Planck 2015 cosmology.
+    Negative redshift values are ignored and returned as-is.
+
+    :param redshift: Array of redshifts.
+    :return: Array of corresponding lookback time in units of Gyr.
+        Negative redshifts lead to negative lookback times; these have
+        no meaning and should be ignored.
+    """
+    planck15 = astropy.cosmology.Planck15
+    lookback_time = redshift.copy()
+    z_pos = np.nonzero(redshift >= 0)[0]
+    if z_pos.size != 0:
+        t = planck15.lookback_time(redshift[z_pos])
+        lookback_time[z_pos] = t.value  # keep negative values as-is
+    return lookback_time
+
+
+def redshift_from_lookback_time(lookback_time: NDArray) -> NDArray:
+    """
+    Return redshift belonging to a set of lookback times in Gyr.
+
+    Function computes the redshift belonging to the given lookback times
+    in Gyr. The redshifts are calculated using the Planck 2015 cosmology.
+    Negative lookback times are ignored and returned as-is; lookback times
+    that exceed the age of the universe of the Planck 2015 cosmology are
+    mapped to ``np.inf``.
+
+    :param lookback_time: An array of lookback times in units of Gyr.
+    :return: An array of corresponding redshifts assuming Planck 2015.
+        Negative lookback times lead to negative redshifts, lookback
+        times greater than the age of the universe lead to ``np.inf``.
+        Neither have any meaning and both should be ignored.
+    """
+    planck15 = astropy.cosmology.Planck15
+    redshift = lookback_time.copy()
+    universe_age = planck15.age(0).value
+    # remove values that are older than the universe
+    redshift[lookback_time > universe_age] = np.inf
+    # find valid entries
+    t_valid = np.nonzero(
+        (lookback_time > 0) & (lookback_time <= universe_age)
+    )[0]
+    if t_valid.size != 0:
+        lookback_time_quant = astropy.units.Quantity(
+            lookback_time[t_valid], unit="Gyr"
+        )
+        z = astropy.cosmology.z_at_value(
+            planck15.lookback_time, lookback_time_quant
+        )
+        redshift[t_valid] = z.value
+    return redshift

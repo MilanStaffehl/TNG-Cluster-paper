@@ -107,3 +107,43 @@ def test_compute_get_radial_velocities():
         test_center, test_group_vel, pos, vel
     )
     np.testing.assert_allclose(output, expected, rtol=1e-4)
+
+
+def test_lookback_time_from_redshift_valid_values():
+    """Test the function with valid redhsifts"""
+    redshifts = np.array([0, 2, 8], dtype=np.float64)
+    output = compute.lookback_time_from_redshift(redshifts)
+    expected = np.array([0., 10.51366212, 13.15884972])
+    np.testing.assert_array_almost_equal(expected, output)
+
+
+def test_lookback_time_from_redshift_with_negative_values():
+    """Test that negative redshifts remain untouched"""
+    redshifts = np.array([-1, 0, 2, 8, -100], dtype=np.float64)
+    output = compute.lookback_time_from_redshift(redshifts)
+    expected = np.array([-1, 0, 10.51366212, 13.15884972, -100])
+    np.testing.assert_array_almost_equal(expected, output)
+
+
+def test_lookback_time_from_redshift_only_negative_values():
+    """Test the function raises no exception with only negative values"""
+    redshifts = np.array([-1, -2, -8], dtype=np.float64)
+    output = compute.lookback_time_from_redshift(redshifts)
+    np.testing.assert_array_almost_equal(redshifts, output)
+
+
+def test_redshift_from_lookback_time_valid_values():
+    """Test the function with valid values"""
+    lookback_times = np.array([0, 5.5, 10, 13.6], dtype=np.float64)
+    output = compute.redshift_from_lookback_time(lookback_times)
+    expected = np.array([0, 0.54306493, 1.71502016, 18.63050448])
+    np.testing.assert_array_almost_equal(expected, output)
+
+
+def test_redshift_from_lookback_time_invalid_values():
+    """Test the function with invalid values"""
+    # negative and older than universe
+    lookback_times = np.array([-1, 0, 5.5, 10, 13.6, 14], dtype=np.float64)
+    output = compute.redshift_from_lookback_time(lookback_times)
+    expected = np.array([-1, 0, 0.54306493, 1.71502016, 18.63050448, np.inf])
+    np.testing.assert_array_almost_equal(expected, output)
