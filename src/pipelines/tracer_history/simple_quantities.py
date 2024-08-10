@@ -89,8 +89,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 flags = (
                     tracer_file[f"{group}/particle_type_flags"][snap_num, :]
                 )
-                gas_indices = indices[flags == 0
-                                      ]  # select only gas (partType0)
+                gas_indices = indices[flags == 0]  # select only gas
+                # TODO: make unique to avoid same cell contributing
+                #  multiple times
 
                 # 4.3: Mask quantity to only the selected indices
                 traced_quantity = quantity[gas_indices]
