@@ -6,6 +6,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Sequence
 
+import astropy.cosmology
+import astropy.units
 import numpy as np
 
 from library import constants
@@ -271,9 +273,29 @@ def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
     :return: An array of 100 x-values equivalent to the redshifts of
         the 100 snapshots of the TNG simulations to use in plotting.
     """
+    planck15 = astropy.cosmology.Planck15
+    redshifts = np.array(constants.REDSHIFTS)
+    redshifts[-1] = 1e-3  # avoid log-problems with zero
+
+    # axes set-up
     axes.set_xlabel("Redshift")
-    xticks = np.array([0, 0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10])
-    axes.set_xticks(np.log10(xticks + 0.01), labels=xticks)
-    zero_offset = 0.01 if stop == 99 else 0
-    redshifts = np.array(constants.REDSHIFTS)[start:stop + 1] + zero_offset
-    return np.log10(redshifts)
+    axes.set_xscale("log")
+    xticks = np.array([0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10])
+    axes.set_xticks(xticks, labels=xticks)
+    axes.set_xlim(redshifts[stop], redshifts[start])
+
+    # secondary axis setup
+    sec_axes = axes.twiny()
+    sec_axes.set_xlabel("Lookback time [Gyr]")
+    sec_axes.set_xscale("log")
+    ticks = np.array([0.1, 1., 2., 5., 8., 11., 13.])
+    lookback_times = astropy.units.Quantity(ticks, unit="Gyr")
+    tick_pos = astropy.cosmology.z_at_value(
+        planck15.lookback_time, lookback_times
+    )
+    sec_axes.set_xticks(tick_pos.value, labels=ticks)
+    sec_axes.set_xlim(redshifts[stop], redshifts[start])
+
+    # redshifts as proxy values for snapnum
+    redshift_proxies = redshifts[start:stop + 1]
+    return redshift_proxies
