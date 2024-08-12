@@ -36,6 +36,7 @@ class Config:
     radius_field: str
     data_home: str | Path
     figures_home: str | Path
+    cool_gas_history: str | Path | None
 
     def __post_init__(self):
         """
@@ -65,10 +66,10 @@ class InvalidConfigPathError(Exception):
 class InvalidSimulationNameError(KeyError):
     """Raised when an unknown simulation name is used"""
 
-    def __init__(self, name: str, *args: Sequence[Any]) -> None:
+    def __init__(self, name: str, loc: str, *args: Sequence[Any]) -> None:
         msg = (
-            f"There is no simulation named {name} in the config.yaml "
-            f"configuration file."
+            f"There is no entry for a simulation named {name} in the "
+            f"config.yaml configuration file for {loc}."
         )
         super().__init__(msg, *args)
 
@@ -115,26 +116,46 @@ def get_default_config(
     figures_home = config["paths"]["figures_home"]
     if figures_home == "default":
         figures_home = root_dir / "figures"
-    else:
+    elif Path(figures_home).is_absolute():
         figures_home = Path(figures_home).resolve()
+    else:
+        figures_home = root_dir / figures_home
+
     data_home = config["paths"]["data_home"]
     if data_home == "default":
         data_home = root_dir / "data"
-    else:
+    elif Path(data_home).is_absolute():
         data_home = Path(data_home).resolve()
+    else:
+        data_home = root_dir / data_home
 
     try:
         base_path = Path(config["paths"]["base_paths"][sim]).resolve()
     except KeyError:
-        raise InvalidSimulationNameError(sim)
+        raise InvalidSimulationNameError(sim, "base paths")
 
     # verify paths
     for path in [figures_home, data_home, base_path]:
         if not path.exists() or not path.is_dir():
             raise InvalidConfigPathError(path)
 
+    # set file paths
+    try:
+        gas_data_file = config["paths"]["cool_gas_history_archive"][sim]
+    except KeyError:
+        gas_data_file = None
+    else:
+        if gas_data_file == "default":
+            gas_data_file = (
+                data_home / "tracer_history" / sim.replace("-", "_")
+                / "cool_gas_history.hdf5"
+            )
+        elif Path(gas_data_file).is_absolute():
+            gas_data_file = Path(gas_data_file).resolve()
+        else:
+            gas_data_file = data_home / gas_data_file
+
     # return config
-    # base_path = simulation_home / sim / "output"
     final_config = Config(
         sim,
         str(base_path),  # illustris_python does not support Path-likes
@@ -143,6 +164,7 @@ def get_default_config(
         radius_field=radius_field,
         data_home=data_home,
         figures_home=figures_home,
+        cool_gas_history=gas_data_file,
     )
     return final_config
 
@@ -177,7 +199,7 @@ def get_simulation_base_path(sim: str) -> str:
     try:
         base_path = config["paths"]["base_paths"][sim]
     except KeyError:
-        raise InvalidSimulationNameError(sim)
+        raise InvalidSimulationNameError(sim, "base paths")
     # resolve path and return it
     full_path = str(Path(base_path).resolve())
     logging.debug(f"Returning path to simulation {sim}: {full_path}")

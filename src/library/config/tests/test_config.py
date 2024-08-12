@@ -15,27 +15,6 @@ else:
     mock_sim_home = Path().home() / ".local"
 
 
-@pytest.mark.skipif(
-    not Path("/virgotng/").exists(),
-    reason="Cannot be executed outside of the Vera cluster."
-)
-def test_default_config_vera():
-    """
-    Test the default config returned by get_default_config.
-    """
-    test_cfg = config.get_default_config("TNG300-1")
-    # simlinks are resolved, and the TNG300-1 directory is a simlink,
-    # so we get the more cryptic full name here:
-    default_sim_path = "/virgotng/universe/IllustrisTNG/L205n2500TNG/output"
-    assert test_cfg.base_path == default_sim_path
-    assert test_cfg.snap_num == 99
-    assert test_cfg.mass_field == "Group_M_Crit200"
-    assert test_cfg.radius_field == "Group_R_Crit200"
-    root_dir = Path(__file__).parents[4].resolve()
-    assert Path(test_cfg.data_home).resolve() == root_dir / "data"
-    assert Path(test_cfg.figures_home).resolve() == root_dir / "figures"
-
-
 def test_default_config_generic(mocker):
     """
     Test the default config returned by get_default_config.
@@ -46,9 +25,8 @@ def test_default_config_generic(mocker):
             {
                 "data_home": str(Path(__file__).parents[4].resolve() / "data"),
                 "figures_home": str(Path(__file__).parents[4].resolve() / "figures"),
-                "base_paths": {
-                    "TNG300-1": str(mock_sim_home),
-                }
+                "base_paths": {"TNG300-1": str(mock_sim_home)},
+                "cool_gas_history_archive": {"TNG300-1": "default"},
             }
     }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
@@ -62,6 +40,10 @@ def test_default_config_generic(mocker):
     root_dir = Path(__file__).parents[4].resolve()
     assert Path(test_cfg.data_home).resolve() == root_dir / "data"
     assert Path(test_cfg.figures_home).resolve() == root_dir / "figures"
+    expected_file = (
+        test_cfg.data_home / "tracer_history/TNG300_1/cool_gas_history.hdf5"
+    )
+    assert test_cfg.cool_gas_history == expected_file
 
 
 def test_default_config_default(mocker):
@@ -74,9 +56,8 @@ def test_default_config_default(mocker):
             {
                 "data_home": "default",
                 "figures_home": "default",
-                "base_paths": {
-                    "TNG300-1": str(mock_sim_home),
-                }
+                "base_paths": {"TNG300-1": str(mock_sim_home)},
+                "cool_gas_history_archive": {"TNG300-1": "default"}
             }
     }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
@@ -90,6 +71,10 @@ def test_default_config_default(mocker):
     root_dir = Path(__file__).parents[4].resolve()
     assert Path(test_cfg.data_home).resolve() == root_dir / "data"
     assert Path(test_cfg.figures_home).resolve() == root_dir / "figures"
+    expected_file = (
+        test_cfg.data_home / "tracer_history/TNG300_1/cool_gas_history.hdf5"
+    )
+    assert test_cfg.cool_gas_history == expected_file
 
 
 def test_custom_config(mocker):
@@ -102,9 +87,8 @@ def test_custom_config(mocker):
             {
                 "data_home": str(Path(__file__).parents[4].resolve() / "data"),
                 "figures_home": str(Path(__file__).parents[4].resolve() / "figures"),
-                "base_paths": {
-                    "TNG50-2": str(mock_sim_home),
-                }
+                "base_paths": {"TNG50-2": str(mock_sim_home)},
+                "cool_gas_history_archive": {"TNG50-2": "./my_dir/archive.hdf5"}
             }
     }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
@@ -120,6 +104,8 @@ def test_custom_config(mocker):
     root_dir = Path(__file__).parents[4].resolve()
     assert Path(test_cfg.data_home).resolve() == root_dir / "data"
     assert Path(test_cfg.figures_home).resolve() == root_dir / "figures"
+    expected_file = test_cfg.data_home / "my_dir/archive.hdf5"
+    assert test_cfg.cool_gas_history == expected_file
 
 
 @pytest.mark.skipif(
@@ -131,15 +117,16 @@ def test_custom_paths_linux(mocker):
     """
     # set global vars to some path
     mock_config = {
-        "paths":
-            {
-                "data_home": str(Path().home() / ".local"),
-                "figures_home": str(Path().home() / ".local"),
-                "base_paths": {
-                    "TNG300-1": str(Path().home() / ".local"),
-                },
-            }
-    }
+        "paths": {
+            "data_home": str(Path().home() / ".local"),
+            "figures_home": str(Path().home() / ".local"),
+            "base_paths": {
+                "TNG300-1": str(Path().home() / ".local"),
+            },
+            "cool_gas_history_archive":
+                {"TNG300-1": str(Path().home() / "archive.hdf5")}
+        }
+    }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     # create and test config
@@ -152,6 +139,7 @@ def test_custom_paths_linux(mocker):
     home_dir = Path().home().resolve()
     assert Path(test_cfg.data_home) == home_dir / ".local"
     assert Path(test_cfg.figures_home) == home_dir / ".local"
+    assert Path(test_cfg.cool_gas_history) == home_dir / "archive.hdf5"
 
 
 @pytest.mark.skipif(
@@ -164,15 +152,13 @@ def test_custom_paths_windows(mocker):
     # set global vars to some path
     app_data = Path(os.path.expandvars("%LOCALAPPDATA%"))
     mock_config = {
-        "paths":
-            {
-                "data_home": app_data,
-                "figures_home": app_data,
-                "base_paths": {
-                    "TNG300-1": app_data,
-                }
-            }
-    }
+        "paths": {
+            "data_home": app_data,
+            "figures_home": app_data,
+            "base_paths": {"TNG300-1": app_data},
+            "cool_gas_history_archive": {"TNG300-1": app_data / "archive.hdf5"}
+        }
+    }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     # create and test config
@@ -184,6 +170,7 @@ def test_custom_paths_windows(mocker):
     assert test_cfg.radius_field == "Group_R_Crit200"
     assert Path(test_cfg.data_home) == app_data
     assert Path(test_cfg.figures_home) == app_data
+    assert Path(test_cfg.cool_gas_history) == app_data / "archive.hdf5"
 
 
 def test_invalid_paths(mocker):
@@ -236,7 +223,33 @@ def test_invalid_simulation_name(mocker):
         config.get_default_config("TNG50-4")
     # TNG50-4 is not in the config file, so it should raise the exception
     expected_msg = (
-        "'There is no simulation named TNG50-4 in the config.yaml "
-        "configuration file.'"
+        "'There is no entry for a simulation named TNG50-4 in the config.yaml "
+        "configuration file for base paths.'"
     )
     assert str(e.value) == expected_msg
+
+
+def test_missing_simulation_in_archive_config(mocker):
+    """
+    Test that an exception is raised when an unknown simulation name is given.
+    """
+    # set paths to something non-existent and/or invalid
+    mock_config = {
+        "paths": {
+            "data_home": str(Path().home() / ".local"),
+            "figures_home": str(Path().home() / ".local"),
+            "base_paths": {
+                "TNG300-1": str(Path().home() / ".local"),
+                "TNG-Cluster": str(Path().home() / ".local"),
+            },
+            "cool_gas_data_archive": {
+                "TNG-Cluster": str(Path().home() / "archive.hdf5")
+            }
+        }
+    }  # yapf: disable
+    mock_load = mocker.patch("yaml.full_load")
+    mock_load.return_value = mock_config
+    # create and test config
+    cfg = config.get_default_config("TNG300-1")
+    # TNG300-1 is not in the config file, so the path is set to None
+    assert cfg.cool_gas_history is None

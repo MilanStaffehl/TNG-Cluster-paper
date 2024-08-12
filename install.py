@@ -29,6 +29,9 @@ def create_config_file():
         "    TNG-Cluster: /virgotng/mpia/TNG-Cluster/TNG-Cluster/output\n"
         "  data_home: default\n"
         "  figures_home: default\n"
+        "  cool_gas_history_archive:\n"
+        "    TNG300-1: default\n"
+        "    TNG-Cluster: default\n"
     )
     # yapf: enable
     with open(root_dir / "config.yaml", "w") as config_file:
