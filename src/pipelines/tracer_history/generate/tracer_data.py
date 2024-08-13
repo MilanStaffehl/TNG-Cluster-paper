@@ -400,11 +400,6 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
 
         :return: Exit code.
         """
-        # Step 0: check all files and directories exist
-        self._create_directories(
-            subdirs=["particle_ids/TNG_Cluster"], force=True
-        )
-
         logging.info("Checking all required intermediate files exist.")
         files_exist = True
         for snap_num in range(100):

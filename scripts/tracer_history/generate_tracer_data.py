@@ -10,7 +10,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.generate.generate_data import (
+from pipelines.tracer_history.generate.tracer_data import (
     ArchiveTNGClusterTracerDataPipeline,
     FindTracedParticleIDsInSnapshot,
     GenerateTNGClusterTracerIDsAtRedshiftZero,
