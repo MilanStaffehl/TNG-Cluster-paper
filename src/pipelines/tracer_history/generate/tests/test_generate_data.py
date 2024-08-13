@@ -10,7 +10,7 @@ import numpy as np
 import pytest
 
 from library.config import config
-from pipelines.tracer_history.generate import generate_data
+from pipelines.tracer_history.generate import tracer_data
 
 if TYPE_CHECKING:
     from unittest.mock import Mock
@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 # types
-FinderPipeline: TypeAlias = generate_data.FindTracedParticleIDsInSnapshot
+FinderPipeline: TypeAlias = tracer_data.FindTracedParticleIDsInSnapshot
 
 # patch paths
 PARTICLE_IDS_DAQ = "library.data_acquisition.particle_daq.get_particle_ids"
@@ -44,7 +44,7 @@ def finder_pipeline() -> Iterator[FinderPipeline]:
         "data_file_stem": "data_file_stem",
         "figures_file_stem": "figures_file_stem",
     }
-    pipe = generate_data.FindTracedParticleIDsInSnapshot(
+    pipe = tracer_data.FindTracedParticleIDsInSnapshot(
         config=cfg,
         paths=paths,
         processes=1,
@@ -88,7 +88,7 @@ def patch_match_particle_ids(mocker: MockerFixture) -> Iterator[Mock]:
     mock_lens = np.array([4, 4, 4], dtype=np.uint64)
 
     mock_method = mocker.patch.object(
-        generate_data.FindTracedParticleIDsInSnapshot,
+        tracer_data.FindTracedParticleIDsInSnapshot,
         "_match_particle_ids_to_particles",
     )
     mock_method.return_value = (mock_indices, mock_flags, mock_lens)
