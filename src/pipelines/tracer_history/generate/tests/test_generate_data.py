@@ -37,6 +37,7 @@ def finder_pipeline() -> Iterator[FinderPipeline]:
         "Group_R_Crit200",
         Path("data/"),
         Path("figures/"),
+        None,
     )
     paths = {
         "data_dir": Path("data/dir"),
