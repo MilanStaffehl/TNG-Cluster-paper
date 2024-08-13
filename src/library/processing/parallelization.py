@@ -66,7 +66,7 @@ def process_data_parallelized(
         results = pool.map(callback, data, chunksize=int(chunksize))
         pool.close()
         pool.join()
-    logging.info("Finished processing halo data.")
+    logging.info(f"Finished processing data on {processes} processes.")
 
     # return array of data
     return np.array(results)

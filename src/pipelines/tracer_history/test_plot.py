@@ -238,8 +238,11 @@ class FollowParticlesPipeline(Pipeline):
             f"{parent_ids} with types {self.particle_type_flags[snap_num]}"
         )
 
-    def _load_particle_properties(self, part_type: int,
-                                  snap_num: int) -> dict[str, NDArray]:
+    def _load_particle_properties(
+        self,
+        part_type: int,
+        snap_num: int,
+    ) -> dict[str, NDArray]:
         """
         Load the particle ID and coordinates of the given particle type.
 
