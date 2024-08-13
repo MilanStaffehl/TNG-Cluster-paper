@@ -393,10 +393,6 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
 
     def __post_init__(self):
         super().__post_init__()
-        self.filepath = (
-            self.paths["data_dir"] / "particle_ids" / "TNG_Cluster"
-            / f"particle_ids_from_snapshot_{self.config.snap_num}.hdf5"
-        )
 
     def run(self) -> int:
         """
@@ -428,7 +424,7 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
 
         # Step 1: Create a hdf5 archive and its structure from snap 99
         logging.info("Creating hdf5 archive.")
-        f = h5py.File(self.filepath, "w")
+        f = h5py.File(self.config.cool_gas_history, "w")
         snapdir_99 = self.paths["data_dir"] / "particle_ids/snapshot_99/"
         for zoom_id in range(self.n_clusters):
             # create hdf5 group for current zoom-in region
@@ -507,7 +503,10 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
 
         # Step 3: close file
         f.close()
-        logging.info(f"Successfully wrote all data to file {self.filepath}!")
+        logging.info(
+            f"Successfully wrote all data to file "
+            f"{self.config.cool_gas_history}!"
+        )
         return 0
 
 
@@ -552,7 +551,7 @@ class TestArchivedTracerDataTNGClusterPipeline(
             logging.info("Testing intermediate files instead of archive.")
             f = None
         else:
-            f = h5py.File(self.filepath, "r")
+            f = h5py.File(self.config.cool_gas_history, "r")
 
         # Step 2: Loop over zoom-in regions
         for zoom_id in range(self.n_clusters):
@@ -643,7 +642,10 @@ class TestArchivedTracerDataTNGClusterPipeline(
         """
         if file is None:
             # load intermediate file instead
-            filepath = self.filepath.parents[1] / f"snapshot_{snap_num:02d}"
+            filepath = (
+                self.config.cool_gas_history.parents[1]
+                / f"snapshot_{snap_num:02d}"
+            )
             filename = f"particle_ids_zoom_region_{zoom_id}.npz"
             with np.load(filepath / filename) as f:
                 indices = f["particle_indices"]
