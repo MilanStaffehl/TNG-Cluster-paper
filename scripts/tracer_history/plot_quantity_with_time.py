@@ -7,9 +7,12 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.simple_quantities import (
+from pipelines.tracer_history.generate.particle_data import (
     TraceDistancePipeline,
     TraceTemperaturePipeline,
+)
+from pipelines.tracer_history.simple_quantities import (
+    PlotSimpleQuantityWithTimePipeline,
 )
 
 
@@ -25,36 +28,52 @@ def main(args: argparse.Namespace) -> None:
         "tracer_history",
         type_flag,
         figures_subdirectory=f"./{type_flag}",
-        data_subdirectory=".",
+        data_subdirectory="TNG_Cluster",
         suppress_sim_name_in_files=False,
     )
 
-    # select pipelline and config
+    # select pipeline and config
     match args.what:
         case "temperature":
             pipeline_class = TraceTemperaturePipeline
+            quantity = "Temperature"
             quantity_label = "Temperature [K]"
         case "distance":
             pipeline_class = TraceDistancePipeline
+            quantity = "DistanceToMP"
             quantity_label = "Distance from cluster center [ckpc]"
         case _:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
 
-    pipeline_config.update(
-        {
-            "quantity_label": quantity_label,
-            "color": args.color,
-            "make_ridgeline": False
-        }
-    )
+    pipeline_config.update({
+        "quantity": quantity,
+    })
 
     # select and build pipeline
     if args.from_file:
-        raise NotImplementedError("Loading from file is not implemented.")
+        pipeline_config.update(
+            {
+                "quantity_label": quantity_label, "color": "black"
+            }
+        )
+        pipeline = PlotSimpleQuantityWithTimePipeline(**pipeline_config)
+        sys.exit(pipeline.run())
     else:
-        pipeline = pipeline_class(**pipeline_config)
-    sys.exit(pipeline.run())
+        # data generation pipeline
+        data_pipeline = pipeline_class(**pipeline_config, unlink=args.unlink)
+        exit_code = data_pipeline.run()
+        if args.no_plots or exit_code != 0:
+            sys.exit(exit_code)
+        # plotting pipeline
+        pipeline_config.update(
+            {
+                "quantity_label": quantity_label, "color": "black"
+            }
+        )
+        plot_pipeline = PlotSimpleQuantityWithTimePipeline(**pipeline_config)
+        exit_code += plot_pipeline.run()
+        sys.exit(exit_code)
 
 
 if __name__ == "__main__":
@@ -81,12 +100,14 @@ if __name__ == "__main__":
         choices=["temperature", "distance"],
     )
     parser.add_argument(
-        "-c",
-        "--color",
-        help="Color for the faint lines of individual clusters",
-        dest="color",
-        type=str,
-        default="dodgerblue",
+        "-u",
+        "--unlink",
+        help=(
+            "Whether to clean up intermediate files after generating data. "
+            "Has no effect when --from-file is used."
+        ),
+        dest="unlink",
+        action="store_true",
     )
 
     # parse arguments

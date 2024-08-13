@@ -3,7 +3,6 @@ Trace back some simple quantities of the tracer particles.
 """
 from __future__ import annotations
 
-import abc
 import dataclasses
 import logging
 from typing import TYPE_CHECKING, ClassVar
@@ -13,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from library import constants
-from library.data_acquisition import gas_daq, halos_daq
 from library.plotting import common
 from pipelines import base
 
@@ -22,13 +20,10 @@ if TYPE_CHECKING:
 
 
 @dataclasses.dataclass
-class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
-    """
-    Base class to trace back simple tracer quantities.
+class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
+    """Load data from hdf5 archive and plot it in various ways"""
 
-    Needs to have its abstract methods implemented.
-    """
-
+    quantity: str  # name of the dataset in the archive
     quantity_label: str  # y-axis label for quantity
     color: str  # color for faint lines
     make_ridgeline: bool = False
@@ -36,90 +31,55 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
 
-    def __post_init__(self):
-        self.tracer_filepath = (
-            self.config.data_home / "tracer_history" / "particle_ids"
-            / "TNG_Cluster"
-            / f"particle_ids_from_snapshot_{self.config.snap_num}.hdf5"
-        )
-
     def run(self) -> int:
-        """
-        Trace back quantity and plot it.
-
-        :return: Exit code.
-        """
-        # Step 0: set up directories
-        self._create_directories()
-        logging.info(f"Tracing back {self.quantity_label} in time.")
+        """Load and plot data"""
+        # Step 0: check archive exists
+        if not self.config.cool_gas_history.exists():
+            logging.fatal(
+                f"Did not find cool gas archive file "
+                f"{self.config.cool_gas_history}."
+            )
+            return 1
 
         # Step 1: allocate memory for quantities to trace
         quantity_mean = np.zeros((self.n_clusters, self.n_snaps))
         quantity_median = np.zeros_like(quantity_mean)
-        # TODO: remove and replace with 2D hist
         quantity_min = np.zeros_like(quantity_mean)
         quantity_max = np.zeros_like(quantity_mean)
+        # TODO: allocate memory for 2D hists
 
-        # Step 2: Load cluster primary
-        group_primaries = halos_daq.get_halo_properties(
-            self.config.base_path,
-            self.config.snap_num,
-            ["GroupFirstSub"],
-            cluster_restrict=True,
-        )["GroupFirstSub"]
+        # Step 2: open the archive
+        f = h5py.File(self.config.cool_gas_history, "r")
 
-        # Step 3: Load the gas particle indices file
-        tracer_file = h5py.File(self.tracer_filepath, "r")
-
-        # Step 4: Loop through snapshots and zooms to get quantity
-        for i, snap_num in enumerate(range(constants.MIN_SNAP, 100)):
-            logging.info(f"Processing snapshot {snap_num}.")
-            for zoom_id in range(self.n_clusters):
-                logging.debug(
-                    f"Processing snap {snap_num}, zoom-in {zoom_id}."
+        # Step 3: load quantity and process for plotting
+        for zoom_id in range(self.n_clusters):
+            group = f"ZoomRegion_{zoom_id:03d}"
+            # check field exists
+            try:
+                quantity = f[group][self.quantity]
+            except KeyError:
+                logging.fatal(
+                    f"Zoom-in {zoom_id} is missing dataset {self.quantity}. "
+                    f"Cannot proceed with plotting."
                 )
-                # 4.1: Get particle quantity
-                quantity = self._load_quantity(
-                    snap_num, zoom_id, group_primaries
-                )
+                return 2
 
-                # 4.2: Find gas particle indices
-                group = f"ZoomRegion_{zoom_id:03d}"
-                indices = tracer_file[f"{group}/particle_indices"][snap_num, :]
-                flags = (
-                    tracer_file[f"{group}/particle_type_flags"][snap_num, :]
-                )
-                gas_indices = indices[flags == 0]  # select only gas
-                # TODO: make unique to avoid same cell contributing
-                #  multiple times
+            quantity_mean[zoom_id] = np.nanmean(quantity, axis=1)
+            quantity_median[zoom_id] = np.nanmedian(quantity, axis=1)
+            quantity_max[zoom_id] = np.nanmax(quantity, axis=1)
+            quantity_min[zoom_id] = np.nanmin(quantity, axis=1)
 
-                # 4.3: Mask quantity to only the selected indices
-                traced_quantity = quantity[gas_indices]
-
-                # 4.4: Fill allocated arrays
-                quantity_mean[zoom_id, i] = np.mean(traced_quantity)
-                quantity_median[zoom_id, i] = np.median(traced_quantity)
-                # TODO: make 2D histogram here
-                quantity_min[zoom_id, i] = np.min(traced_quantity)
-                quantity_max[zoom_id, i] = np.max(traced_quantity)
-
-        tracer_file.close()
-
-        # Step 5: save data to file
-        if self.to_file:
-            # TODO: implement once final version of pipeline exists
-            logging.warning("No data saving implemented yet!")
-
-        # Step 6: plot line plots
+        # Step 4: plot line plots
         self._plot_and_save_lineplots(
             quantity_mean, quantity_median, quantity_min, quantity_max
         )
 
-        # Step 7: plot 2D histograms / ridgeline plots
-        if self.make_ridgeline:
-            self._plot_and_save_ridgelineplots()
-        else:
-            self._plot_and_save_2dhistograms()
+        # Step 5: plot 2D histograms
+        self._plot_and_save_2dhistograms()
+
+        # Step 6: plot ridgeline plots
+        self._plot_and_save_ridgelineplots()
+
         return 0
 
     def _plot_and_save_lineplots(
@@ -191,85 +151,3 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
     def _plot_and_save_2dhistograms(self):
         # TODO: implement
         pass
-
-    @abc.abstractmethod
-    def _load_quantity(
-        self, snap_num: int, zoom_id: int, group_primaries: NDArray
-    ) -> NDArray:
-        """
-        Abstract method to load a cluster quantity.
-
-        Subclasses to this class must implement this method in such a
-        way that it returns the array of the desired quantity for all
-        gas particles of the given zoom at the given snapshot.
-
-        :param snap_num: The snapshot to query. Must be a number between
-            0 and 99.
-        :param zoom_id: The zoom-in region ID. Must be a number between
-            0 and 351.
-        :param group_primaries: Array of IDs of primary subhalo of every
-            cluster at snapshot 99. Useful to trace back cluster
-            progenitors through time.
-        :return: The gas quantity for every gas cell in the zoom-in at
-            that snapshot, such that it can be indexed by the indices
-            saved by the generation pipeline.
-        """
-        pass
-
-
-# -----------------------------------------------------------------------------
-# CONCRETE CLASSES:
-
-
-class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
-    """
-    Trace distance of gas particles to cluster with time.
-    """
-
-    def _load_quantity(
-        self, snap_num: int, zoom_id: int, group_primaries: NDArray
-    ) -> NDArray:
-        """
-        Find the distance of every gas particle to the cluster.
-
-        The distance must be computed to the current position of the
-        cluster.
-
-        :param snap_num: Snapshot to find the distances at.
-        :param zoom_id: The ID of the zoom-in region.
-        :return: Array of the distances of all gas cells to the cluster
-            center.
-        """
-        # Step 1: find the cluster center
-
-        # Step 2: Load gas particles coordinates
-
-        # Step 3: Calculate distances
-
-
-class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
-    """
-    Trace temperature of gas particles with time.
-    """
-
-    def _load_quantity(
-        self, snap_num: int, zoom_id: int, group_primaries: NDArray
-    ) -> NDArray:
-        """
-        Find the temperature of gas particles in the zoom-in.
-
-        This loads the temperature of all gas cells in the zoom-in region
-        at the given snapshot and returns it, such that it can be indexed
-        with the pre-saved indices.
-
-        :param snap_num: The snap for which to load temperatures.
-        :param zoom_id: The ID of the zoom-in region.
-        :param group_primaries: Dummy var, not used.
-        :return: Array of the temperatures of all gas cells in the zoom-in
-            region
-        """
-        return gas_daq.get_cluster_temperature(
-            self.config.base_path,
-            snap_num,
-            zoom_id=zoom_id,
-        )

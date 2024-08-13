@@ -4,11 +4,13 @@ Function for data acquisition of all particle cells.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal, Sequence
 
 import h5py
 import illustris_python as il
 import numpy as np
+
+from library import units
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -17,7 +19,7 @@ if TYPE_CHECKING:
 def get_particle_ids(
     base_path: str,
     snap_num: int,
-    part_type: int,
+    part_type: Literal[0, 4, 5],
     *,
     cluster: int | None = None,
     zoom_id: int | None = None,
@@ -122,3 +124,124 @@ def _load_original_zoom_particle_ids(
 
     # concatenate data
     return np.concatenate([particle_ids_fof, particle_ids_fuzz], axis=0)
+
+
+def get_particle_properties(
+    base_path: str,
+    snap_num: int,
+    part_type: Literal[0, 4, 5],
+    fields: list[str],
+    *,
+    zoom_id: int | None = None,
+) -> dict[str, NDArray] | None:
+    """
+    Return array of properties of the given particle type.
+
+    :param base_path: Base path of the simulation.
+    :param snap_num: Snapshot from which to load the data.
+    :param part_type: The particle type to load. Must be either 0 for gas,
+        4 for stars, or 5 for black holes.
+    :param fields: List of fields to load. Must be available for the
+        given particle type.
+    :param zoom_id: When loading data from TNG-Cluster, set this to the
+        ID of the original zoom-in region to load only particles from
+        this zoom-in.
+    :return: Dictionary mapping field names to arrays of values in
+        physical units. If loading fails, returns None instead.
+    """
+    if not isinstance(fields, Sequence):
+        fields = list(fields)
+
+    if zoom_id is None:
+        part_data = il.snapshot.loadSubset(
+            base_path, snap_num, part_type, fields=fields, float32=True
+        )
+        if isinstance(part_data, np.ndarray):
+            part_data = {fields[0]: part_data}
+    else:
+        part_data = _load_original_zoom_particle_properties(
+            base_path, snap_num, part_type, zoom_id, fields
+        )
+        if part_data is None:
+            return None
+
+    # convert units
+    part_data_physical = {}
+    for field, value in part_data.items():
+        part_data_physical[field] = units.UnitConverter.convert(
+            value, field, snap_num
+        )
+    return part_data_physical
+
+
+def _load_original_zoom_particle_properties(
+    base_path: str,
+    snap_num: int,
+    part_type: Literal[0, 4, 5],
+    zoom_id: int,
+    fields: list[str],
+) -> dict[str, NDArray | int] | None:
+    """
+    Load particle properties from one of the original zoom-ins of TNG-Cluster.
+
+    Functions loads all particles of the specified original zoom-in
+    (halo, inner and outer fuzz), and returns the specified list of
+    fields as values in a dictionary mapping the field names to an array
+    of values. The values are in code units.
+
+    :param base_path: Base path of TNG-Cluster.
+    :param snap_num: The snapshot to load.
+    :param zoom_id: The index/ID of the zoom-in region to load. Must be
+        a number between 0 and 351.
+    :param part_type: The particle type as integer.
+    :param fields: A list of fields to load.
+    :return: Dictionary mapping field names to values in code units.
+    """
+    if zoom_id < 0 or zoom_id > 351:
+        logging.error(f"Invalid zoom-in region ID: {zoom_id}.")
+        return None
+
+    # check if we are actually working with TNG-Cluster
+    test_data = il.groupcat.loadSingle(base_path, snap_num, haloID=0)
+    if "GroupOrigHaloID" not in test_data.keys():
+        logging.error(
+            "Tried loading original zoom-in of a simulation that is not "
+            "TNG-Cluster. Returning empty data."
+        )
+        return None
+
+    # temporary dict
+    temp = {field: [] for field in fields}
+
+    # locate and load files
+    snapshot_path = base_path + f"/snapdir_{snap_num:03d}/"
+    fof_file = f"snap_{snap_num:03d}.{zoom_id}.hdf5"
+    with h5py.File(str(snapshot_path + fof_file), "r") as file:
+        for field in fields:
+            try:
+                particles_fof = file[f"PartType{part_type}"][field][()]
+            except KeyError:
+                pass  # simply skip this one (sometimes they are empty)
+            else:
+                temp[field].append(particles_fof)
+
+    fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
+    with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
+        for field in fields:
+            try:
+                particles_fuzz = file[f"PartType{part_type}"][field][()]
+            except KeyError:
+                pass
+            else:
+                temp[field].append(particles_fuzz)
+
+    # concatenate data
+    try:
+        data = {f: np.concatenate(v, axis=0) for f, v in temp.items()}
+        return data
+    except ValueError:
+        logging.error(
+            f"At least one field of {fields} did not exist for TNG-Cluster "
+            f"particles of type {part_type}."
+        )
+        return None
