@@ -31,6 +31,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
     quantity: str  # name of the field in the archive
     unlink: bool = False  # delete intermediate files after archiving?
+    force_overwrite: bool = False  # overwrite intermediate files?
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -60,7 +61,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         # Step 2: Loop through snapshots and zooms to get quantity
         if self.processes > 1:
             # create combinations of args
-            snap_nums = np.linspace(0, 99, num=100, dtype=np.uint64)
+            snap_nums = np.arange(
+                constants.MIN_SNAP, 100, step=1, dtype=np.uint64
+            )
             zoom_ids = np.arange(0, 352, step=1)
             snap_nums = np.broadcast_to(snap_nums[:, None],
                                         (100, 352)).flatten()
@@ -76,29 +79,35 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 primaries,
             )
         else:
-            tracer_file = h5py.File(self.config.cool_gas_history, "r")
-            for zoom_id in range(self.n_clusters):
-                logging.info(f"Processing zoom-in region {zoom_id}.")
-                for snap_num in range(constants.MIN_SNAP, 100):
-                    self._save_intermediate_file(
-                        snap_num,
-                        zoom_id,
-                        group_primaries[zoom_id],
-                        tracer_file,
-                    )
-            tracer_file.close()
+            logging.info("Skipping all that lengthy stuff...")
+            # tracer_file = h5py.File(self.config.cool_gas_history, "r")
+            # for zoom_id in range(self.n_clusters):
+            #     logging.info(f"Processing zoom-in region {zoom_id}.")
+            #     for snap_num in range(constants.MIN_SNAP, 100):
+            #         self._save_intermediate_file(
+            #             snap_num,
+            #             zoom_id,
+            #             group_primaries[zoom_id],
+            #             tracer_file,
+            #         )
+            # tracer_file.close()
 
         # Step 3: archive data
         tracer_file = h5py.File(self.config.cool_gas_history, "r+")
         for zoom_id in range(self.n_clusters):
             group = f"ZoomRegion_{zoom_id:03d}"
-            # create a dataset
-            test_data = np.load(self.tmp_dir / "z000s99.npy")
+            fn = f"{self.quantity}z{zoom_id:03d}s99.npy"
+            test_data = np.load(self.tmp_dir / fn)
             shape = test_data.shape
             dtype = test_data.dtype
-            tracer_file[group].create_dataset(
-                self.quantity, shape=(100, ) + shape, dtype=dtype
-            )
+
+            # create a dataset if non-existent
+            if self.quantity not in tracer_file[group].keys():
+                logging.debug(f"Creating missing dataset for {self.quantity}.")
+                tracer_file[group].create_dataset(
+                    self.quantity, shape=(100, ) + shape, dtype=dtype
+                )
+
             # fill with data from intermediate files
             for snap_num in range(100):
                 if snap_num < constants.MIN_SNAP:
@@ -147,7 +156,17 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             overhead in sequential execution.
         :return: None
         """
-        # Step 0: open file if necessary
+        # Step 0: skip if file exists
+        if not self.force_overwrite:
+            filename = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
+            if (self.tmp_dir / filename).exists():
+                logging.debug(
+                    f"Rewrite was not forced and file {filename} exists; "
+                    f"skipping."
+                )
+                return
+
+        # Step 1: open file if necessary
         if tracer_file is None:
             multiprocessing = True
             tracer_file = h5py.File(self.config.cool_gas_history, "r")
@@ -159,19 +178,19 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             multiprocessing = False
             logging.debug(f"Processing snap {snap_num}, zoom-in {zoom_id}.")
 
-        # Step 1: Get particle quantity
+        # Step 2: Get particle quantity
         quantity = self._load_quantity(snap_num, zoom_id, primary_subhalo_id)
 
-        # Step 2: Find gas particle indices
+        # Step 3: Find gas particle indices
         group = f"ZoomRegion_{zoom_id:03d}"
         indices = tracer_file[f"{group}/particle_indices"][snap_num, :]
         flags = (tracer_file[f"{group}/particle_type_flags"][snap_num, :])
 
-        # Step 3: Create an array for the results
+        # Step 4: Create an array for the results
         traced_quantity = np.empty(indices.shape, dtype=quantity.dtype)
         traced_quantity[:] = np.nan  # set all to NaN
 
-        # Step 4: Mask data and fill array with results
+        # Step 5: Mask data and fill array with results
         if np.max(indices) > quantity.shape[0]:
             # gas only
             traced_quantity[flags == 0] = quantity[indices[flags == 0]]
@@ -179,7 +198,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             # all particles available
             traced_quantity[:] = quantity[indices]
 
-        # Step 5: Save to intermediate file
+        # Step 6: Save to intermediate file
         filename = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
         np.save(self.tmp_dir / filename, traced_quantity)
 
@@ -239,10 +258,12 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
             self.config.base_path,
             self.config.snap_num,
             primary_subhalo_id,
-            fields=["SubhaloPos"],
+            fields=["SubhaloPos", "SnapNum"],
             onlyMPB=True,
         )
-        primary_pos_code_units = mpb[snap_num]
+        positions = mpb["SubhaloPos"]
+        snaps = mpb["SnapNum"]
+        primary_pos_code_units = positions[snaps == snap_num][0]
         primary_pos = units.UnitConverter.convert(
             primary_pos_code_units, "SubhaloPos", snap_num=snap_num
         )

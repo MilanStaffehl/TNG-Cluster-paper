@@ -61,7 +61,11 @@ def main(args: argparse.Namespace) -> None:
         sys.exit(pipeline.run())
     else:
         # data generation pipeline
-        data_pipeline = pipeline_class(**pipeline_config, unlink=args.unlink)
+        data_pipeline = pipeline_class(
+            **pipeline_config,
+            unlink=args.unlink,
+            force_overwrite=args.force_overwrite,
+        )
         exit_code = data_pipeline.run()
         if args.no_plots or exit_code != 0:
             sys.exit(exit_code)
@@ -88,6 +92,7 @@ if __name__ == "__main__":
     # remove unnecessary args
     parser.remove_argument("processes")
     parser.remove_argument("sim")
+    parser.remove_argument("to_file")
 
     # add new args
     parser.add_argument(
@@ -107,6 +112,16 @@ if __name__ == "__main__":
             "Has no effect when --from-file is used."
         ),
         dest="unlink",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-fo",
+        "--force-overwrite",
+        help=(
+            "Force overwriting intermediate files. If not set, existing "
+            "intermediate files are re-used."
+        ),
+        dest="force_overwrite",
         action="store_true",
     )
 
