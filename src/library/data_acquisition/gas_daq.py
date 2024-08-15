@@ -6,11 +6,11 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any, Callable, Sequence
 
-import h5py
 import illustris_python as il
 import numpy as np
 
 from library import compute, units
+from library.data_acquisition import daq_util
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -145,8 +145,12 @@ def get_cluster_temperature(
             base_path, snap_num, halo_id, partType=0, fields=fields
         )
     elif -1 < zoom_id < 352:
-        gas_data = _load_original_zoom_particles(
-            base_path, snap_num, zoom_id, fields
+        gas_data = daq_util.load_original_zoom_particle_properties(
+            base_path,
+            snap_num,
+            0,
+            zoom_id,
+            fields,
         )
     else:
         logging.error(
@@ -226,8 +230,8 @@ def get_gas_properties(
             base_path, snap_num, cluster, partType=0, fields=fields
         )
     elif zoom_id is not None:
-        gas_data = _load_original_zoom_particles(
-            base_path, snap_num, zoom_id=zoom_id, fields=fields
+        gas_data = daq_util.load_original_zoom_particle_properties(
+            base_path, snap_num, zoom_id=zoom_id, fields=fields, part_type=0
         )
     else:
         gas_data = il.snapshot.loadSubset(
@@ -286,59 +290,3 @@ def get_gas_temperatures(
     # clean up unneeded data
     del gas_data
     return temperatures
-
-
-def _load_original_zoom_particles(
-    base_path: str,
-    snap_num: int,
-    zoom_id: int,
-    fields: Sequence[str],
-) -> dict[str, NDArray | int]:
-    """
-    Load all particles from one of the original zoom-ins of TNG-Cluster.
-
-    Functions loads all particles of the specified original zoom-in
-    (halo, inner and outer fuzz), and returns the specified fields as a
-    dictionary of fields mapped to values. The values are still in
-    computational units and **not** in physical units!
-
-    :param base_path: Base path of TNG-Cluster.
-    :param snap_num: The snapshot to load.
-    :param zoom_id: The index/ID of the zoom-in region to load. Must be
-        a number between 0 and 351.
-    :param fields: A list of field names to load.
-    :return: A mapping of field names to corresponding values, all in
-        computational units.
-    """
-    if zoom_id < 0 or zoom_id > 351:
-        logging.error(f"Invalid zoom-in region ID: {zoom_id}.")
-        return {"count": 0}
-
-    # check if we are actually working with TNG-Cluster
-    test_data = il.groupcat.loadSingle(base_path, snap_num, haloID=0)
-    if "GroupOrigHaloID" not in test_data.keys():
-        logging.error(
-            "Tried loading original zoom-in of a simulation that is not "
-            "TNG-Cluster. Returning empty data."
-        )
-        return {"count": 0}
-
-    # create a dictionary for the data
-    raw_data = {f: list() for f in fields}
-
-    # locate and load files
-    snapshot_path = base_path + f"/snapdir_{snap_num:03d}/"
-    fof_file = f"snap_{snap_num:03d}.{zoom_id}.hdf5"
-    with h5py.File(str(snapshot_path + fof_file), "r") as file:
-        for field in fields:
-            raw_data[field].append(file["PartType0"][field][()])
-
-    fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
-    with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
-        for field in fields:
-            raw_data[field].append(file["PartType0"][field][()])
-
-    # concatenate data
-    data = {k: np.concatenate(v, axis=0) for k, v in raw_data.items()}
-    data["count"] = data[fields[0]].shape[0]
-    return data

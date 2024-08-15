@@ -11,6 +11,7 @@ import illustris_python as il
 import numpy as np
 
 from library import units
+from library.data_acquisition import daq_util
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -133,7 +134,7 @@ def get_particle_properties(
     fields: list[str],
     *,
     zoom_id: int | None = None,
-) -> dict[str, NDArray] | None:
+) -> dict[str, NDArray | int]:
     """
     Return array of properties of the given particle type.
 
@@ -149,6 +150,12 @@ def get_particle_properties(
     :return: Dictionary mapping field names to arrays of values in
         physical units. If loading fails, returns None instead.
     """
+    if part_type not in [0, 4, 5]:
+        logging.error(
+            f"Invalid particle type in `get_particle_properties`: type {part_type} is "
+            f"not supported, only types 0, 4, and 5 are valid."
+        )
+        return {"count": 0}
     if not isinstance(fields, Sequence):
         fields = list(fields)
 
@@ -159,89 +166,16 @@ def get_particle_properties(
         if isinstance(part_data, np.ndarray):
             part_data = {fields[0]: part_data}
     else:
-        part_data = _load_original_zoom_particle_properties(
+        part_data = daq_util.load_original_zoom_particle_properties(
             base_path, snap_num, part_type, zoom_id, fields
         )
-        if part_data is None:
-            return None
 
     # convert units
     part_data_physical = {}
     for field, value in part_data.items():
+        if field == "count":
+            part_data_physical["count"] = value
         part_data_physical[field] = units.UnitConverter.convert(
             value, field, snap_num
         )
     return part_data_physical
-
-
-def _load_original_zoom_particle_properties(
-    base_path: str,
-    snap_num: int,
-    part_type: Literal[0, 4, 5],
-    zoom_id: int,
-    fields: list[str],
-) -> dict[str, NDArray | int] | None:
-    """
-    Load particle properties from one of the original zoom-ins of TNG-Cluster.
-
-    Functions loads all particles of the specified original zoom-in
-    (halo, inner and outer fuzz), and returns the specified list of
-    fields as values in a dictionary mapping the field names to an array
-    of values. The values are in code units.
-
-    :param base_path: Base path of TNG-Cluster.
-    :param snap_num: The snapshot to load.
-    :param zoom_id: The index/ID of the zoom-in region to load. Must be
-        a number between 0 and 351.
-    :param part_type: The particle type as integer.
-    :param fields: A list of fields to load.
-    :return: Dictionary mapping field names to values in code units.
-    """
-    if zoom_id < 0 or zoom_id > 351:
-        logging.error(f"Invalid zoom-in region ID: {zoom_id}.")
-        return None
-
-    # check if we are actually working with TNG-Cluster
-    test_data = il.groupcat.loadSingle(base_path, snap_num, haloID=0)
-    if "GroupOrigHaloID" not in test_data.keys():
-        logging.error(
-            "Tried loading original zoom-in of a simulation that is not "
-            "TNG-Cluster. Returning empty data."
-        )
-        return None
-
-    # temporary dict
-    temp = {field: [] for field in fields}
-
-    # locate and load files
-    snapshot_path = base_path + f"/snapdir_{snap_num:03d}/"
-    fof_file = f"snap_{snap_num:03d}.{zoom_id}.hdf5"
-    with h5py.File(str(snapshot_path + fof_file), "r") as file:
-        for field in fields:
-            try:
-                particles_fof = file[f"PartType{part_type}"][field][()]
-            except KeyError:
-                pass  # simply skip this one (sometimes they are empty)
-            else:
-                temp[field].append(particles_fof)
-
-    fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
-    with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
-        for field in fields:
-            try:
-                particles_fuzz = file[f"PartType{part_type}"][field][()]
-            except KeyError:
-                pass
-            else:
-                temp[field].append(particles_fuzz)
-
-    # concatenate data
-    try:
-        data = {f: np.concatenate(v, axis=0) for f, v in temp.items()}
-        return data
-    except ValueError:
-        logging.error(
-            f"At least one field of {fields} did not exist for TNG-Cluster "
-            f"particles of type {part_type}."
-        )
-        return None
