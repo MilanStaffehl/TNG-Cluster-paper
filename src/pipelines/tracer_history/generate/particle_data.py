@@ -29,10 +29,10 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
     Needs to have its abstract methods implemented.
     """
 
-    quantity: str  # name of the field in the archive
     unlink: bool = False  # delete intermediate files after archiving?
     force_overwrite: bool = False  # overwrite intermediate files?
 
+    quantity: ClassVar[str] = "unset"  # name of the field in the archive
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
 
@@ -47,7 +47,14 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         :return: Exit code.
         """
         # Step 0: set up directories, create archive for gas data
-        self._create_directories(subdirs=["intermediate"])
+        if self.quantity == "unset":
+            logging.fatal(
+                "Quantity name unset. Does your pipeline implementation "
+                "overwrite the class variable `quantity` with a proper name "
+                "for the quantity?"
+            )
+            return 3
+        self._create_directories(subdirs=["intermediate"], force=True)
         logging.info(f"Tracing {self.quantity} of gas back in time.")
 
         # Step 1: Load cluster primary
@@ -79,18 +86,17 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 primaries,
             )
         else:
-            logging.info("Skipping all that lengthy stuff...")
-            # tracer_file = h5py.File(self.config.cool_gas_history, "r")
-            # for zoom_id in range(self.n_clusters):
-            #     logging.info(f"Processing zoom-in region {zoom_id}.")
-            #     for snap_num in range(constants.MIN_SNAP, 100):
-            #         self._save_intermediate_file(
-            #             snap_num,
-            #             zoom_id,
-            #             group_primaries[zoom_id],
-            #             tracer_file,
-            #         )
-            # tracer_file.close()
+            tracer_file = h5py.File(self.config.cool_gas_history, "r")
+            for zoom_id in range(self.n_clusters):
+                logging.info(f"Processing zoom-in region {zoom_id}.")
+                for snap_num in range(constants.MIN_SNAP, 100):
+                    self._save_intermediate_file(
+                        snap_num,
+                        zoom_id,
+                        group_primaries[zoom_id],
+                        tracer_file,
+                    )
+            tracer_file.close()
 
         # Step 3: archive data
         tracer_file = h5py.File(self.config.cool_gas_history, "r+")
@@ -239,6 +245,8 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
     Trace distance of gas particles to cluster with time.
     """
 
+    quantity: ClassVar[str] = "DistanceToMP"
+
     def _load_quantity(
         self, snap_num: int, zoom_id: int, primary_subhalo_id: int
     ) -> NDArray:
@@ -284,7 +292,7 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
         part_positions = np.concatenate(positions_list, axis=0)
 
         # Step 4: Calculate distances
-        distances = np.linalg.norm(primary_pos - part_positions)
+        distances = np.linalg.norm(primary_pos - part_positions, axis=1)
         return distances
 
 
@@ -292,6 +300,8 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
     """
     Trace temperature of gas particles with time.
     """
+
+    quantity: ClassVar[str] = "Temperature"
 
     def _load_quantity(
         self, snap_num: int, zoom_id: int, primary_subhalo_id: int
