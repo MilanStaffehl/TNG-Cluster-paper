@@ -36,19 +36,13 @@ def main(args: argparse.Namespace) -> None:
     match args.what:
         case "temperature":
             pipeline_class = TraceTemperaturePipeline
-            quantity = "Temperature"
             quantity_label = "Temperature [K]"
         case "distance":
             pipeline_class = TraceDistancePipeline
-            quantity = "DistanceToMP"
             quantity_label = "Distance from cluster center [ckpc]"
         case _:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
-
-    pipeline_config.update({
-        "quantity": quantity,
-    })
 
     # select and build pipeline
     if args.from_file:
