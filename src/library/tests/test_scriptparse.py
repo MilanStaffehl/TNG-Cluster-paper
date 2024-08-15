@@ -149,6 +149,7 @@ def mock_config():
         "Group_R_Crit200",
         Path().home() / ".local" / "data",
         Path().home() / ".local" / "figures",
+        Path().home() / "archive.hdf5"
     )
 
 
