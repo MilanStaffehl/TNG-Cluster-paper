@@ -62,21 +62,23 @@ def load_original_zoom_particle_properties(
         for field in fields:
             try:
                 raw_data[field].append(file[f"PartType{part_type}"][field][()])
-            except KeyError:
-                raw_data[field].append(np.empty((0, )))
+            except KeyError as e:
+                logging.warning(
+                    f"hdf5 error for snap {snap_num}, zoom-in {zoom_id}: {e}"
+                )
 
     fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
     with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
         for field in fields:
             try:
                 raw_data[field].append(file[f"PartType{part_type}"][field][()])
-            except KeyError:
-                raw_data[field].append(np.empty((0, )))
+            except KeyError as e:
+                logging.warning(
+                    f"hdf5 error for snap {snap_num}, zoom-in {zoom_id}: {e}"
+                )
 
-    # concatenate data
-    data = {k: np.concatenate(v, axis=0) for k, v in raw_data.items()}
-    data["count"] = data[fields[0]].shape[0]
-    if data["count"] == 0:
+    # make sure no empty list exists
+    if any([len(x) == 0 for x in raw_data.values()]):
         logging.warning(
             f"At least one particle property of {fields} did not exist for "
             f"TNG-Cluster particles of type {part_type} at snapshot "
@@ -84,4 +86,8 @@ def load_original_zoom_particle_properties(
             f"incorrectly be set to 0 or the dict might contain empty data "
             f"fields."
         )
+
+    # concatenate data
+    data = {k: np.concatenate(v, axis=0) for k, v in raw_data.items()}
+    data["count"] = data[fields[0]].shape[0]
     return data
