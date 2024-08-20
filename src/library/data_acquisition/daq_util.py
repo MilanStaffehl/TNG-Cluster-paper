@@ -20,6 +20,8 @@ def load_original_zoom_particle_properties(
     part_type: Literal[0, 4, 5],
     zoom_id: int,
     fields: list[str],
+    *,
+    warn: bool = False,
 ) -> dict[str, NDArray | int]:
     """
     Load particle properties from one of the original zoom-ins of TNG-Cluster.
@@ -35,6 +37,11 @@ def load_original_zoom_particle_properties(
         a number between 0 and 351.
     :param part_type: The particle type as integer.
     :param fields: A list of fields to load.
+    :param warn: When set to True, the function will log a warning if the
+        given particle type does not exist for the current zoom-in at the
+        current snapshot. Set to False to avoid log spam in parallel
+        processing and when handling many snaps/zoom-ins. Defaults to
+        False.
     :return: Dictionary mapping field names to values in code units. If
         loading fails for any reason, the return value is a data dictionary
         representing empty data, i.e. ``{"count": 0}``.
@@ -55,6 +62,11 @@ def load_original_zoom_particle_properties(
     # create a dictionary for the data
     raw_data = {f: list() for f in fields}
 
+    # set up vars for error handling
+    part_type_missing = False
+    error_msg = None
+    location = []
+
     # locate and load files
     snapshot_path = base_path + f"/snapdir_{snap_num:03d}/"
     fof_file = f"snap_{snap_num:03d}.{zoom_id}.hdf5"
@@ -63,9 +75,9 @@ def load_original_zoom_particle_properties(
             try:
                 raw_data[field].append(file[f"PartType{part_type}"][field][()])
             except KeyError as e:
-                logging.warning(
-                    f"hdf5 error for snap {snap_num}, zoom-in {zoom_id}: {e}"
-                )
+                part_type_missing = True
+                error_msg = e
+                location.append("halo")
 
     fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
     with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
@@ -73,9 +85,16 @@ def load_original_zoom_particle_properties(
             try:
                 raw_data[field].append(file[f"PartType{part_type}"][field][()])
             except KeyError as e:
-                logging.warning(
-                    f"hdf5 error for snap {snap_num}, zoom-in {zoom_id}: {e}"
-                )
+                part_type_missing = True
+                error_msg = e
+                location.append("fuzz")
+
+    # emit warning if desired and necessary
+    if warn and part_type_missing:
+        logging.warning(
+            f"hdf5 error for snap {snap_num}, zoom-in {zoom_id} in "
+            f"{', '.join(location)}: {error_msg}"
+        )
 
     # make sure no empty list exists
     if any([len(x) == 0 for x in raw_data.values()]):
