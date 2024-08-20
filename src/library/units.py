@@ -59,6 +59,7 @@ class UnitConverter:
         "velocityLike": ["Velocities"],
         "groupVelocityLike": ["GroupVel"],
         "subhaloVelocityLike": ["SubhaloVel"],
+        "densityLike": ["Density"],
         "sfrLike": ["GroupSFR", "StarFormationRate", "SubhaloSFR"],
         "massFlowLike": ["GroupBHMdot", "BH_Mdot", "BH_MdotEddington"],
         "energyLike": ["BH_CumEgyInjection_QM", "BH_CumEgyInjection_RM"],
@@ -114,6 +115,8 @@ class UnitConverter:
             return cls.convert_groupvelocitylike(quantity, snap_num)
         elif field in cls.fields["subhaloVelocityLike"]:
             return quantity  # already in km/s
+        elif field in cls.fields["densityLike"]:
+            return cls.covert_densitylike(quantity)
         elif field in cls.fields["massFlowLike"]:
             return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:
@@ -170,6 +173,16 @@ class UnitConverter:
         """
         a = 1 / (1 + constants.REDSHIFTS[snap_num])
         return quantity / a
+
+    @staticmethod
+    def convert_densitylike(quantity: N) -> N:
+        """
+        Return the density like quantity in solar masses per ckpc cubed.
+
+        :param quantity: Density-like quantity in code units.
+        :return: Desnity-like quantity in M_sol per ckpc cubed.
+        """
+        return quantity * 1e10 * constants.HUBBLE**2
 
     @staticmethod
     def convert_massflowlike(quantity: N) -> N:

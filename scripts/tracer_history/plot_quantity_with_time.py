@@ -8,6 +8,7 @@ sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
 from pipelines.tracer_history.generate.particle_data import (
+    TraceDensityPipeline,
     TraceDistancePipeline,
     TraceTemperaturePipeline,
 )
@@ -36,10 +37,13 @@ def main(args: argparse.Namespace) -> None:
     match args.what:
         case "temperature":
             pipeline_class = TraceTemperaturePipeline
-            quantity_label = "Temperature [K]"
+            quantity_label = "Gas temperature [K]"
         case "distance":
             pipeline_class = TraceDistancePipeline
             quantity_label = "Distance from cluster center [ckpc]"
+        case "density":
+            pipeline_class = TraceDensityPipeline
+            quantity_label = r"Gas density [$M_\odot / ckpc^3$]"
         case _:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
@@ -48,7 +52,9 @@ def main(args: argparse.Namespace) -> None:
     if args.from_file:
         pipeline_config.update(
             {
-                "quantity_label": quantity_label, "color": "black"
+                "quantity": pipeline_class.quantity,
+                "quantity_label": quantity_label,
+                "color": "black",
             }
         )
         pipeline = PlotSimpleQuantityWithTimePipeline(**pipeline_config)
@@ -66,7 +72,9 @@ def main(args: argparse.Namespace) -> None:
         # plotting pipeline
         pipeline_config.update(
             {
-                "quantity_label": quantity_label, "color": "black"
+                "quantity": pipeline_class.quantity,
+                "quantity_label": quantity_label,
+                "color": "black",
             }
         )
         plot_pipeline = PlotSimpleQuantityWithTimePipeline(**pipeline_config)
@@ -93,10 +101,10 @@ if __name__ == "__main__":
         "what",
         help=(
             "The quantity to plot. This is the gas quantity which will be "
-            "traced back in time for thise gas cells that end up in cool "
-            "gas at redshift zero. Can onlz choose from the valid options."
+            "traced back in time for those cells that end up in cool "
+            "gas at redshift zero. Can only choose from the valid options."
         ),
-        choices=["temperature", "distance"],
+        choices=["temperature", "distance", "density"],
     )
     parser.add_argument(
         "-u",

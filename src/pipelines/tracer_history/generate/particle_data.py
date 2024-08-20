@@ -72,10 +72,15 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 constants.MIN_SNAP, 100, step=1, dtype=np.uint64
             )
             zoom_ids = np.arange(0, 352, step=1)
-            snap_nums = np.broadcast_to(snap_nums[:, None],
-                                        (100, 352)).flatten()
-            zoom_ids = np.broadcast_to(zoom_ids[:, None],
-                                       (352, 100)).transpose().flatten()
+            snap_nums = np.broadcast_to(
+                snap_nums[:, None],
+                (self.n_snaps, 352),
+            ).flatten()
+            zoom_ids = np.broadcast_to(
+                zoom_ids[:, None],
+                (352, self.n_snaps),
+            ).transpose().flatten()
+            # get a list of primaries belonging to each pair of snaps/zooms
             primaries = group_primaries[zoom_ids]
             # run all jobs in parallel
             parallelization.process_data_starmap(
@@ -242,7 +247,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
 class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
     """
-    Trace distance of gas particles to cluster with time.
+    Trace distance of all particles to cluster with time.
     """
 
     quantity: ClassVar[str] = "DistanceToMP"
@@ -258,8 +263,8 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
 
         :param snap_num: Snapshot to find the distances at.
         :param zoom_id: The ID of the zoom-in region.
-        :return: Array of the distances of all gas cells to the cluster
-            center.
+        :return: Array of the distances of all particle cells to the
+            cluster center.
         """
         # Step 1: find the cluster center (MPB progenitor position)
         mpb = il.sublink.loadTree(
@@ -317,10 +322,41 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
         :param zoom_id: The ID of the zoom-in region.
         :param primary_subhalo_id: Dummy var, not used.
         :return: Array of the temperatures of all gas cells in the zoom-in
-            region
+            region.
         """
         return gas_daq.get_cluster_temperature(
             self.config.base_path,
             snap_num,
             zoom_id=zoom_id,
         )
+
+
+class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
+    """
+    Trace gas density of gas particles with time.
+    """
+
+    quantity: ClassVar[str] = "Density"
+
+    def _load_quantity(
+        self, snap_num: int, zoom_id: int, primary_subhalo_id: int
+    ) -> NDArray:
+        """
+        Load the density of all gas cells in the zoom-in.
+
+        Loads only the density of the gas cells, even if there is a
+        density field available for black holes.
+
+        :param snap_num: The snap for which to load densities.
+        :param zoom_id: The ID of the zoom-in region.
+        :param primary_subhalo_id: Dummy var, not used.
+        :return: Array of the density of all gas cells in the zoom-in
+            region.
+        """
+        gas_data = gas_daq.get_gas_properties(
+            self.config.base_path,
+            snap_num,
+            fields=["Density"],
+            zoom_id=zoom_id,
+        )
+        return gas_data["Density"]
