@@ -53,6 +53,10 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
 
         # Step 3: load quantity and process for plotting
         for zoom_id in range(self.n_clusters):
+            logging.debug(
+                f"Loading and processing {self.quantity} for zoom-in "
+                f"{zoom_id}."
+            )
             group = f"ZoomRegion_{zoom_id:03d}"
             # check field exists
             try:
@@ -64,10 +68,18 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 )
                 return 2
 
-            quantity_mean[zoom_id] = np.nanmean(quantity, axis=1)
-            quantity_median[zoom_id] = np.nanmedian(quantity, axis=1)
-            quantity_max[zoom_id] = np.nanmax(quantity, axis=1)
-            quantity_min[zoom_id] = np.nanmin(quantity, axis=1)
+            quantity_mean[zoom_id] = np.nanmean(
+                quantity[constants.MIN_SNAP:], axis=1
+            )
+            quantity_median[zoom_id] = np.nanmedian(
+                quantity[constants.MIN_SNAP:], axis=1
+            )
+            quantity_max[zoom_id] = np.nanmax(
+                quantity[constants.MIN_SNAP:], axis=1
+            )
+            quantity_min[zoom_id] = np.nanmin(
+                quantity[constants.MIN_SNAP:], axis=1
+            )
 
         # Step 4: plot line plots
         self._plot_and_save_lineplots(
