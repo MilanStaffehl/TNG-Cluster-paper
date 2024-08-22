@@ -17,6 +17,7 @@ import yaml
 
 from library import constants
 from library.plotting import common
+from library.plotting import plot_radial_profiles as plot_hists
 from library.processing import statistics
 from pipelines import base
 
@@ -58,7 +59,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         except KeyError:
             logging.warning(
                 f"Found no plot config for quantity {self.quantity}, will set "
-                f"no boundaries for histograms."
+                f"no boundaries for histograms; 2D plot creation will be "
+                f"skipped."
             )
             hist_range = None
             log = False
@@ -105,6 +107,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             quantity_min[zoom_id] = np.nanmin(
                 quantity[constants.MIN_SNAP:], axis=1
             )
+            if hist_range is None:
+                continue
             for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
                 if log:
                     q = np.log10(quantity[snap])
@@ -127,7 +131,9 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             return 0
 
         # Step 5: plot 2D histograms
-        self._plot_and_save_2dhistograms(quantity_hists)
+        self._plot_and_save_2dhistograms(
+            quantity_hists, hist_range[0], hist_range[1]
+        )
 
         # Step 6: plot ridgeline plots
         self._plot_and_save_ridgelineplots(
@@ -246,9 +252,50 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 axes.plot(xs, ys, color=color)
 
             # Step 6: save figure
-            self._save_fig(fig, ident_flag=method, subdir="2d_plots")
+            ident_flag = f"ridgeline_{method}"
+            self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} ridgeline plot to file.")
 
-    def _plot_and_save_2dhistograms(self, hists: NDArray) -> None:
-        # TODO: implement
-        pass
+    def _plot_and_save_2dhistograms(
+        self, hists: NDArray, minimum: float, maximum: float
+    ) -> None:
+        """
+        Plot a 2D histogram plot of the development of the quantity.
+
+        Plot shows the 1D distribution of the quantity at different
+        redshifts using a 2D histogram. It plots the mean and median
+        distribution over all clusters in every snapshot.
+
+        :param hists: Array of histograms, of shape (352, 92, N) where
+            N is the number of bins.
+        :param minimum: Leftmost edge of the histogram bins.
+        :param maximum: Rightmost edge of the histogram bins.
+        :return: None, figure saved to file.
+        """
+        for method in ["mean", "median"]:
+            # Step 1: stack histograms
+            stacked_hist = statistics.stack_histograms(
+                hists, method, axis=0
+            )[0]
+
+            # Step 2: set up figure
+            fig, axes = plt.subplots(figsize=(5.7, 5))
+            q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
+
+            # Step 3: plot 2D histograms
+            plot_hists.plot_2d_radial_profile(
+                fig,
+                axes,
+                stacked_hist.transpose(),
+                ranges=[constants.MIN_SNAP, 99, minimum, maximum],
+                xlabel="Snap num",
+                ylabel=f"{method.capitalize()} {q_label}",
+                colormap="inferno",
+                cbar_label="Count [log]",
+                scale="log",
+            )
+
+            # Step 6: save figure
+            ident_flag = f"2dhist_{method}"
+            self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
+            logging.info(f"Saved {method} 2D histogram plot to file.")
