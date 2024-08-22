@@ -247,7 +247,7 @@ def get_gas_properties(
     for field, data in gas_data.items():
         gas_data_physical[field] = units.UnitConverter.convert(data, field)
     del gas_data  # memory clean-up
-    if cluster is None:
+    if cluster is None and zoom_id is None:
         logging.info("Finished loading gas particle properties.")
     return gas_data_physical
 
