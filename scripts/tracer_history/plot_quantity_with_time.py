@@ -10,6 +10,7 @@ from library import scriptparse
 from pipelines.tracer_history.generate.particle_data import (
     TraceDensityPipeline,
     TraceDistancePipeline,
+    TraceMassPipeline,
     TraceTemperaturePipeline,
 )
 from pipelines.tracer_history.simple_quantities import (
@@ -44,6 +45,9 @@ def main(args: argparse.Namespace) -> None:
         case "density":
             pipeline_class = TraceDensityPipeline
             quantity_label = r"Gas density [$M_\odot / ckpc^3$]"
+        case "mass":
+            pipeline_class = TraceMassPipeline
+            quantity_label = r"Particle mass [$M_\odot$]"
         case _:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)

@@ -189,8 +189,8 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             multiprocessing = False
             logging.debug(f"Processing snap {snap_num}, zoom-in {zoom_id}.")
 
-        # Step 2: Get particle quantity
-        quantity = self._load_quantity(snap_num, zoom_id, primary_subhalo_id)
+        # Step 2: Get particle data
+        part_data = self._load_quantity(snap_num, zoom_id)
 
         # Step 3: Find gas particle indices
         group = f"ZoomRegion_{zoom_id:03d}"
@@ -198,45 +198,88 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         flags = (tracer_file[f"{group}/particle_type_flags"][snap_num, :])
 
         # Step 4: Create an array for the results
-        traced_quantity = np.empty(indices.shape, dtype=quantity.dtype)
-        traced_quantity[:] = np.nan  # set all to NaN
+        if len(part_data.shape) > 1:
+            shape = indices.shape + part_data.shape[1:]
+        else:
+            shape = indices.shape
+        traced_part_data = np.empty(shape, dtype=part_data.dtype)
+        traced_part_data[:] = np.nan  # set all to NaN
 
         # Step 5: Mask data and fill array with results
-        if np.max(indices) > quantity.shape[0]:
+        if np.max(indices) > part_data.shape[0]:
             # gas only
-            traced_quantity[flags == 0] = quantity[indices[flags == 0]]
+            traced_part_data[flags == 0] = part_data[indices[flags == 0]]
         else:
             # all particles available
-            traced_quantity[:] = quantity[indices]
+            traced_part_data[:] = part_data[indices]
+
+        # Step 6: Process particle data into sought quantity
+        quantity = self._process_into_quantity(
+            zoom_id, snap_num, traced_part_data, primary_subhalo_id
+        )
 
         # Step 6: Save to intermediate file
         filename = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
-        np.save(self.tmp_dir / filename, traced_quantity)
+        np.save(self.tmp_dir / filename, quantity)
 
         if multiprocessing:
             tracer_file.close()
 
     @abc.abstractmethod
-    def _load_quantity(
-        self, snap_num: int, zoom_id: int, primary_subhalo_id: int
-    ) -> NDArray:
+    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
         """
         Abstract method to load a cluster quantity.
 
         Subclasses to this class must implement this method in such a
-        way that it returns the array of the desired quantity for all
-        gas particles of the given zoom at the given snapshot.
+        way that it returns the array of the quantity that will, together
+        with information about subhalos of the cluster, be processed into
+        the quantity that will be saved for all gas particles of the
+        given zoom at the given snapshot.
+
+        For example, if the distance to a certain type of subhalo is
+        required, this should be the coordinates of all gas particles.
 
         :param snap_num: The snapshot to query. Must be a number between
             0 and 99.
         :param zoom_id: The zoom-in region ID. Must be a number between
             0 and 351.
-        :param primary_subhalo_id: Array of IDs of primary subhalo of every
-            cluster at snapshot 99. Useful to trace back cluster
-            progenitors through time.
         :return: The gas quantity for every gas cell in the zoom-in at
             that snapshot, such that it can be indexed by the indices
             saved by the generation pipeline.
+        """
+        pass
+
+    @abc.abstractmethod
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+    ) -> NDArray:
+        """
+        Abstract method to process particle data.
+
+        Subclasses to this class must implement this method such that it
+        can take the particle data loaded by ``_load_quantity``, restricted
+        to only the traced particles, and turn it into the sought after
+        quantity. For example, if a pipeline should give the distance to
+        the primary subhalo, this method must accept particle coordinates
+        for the traced particles and load the position of the given
+        primary subhalo, then compute the distance and return it as an
+        array.
+
+        :param zoom_id: The ID of the zoom-in region at which data is
+            processed.
+        :param snap_num: The snapshot at which to process the data.
+        :param particle_data: The array of particle data acquired from
+            ``_load_quantity`` and restricted to only the particles that
+            are tracked.
+        :param primary_subhalo_id: The ID of the primary subhalo of the
+            cluster at redshift 0, i.e. at snapshot 99. Required to load
+            the MPB of this subhalo for distance and velocity calculations.
+        :return: The array of whatever quantity is to be saved to file.
+            Must be a 1D array.
         """
         pass
 
@@ -252,42 +295,14 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
 
     quantity: ClassVar[str] = "DistanceToMP"
 
-    def _load_quantity(
-        self, snap_num: int, zoom_id: int, primary_subhalo_id: int
-    ) -> NDArray:
+    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
         """
-        Find the distance of every gas particle to the cluster.
+        Find the position of every gas particle to the cluster.
 
-        The distance must be computed to the current position of the
-        main progenitor of the clusters primary subhalo.
-
-        :param snap_num: Snapshot to find the distances at.
+        :param snap_num: Snapshot to find the positions at.
         :param zoom_id: The ID of the zoom-in region.
-        :return: Array of the distances of all particle cells to the
-            cluster center.
+        :return: Array of the positions of all particles.
         """
-        # Step 1: find the cluster center (MPB progenitor position)
-        mpb = il.sublink.loadTree(
-            self.config.base_path,
-            self.config.snap_num,
-            primary_subhalo_id,
-            fields=["SubhaloPos", "SnapNum"],
-            onlyMPB=True,
-        )
-        positions = mpb["SubhaloPos"]
-        snaps = mpb["SnapNum"]
-        try:
-            primary_pos_code_units = positions[snaps == snap_num][0]
-        except IndexError:
-            # snap is not in sublink, have to interpolate
-            prev_pos = positions[snaps == snap_num - 1][0]
-            next_pos = positions[snaps == snap_num + 1][0]
-            primary_pos_code_units = (prev_pos + next_pos) / 2
-        primary_pos = units.UnitConverter.convert(
-            primary_pos_code_units, "SubhaloPos", snap_num=snap_num
-        )
-
-        # Step 2: Load particles coordinates
         positions_list = []
         for part_type in [0, 4, 5]:
             data = particle_daq.get_particle_properties(
@@ -299,11 +314,51 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
             )
             positions_list.append(data["Coordinates"])
 
-        # Step 3: concatenate particle positions
+        # concatenate particle positions
         part_positions = np.concatenate(positions_list, axis=0)
+        return part_positions
 
-        # Step 4: Calculate distances
-        distances = np.linalg.norm(primary_pos - part_positions, axis=1)
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+    ) -> NDArray:
+        """
+        Process particle coordinates into distances to primary subhalo.
+
+        :param zoom_id: ID of zoom-in region.
+        :param snap_num: Snapshot number.
+        :param particle_data: Array of particle coordinates, shape (N, 3).
+        :param primary_subhalo_id: ID of the primary subhalo of this
+        :return:
+        """
+        # Step 1: load subhalo position at this snap
+        mpb = il.sublink.loadTree(
+            self.config.base_path,
+            self.config.snap_num,
+            primary_subhalo_id,
+            fields=["SubhaloPos", "SnapNum"],
+            onlyMPB=True,
+        )
+        positions = mpb["SubhaloPos"]
+        snaps = mpb["SnapNum"]
+
+        # Step 2: convert position into physical units
+        try:
+            primary_pos_code_units = positions[snaps == snap_num][0]
+        except IndexError:
+            # snap is not in sublink, have to interpolate
+            prev_pos = positions[snaps == snap_num - 1][0]
+            next_pos = positions[snaps == snap_num + 1][0]
+            primary_pos_code_units = (prev_pos + next_pos) / 2
+        primary_pos = units.UnitConverter.convert(
+            primary_pos_code_units, "SubhaloPos", snap_num=snap_num
+        )
+
+        # Step 3: Calculate distances
+        distances = np.linalg.norm(primary_pos - particle_data, axis=1)
         return distances
 
 
@@ -314,9 +369,7 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
 
     quantity: ClassVar[str] = "Temperature"
 
-    def _load_quantity(
-        self, snap_num: int, zoom_id: int, primary_subhalo_id: int
-    ) -> NDArray:
+    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
         """
         Find the temperature of gas particles in the zoom-in.
 
@@ -326,7 +379,6 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
 
         :param snap_num: The snap for which to load temperatures.
         :param zoom_id: The ID of the zoom-in region.
-        :param primary_subhalo_id: Dummy var, not used.
         :return: Array of the temperatures of all gas cells in the zoom-in
             region.
         """
@@ -336,6 +388,24 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
             zoom_id=zoom_id,
         )
 
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+    ) -> NDArray:
+        """
+        Return temperatures as-is, no processing required.
+
+        :param zoom_id: Dummy parameter.
+        :param snap_num: Dummy parameter.
+        :param particle_data: Array of particle temperatures.
+        :param primary_subhalo_id: Dummy parameter.
+        :return: Array of particle temperatures.
+        """
+        return particle_data
+
 
 class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
     """
@@ -344,9 +414,7 @@ class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
 
     quantity: ClassVar[str] = "Density"
 
-    def _load_quantity(
-        self, snap_num: int, zoom_id: int, primary_subhalo_id: int
-    ) -> NDArray:
+    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
         """
         Load the density of all gas cells in the zoom-in.
 
@@ -355,7 +423,6 @@ class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
 
         :param snap_num: The snap for which to load densities.
         :param zoom_id: The ID of the zoom-in region.
-        :param primary_subhalo_id: Dummy var, not used.
         :return: Array of the density of all gas cells in the zoom-in
             region.
         """
@@ -366,3 +433,71 @@ class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
             zoom_id=zoom_id,
         )
         return gas_data["Density"]
+
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+    ) -> NDArray:
+        """
+        Return density as-is, no processing required.
+
+        :param zoom_id: Dummy parameter.
+        :param snap_num: Dummy parameter.
+        :param particle_data: Array of particle densities.
+        :param primary_subhalo_id: Dummy parameter.
+        :return: Array of particle densities.
+        """
+        return particle_data
+
+
+class TraceMassPipeline(TraceSimpleQuantitiesBackABC):
+    """
+    Trace particle mass of all particles with time.
+    """
+
+    quantity: ClassVar[str] = "Mass"
+
+    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
+        """
+        Load the mass of all particles in the zoom-in.
+
+        :param snap_num: Snapshot at which to load the particle mass.
+        :param zoom_id: ID of the zoom-in from which to load mass.
+        :return: Array of particle mass for all particles, in order or
+            particle type (i.e. type 0, 4, and 5 in that order).
+        """
+        masses_list = []
+        for part_type in [0, 4, 5]:
+            data = particle_daq.get_particle_properties(
+                self.config.base_path,
+                snap_num,
+                part_type=part_type,
+                fields=["Masses"],
+                zoom_id=zoom_id,
+            )
+            masses_list.append(data["Masses"])
+
+        # concatenate particle positions
+        part_masses = np.concatenate(masses_list, axis=0)
+        return part_masses
+
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+    ) -> NDArray:
+        """
+        Return masses as-is, no processing required.
+
+        :param zoom_id: Dummy parameter.
+        :param snap_num: Dummy parameter.
+        :param particle_data: Array of particle masses.
+        :param primary_subhalo_id: Dummy parameter.
+        :return: Array of particle masses.
+        """
+        return particle_data
