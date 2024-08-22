@@ -2,7 +2,7 @@
 
 ![Tests status badge](https://github.com/MilanStaffehl/thesisProject/actions/workflows/testing.yml/badge.svg)
 
-> [!ATTENTION]
+> [!CAUTION]
 > 
 > This `README` is in parts outdated. It will be updated in the future to be
 > more accurate.
