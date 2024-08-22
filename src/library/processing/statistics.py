@@ -40,6 +40,7 @@ def nanpercentiles(a: NDArray, axis: int):
 def stack_histograms(
     histograms: NDArray | Sequence[NDArray],
     method: Literal["median", "mean"],
+    axis: int = 0,
 ) -> tuple[NDArray, NDArray, NDArray]:
     """
     Stack a set of histograms with the given method, including errors.
@@ -61,6 +62,14 @@ def stack_histograms(
         representing histograms.
     :param method: The method to stack the histograms, can only be
         'mean' or 'median'.
+    :param axis: Axis along which to stack. This is useful for collections
+        of histograms that should be stacked only along one axis,
+        resulting is an array of stacked histograms. For example, a set
+        of N histograms existing X times might be passed to the function
+        as an array of shape (X, T, B) and one wants to get X stacks
+        back, i.e. an array of shape (X, B). This can be acgieved by
+        setting ``axes`` to ``1``. Defaults to 0 which is the default for
+        ``histograms`` being a simple sequence of histograms.
     :return: Tuple of three arrays. First is the stack of the histograms,
         second the lower error, third the upper error. For method 'mean',
         the two error arrays are identical and represent the standard
@@ -77,8 +86,8 @@ def stack_histograms(
     else:
         raise KeyError(f"Unknown stacking method: {method}.")
     # stack histograms
-    stack = stack_func(histograms, axis=0)
-    error = err_func(histograms, axis=0)
+    stack = stack_func(histograms, axis=axis)
+    error = err_func(histograms, axis=axis)
     # return the ordered results
     if method == "mean":
         return stack, error, error
