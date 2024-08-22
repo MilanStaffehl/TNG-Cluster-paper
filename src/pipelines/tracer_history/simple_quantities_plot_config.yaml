@@ -1,0 +1,4 @@
+Temperature:
+  min: 3  # log scale
+  max: 9  # log scale
+  log: true
