@@ -2,10 +2,16 @@
 
 ![Tests status badge](https://github.com/MilanStaffehl/thesisProject/actions/workflows/testing.yml/badge.svg)
 
+> [!ATTENTION]
+> 
+> This `README` is in parts outdated. It will be updated in the future to be
+> more accurate.
+
 This repository contains the source code for my master thesis about cool gas in
 galaxy clusters at the ITA (University Heidelberg).
 
 > [!WARNING]
+> 
 > This project is still in development. Expect drastic changes to occur 
 > between commits.
 
