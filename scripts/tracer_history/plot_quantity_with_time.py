@@ -108,7 +108,7 @@ if __name__ == "__main__":
             "traced back in time for those cells that end up in cool "
             "gas at redshift zero. Can only choose from the valid options."
         ),
-        choices=["temperature", "distance", "density"],
+        choices=["temperature", "distance", "density", "mass"],
     )
     parser.add_argument(
         "-u",
