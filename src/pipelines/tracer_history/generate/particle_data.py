@@ -276,7 +276,13 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
         )
         positions = mpb["SubhaloPos"]
         snaps = mpb["SnapNum"]
-        primary_pos_code_units = positions[snaps == snap_num][0]
+        try:
+            primary_pos_code_units = positions[snaps == snap_num][0]
+        except IndexError:
+            # snap is not in sublink, have to interpolate
+            prev_pos = positions[snaps == snap_num - 1][0]
+            next_pos = positions[snaps == snap_num + 1][0]
+            primary_pos_code_units = (prev_pos + next_pos) / 2
         primary_pos = units.UnitConverter.convert(
             primary_pos_code_units, "SubhaloPos", snap_num=snap_num
         )
