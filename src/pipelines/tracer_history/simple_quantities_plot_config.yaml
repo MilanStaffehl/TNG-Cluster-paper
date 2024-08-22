@@ -2,3 +2,7 @@ Temperature:
   min: 3  # log scale
   max: 9  # log scale
   log: true
+Density:
+  min: 0  # log scale
+  max: 12  # log scale
+  log: true
