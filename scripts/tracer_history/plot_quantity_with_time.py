@@ -58,7 +58,7 @@ def main(args: argparse.Namespace) -> None:
             {
                 "quantity": pipeline_class.quantity,
                 "quantity_label": quantity_label,
-                "color": "black",
+                "color": "dodgerblue",
             }
         )
         pipeline = PlotSimpleQuantityWithTimePipeline(**pipeline_config)
