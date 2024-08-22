@@ -116,7 +116,7 @@ class UnitConverter:
         elif field in cls.fields["subhaloVelocityLike"]:
             return quantity  # already in km/s
         elif field in cls.fields["densityLike"]:
-            return cls.covert_densitylike(quantity)
+            return cls.convert_densitylike(quantity)
         elif field in cls.fields["massFlowLike"]:
             return cls.convert_massflowlike(quantity)
         elif field in cls.fields["sfrLike"]:
