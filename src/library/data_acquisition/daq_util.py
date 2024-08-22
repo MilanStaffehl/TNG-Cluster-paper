@@ -100,10 +100,10 @@ def load_original_zoom_particle_properties(
     if any([len(x) == 0 for x in raw_data.values()]):
         logging.warning(
             f"At least one particle property of {fields} did not exist for "
-            f"TNG-Cluster particles of type {part_type} at snapshot "
-            f"{snap_num}; the 'count' field of the returned data dict may "
-            f"incorrectly be set to 0 or the dict might contain empty data "
-            f"fields."
+            f"TNG-Cluster zoom-in {zoom_id} for particles of type {part_type} "
+            f"at snapshot {snap_num}; the 'count' field of the returned data "
+            f"dict may incorrectly be set to 0 or the dict might contain "
+            f"empty data fields."
         )
 
     # concatenate data
