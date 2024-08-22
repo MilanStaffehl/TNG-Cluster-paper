@@ -84,11 +84,11 @@ def plot_2d_radial_profile(
     fig: Figure,
     axes: Axes,
     histogram2d: NDArray,
-    ranges: Sequence[float, float, float, float] | NDArray,
+    ranges: Sequence[float] | NDArray,
     xlabel: str | None = r"Distance from halo center [$R_{200c}$]",
     ylabel: str | None = r"Temperature [$\log K$]",
     title: str | None = None,
-    value_range: Sequence[float, float] | None = None,
+    value_range: Sequence[float] | None = None,
     colormap: str | Colormap = "inferno",
     cbar_label: str = "Count",
     cbar_ticks: NDArray | None = None,
@@ -120,9 +120,6 @@ def plot_2d_radial_profile(
     :param histogram2d: Array of 2D histograms of shape (Y, R) where
         R is the number of radial bins of the histogram and Y the number
         of y-bins, for example temperature bins.
-    :param log_msg: The log message suffix to log when execution begins.
-        This message will be used to complete the log message "Plotting
-        radial temperature profile for >``log_msg``<". Set accordingly.
     :param ranges: The min and max value for every axis in the format
         [xmin, xmax, ymin, ymax].
     :param xlabel: The label for the x-axis; can be a raw string. Can be
