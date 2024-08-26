@@ -143,6 +143,7 @@ def process_data_starmap(
     # determine a valid chunksize
     if chunksize is None or length / processes < chunksize < 0:
         chunksize = round(length / processes / 4, -2)
+        chunksize = max(chunksize, 1)
         logging.debug(f"Autosetting chunksize to {chunksize}.")
     else:
         chunksize = round(chunksize)
