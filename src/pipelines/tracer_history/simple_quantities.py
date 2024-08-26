@@ -88,6 +88,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             # check field exists
             try:
                 quantity = f[group][self.quantity]
+                uniqueness_flags = f[group]["uniqueness_flags"]
             except KeyError:
                 logging.fatal(
                     f"Zoom-in {zoom_id} is missing dataset {self.quantity}. "
@@ -95,12 +96,12 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 )
                 return 2
 
-            quantity_mean[zoom_id] = np.nanmean(
-                quantity[constants.MIN_SNAP:], axis=1
-            )
-            quantity_median[zoom_id] = np.nanmedian(
-                quantity[constants.MIN_SNAP:], axis=1
-            )
+            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+                # make sure particles are not counted twice
+                unique_q = quantity[snap][uniqueness_flags[snap] == 1]
+                quantity_mean[zoom_id, i] = np.nanmean(unique_q)
+                quantity_median[zoom_id, i] = np.nanmedian(unique_q)
+            # max and min over all data points per snapshot
             quantity_max[zoom_id] = np.nanmax(
                 quantity[constants.MIN_SNAP:], axis=1
             )
@@ -114,9 +115,9 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                     q = np.log10(quantity[snap])
                 else:
                     q = quantity[snap]
-                quantity_hists[zoom_id, i] = np.histogram(
-                    q, self.n_bins, range=hist_range
-                )[0]
+                hist = np.histogram(q, self.n_bins, range=hist_range)[0]
+                # TODO: column-normalize
+                quantity_hists[zoom_id, i] = hist
 
         # Step 4: plot line plots
         self._plot_and_save_lineplots(
