@@ -79,7 +79,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
         # Step 2: Loop through snapshots and zooms to get quantity
         if self.processes > 1:
-            self._multiprocess()
+            self._multiprocess(group_primaries)
         elif self.zoom_id is None:
             # find data for all zoom-ins
             tracer_file = h5py.File(self.config.cool_gas_history, "r")
