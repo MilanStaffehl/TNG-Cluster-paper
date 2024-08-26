@@ -97,7 +97,17 @@ def load_original_zoom_particle_properties(
         )
 
     # make sure no empty list exists
-    if any([len(x) == 0 for x in raw_data.values()]):
+    field_values_are_empty = [len(x) == 0 for x in raw_data.values()]
+    if all(field_values_are_empty):
+        logging.error(
+            f"All requested fields {fields} for particle type {part_type} "
+            f"yielded no data for zoom-in {zoom_id} at snapshot {snap_num}. "
+            f"I am forced to return an empty data dictionary with count zero, "
+            f"since there is no data to concatenate."
+        )
+        return {"count": 0}
+    # warn if only a few fields are affected, not all:
+    if any(field_values_are_empty):
         logging.warning(
             f"At least one particle property of {fields} did not exist for "
             f"TNG-Cluster zoom-in {zoom_id} for particles of type {part_type} "

@@ -400,6 +400,8 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
                 fields=["Coordinates"],
                 zoom_id=zoom_id,
             )
+            if data["count"] == 0:
+                continue  # no particles of this type exist
             positions_list.append(data["Coordinates"])
 
         # concatenate particle positions
