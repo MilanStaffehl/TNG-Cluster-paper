@@ -87,12 +87,15 @@ def patch_match_particle_ids(mocker: MockerFixture) -> Iterator[Mock]:
     mock_indices = np.array([4, 5, 6, 8, 11, 15, 17, 19, 21, 26, 28, 29])
     mock_flags = np.array([0, 0, 0, 0, 4, 4, 4, 4, 5, 5, 5, 5])
     mock_lens = np.array([4, 4, 4], dtype=np.uint64)
+    mock_uflags = np.ones_like(mock_indices)
 
     mock_method = mocker.patch.object(
         tracer_data.FindTracedParticleIDsInSnapshot,
         "_match_particle_ids_to_particles",
     )
-    mock_method.return_value = (mock_indices, mock_flags, mock_lens)
+    mock_method.return_value = (
+        mock_indices, mock_flags, mock_lens, mock_uflags
+    )
 
     yield mock_method
 
