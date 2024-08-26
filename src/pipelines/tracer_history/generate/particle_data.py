@@ -4,6 +4,7 @@ Trace back some simple quantities of the tracer particles.
 from __future__ import annotations
 
 import abc
+import contextlib
 import dataclasses
 import logging
 from typing import TYPE_CHECKING, ClassVar
@@ -31,6 +32,8 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
     unlink: bool = False  # delete intermediate files after archiving?
     force_overwrite: bool = False  # overwrite intermediate files?
+    zoom_id: int | None = None  # process only one zoom-in or all?
+    archive_single: bool = False  # archive data even for a single zoom?
 
     quantity: ClassVar[str] = "unset"  # name of the field in the archive
     n_clusters: ClassVar[int] = 352
@@ -38,7 +41,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
     def __post_init__(self):
         super().__post_init__()
-        self.tmp_dir = self.paths["data_dir"] / "intermediate"
+        self.tmp_dir = (
+            self.paths["data_dir"] / "intermediate" / self.quantity.lower()
+        )
 
     def run(self) -> int:
         """
@@ -54,8 +59,15 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 "for the quantity?"
             )
             return 3
-        self._create_directories(subdirs=["intermediate"], force=True)
-        logging.info(f"Tracing {self.quantity} of gas back in time.")
+        self._create_directories(
+            subdirs=[f"intermediate/{self.quantity.lower()}"], force=True
+        )
+        if self.zoom_id is None:
+            logging.info(f"Tracing {self.quantity} of particles back in time.")
+        else:
+            logging.info(
+                f"Tracing {self.quantity} of particles back in time for zoom-in {self.zoom_id} only."
+            )
 
         # Step 1: Load cluster primary
         group_primaries = halos_daq.get_halo_properties(
@@ -67,30 +79,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
         # Step 2: Loop through snapshots and zooms to get quantity
         if self.processes > 1:
-            # create combinations of args
-            snap_nums = np.arange(
-                constants.MIN_SNAP, 100, step=1, dtype=np.uint64
-            )
-            zoom_ids = np.arange(0, 352, step=1)
-            snap_nums = np.broadcast_to(
-                snap_nums[:, None],
-                (self.n_snaps, 352),
-            ).flatten()
-            zoom_ids = np.broadcast_to(
-                zoom_ids[:, None],
-                (352, self.n_snaps),
-            ).transpose().flatten()
-            # get a list of primaries belonging to each pair of snaps/zooms
-            primaries = group_primaries[zoom_ids]
-            # run all jobs in parallel
-            parallelization.process_data_starmap(
-                self._save_intermediate_file,
-                self.processes,
-                snap_nums,
-                zoom_ids,
-                primaries,
-            )
-        else:
+            self._multiprocess()
+        elif self.zoom_id is None:
+            # find data for all zoom-ins
             tracer_file = h5py.File(self.config.cool_gas_history, "r")
             for zoom_id in range(self.n_clusters):
                 logging.info(f"Processing zoom-in region {zoom_id}.")
@@ -102,42 +93,38 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                         tracer_file,
                     )
             tracer_file.close()
+        else:
+            # find data only for selected zoom-in
+            tracer_file = h5py.File(self.config.cool_gas_history, "r")
+            for snap_num in range(constants.MIN_SNAP, 100):
+                logging.info(f"Processing snap {snap_num}.")
+                self._save_intermediate_file(
+                    snap_num,
+                    self.zoom_id,
+                    group_primaries[self.zoom_id],
+                    tracer_file,
+                )
+            tracer_file.close()
 
         # Step 3: archive data
+        if self.zoom_id is not None and not self.archive_single:
+            logging.info(
+                "Processed only one zoom, will not attempt to archive data."
+            )
+            return 0
         tracer_file = h5py.File(self.config.cool_gas_history, "r+")
-        for zoom_id in range(self.n_clusters):
-            group = f"ZoomRegion_{zoom_id:03d}"
-            fn = f"{self.quantity}z{zoom_id:03d}s99.npy"
-            test_data = np.load(self.tmp_dir / fn)
-            shape = test_data.shape
-            dtype = test_data.dtype
-
-            # create a dataset if non-existent
-            if self.quantity not in tracer_file[group].keys():
-                logging.debug(f"Creating missing dataset for {self.quantity}.")
-                tracer_file[group].create_dataset(
-                    self.quantity, shape=(100, ) + shape, dtype=dtype
-                )
-
-            # fill with data from intermediate files
-            for snap_num in range(100):
-                if snap_num < constants.MIN_SNAP:
-                    data = np.empty(shape, dtype=dtype)
-                    data[:] = np.nan
-                else:
-                    fn = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
-                    data = np.load(self.tmp_dir / fn)
-                tracer_file[group][self.quantity][snap_num, :] = data
+        if self.zoom_id is None:
+            for zoom_id in range(self.n_clusters):
+                self._archive_zoom_in(zoom_id, tracer_file)
+        else:
+            self._archive_zoom_in(self.zoom_id, tracer_file)
+        tracer_file.close()
 
         # Step 4: clean-up
-        if self.unlink:
-            logging.info("Cleaning up temporary intermediate files.")
-            for file in self.tmp_dir.iterdir():
-                file.unlink()
-            self.tmp_dir.rmdir()
-            logging.info("Successfully cleaned up all intermediate files.")
+        if not self.unlink:
+            return 0  # done, can end pipeline execution
+        self._clean_up()
 
-        tracer_file.close()
         return 0
 
     def _save_intermediate_file(
@@ -165,11 +152,13 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             file is opened again on every call of the method, which is
             desired for parallel execution, but adds unnecessary
             overhead in sequential execution.
-        :return: None
+        :return: None.
         """
         # Step 0: skip if file exists
         if not self.force_overwrite:
-            filename = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
+            filename = (
+                f"{self.quantity}z{int(zoom_id):03d}s{int(snap_num):02d}.npy"
+            )
             if (self.tmp_dir / filename).exists():
                 logging.debug(
                     f"Rewrite was not forced and file {filename} exists; "
@@ -224,6 +213,105 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
         if multiprocessing:
             tracer_file.close()
+
+    def _archive_zoom_in(self, zoom_id: int, tracer_file: h5py.File) -> None:
+        """
+        Write data for the zoom-in to hdf5 archive from intermediate file.
+
+        :param zoom_id: Zoom-in ID of the zoom-in to archive.
+        :return: None.
+        """
+        logging.debug(f"Archiving zoom-in {zoom_id}.")
+
+        group = f"ZoomRegion_{zoom_id:03d}"
+        fn = f"{self.quantity}z{zoom_id:03d}s99.npy"
+        test_data = np.load(self.tmp_dir / fn)
+        shape = test_data.shape
+        dtype = test_data.dtype
+
+        # create a dataset if non-existent
+        if self.quantity not in tracer_file[group].keys():
+            logging.debug(f"Creating missing dataset for {self.quantity}.")
+            tracer_file[group].create_dataset(
+                self.quantity, shape=(100, ) + shape, dtype=dtype
+            )
+
+        # fill with data from intermediate files
+        for snap_num in range(100):
+            if snap_num < constants.MIN_SNAP:
+                data = np.empty(shape, dtype=dtype)
+                data[:] = np.nan
+            else:
+                fn = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
+                data = np.load(self.tmp_dir / fn)
+            tracer_file[group][self.quantity][snap_num, :] = data
+
+    def _multiprocess(self, group_primaries: NDArray) -> None:
+        """
+        Process multiple snapshots and zoom-ins in parallel.
+
+        Method creates arguments for processing all snapshots of one or
+        all zoom-ins in parallel (depending on pipeline set-up). The
+        individual processes write the data to file, so this method
+        returns nothing.
+
+        :param group_primaries: List of primary subhalos IDs of every
+            zoom-in.
+        :return: None
+        """
+        # create combinations of args
+        if self.zoom_id is None:
+            snap_nums = np.arange(
+                constants.MIN_SNAP, 100, step=1, dtype=np.uint64
+            )
+            zoom_ids = np.arange(0, 352, step=1)
+            snap_nums = np.broadcast_to(
+                snap_nums[:, None],
+                (self.n_snaps, 352),
+            ).flatten()
+            zoom_ids = np.broadcast_to(
+                zoom_ids[:, None],
+                (352, self.n_snaps),
+            ).transpose().flatten()
+        else:
+            # create data for only one zoom-in
+            snap_nums = np.arange(
+                constants.MIN_SNAP, 100, step=1, dtype=np.uint64
+            )
+            zoom_ids = np.empty_like(snap_nums, dtype=np.uint64)
+            zoom_ids[:] = self.zoom_id
+        # get a list of primaries belonging to each pair of snaps/zooms
+        primaries = group_primaries[zoom_ids]
+        # run all jobs in parallel
+        parallelization.process_data_starmap(
+            self._save_intermediate_file,
+            self.processes,
+            snap_nums,
+            zoom_ids,
+            primaries,
+        )
+
+    def _clean_up(self):
+        """
+        Clean up temporary intermediate files.
+
+        :return: None
+        """
+        logging.info("Cleaning up temporary intermediate files.")
+        if self.zoom_id is None:
+            for file in self.tmp_dir.iterdir():
+                file.unlink()
+            self.tmp_dir.rmdir()
+            logging.info("Successfully cleaned up all intermediate files.")
+        else:
+            for snap_num in range(constants.MIN_SNAP, 100):
+                f = f"{self.quantity}z{self.zoom_id:03d}s{snap_num:02d}.npy"
+                with contextlib.suppress(FileNotFoundError):
+                    (self.tmp_dir / f).unlink()
+            logging.info(
+                f"Successfully cleaned up all intermediate files of zoom-in "
+                f"{self.zoom_id}."
+            )
 
     @abc.abstractmethod
     def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:

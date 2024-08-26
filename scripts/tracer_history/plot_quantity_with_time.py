@@ -69,6 +69,8 @@ def main(args: argparse.Namespace) -> None:
             **pipeline_config,
             unlink=args.unlink,
             force_overwrite=args.force_overwrite,
+            zoom_id=args.zoom,
+            archive_single=args.archive_single,
         )
         exit_code = data_pipeline.run()
         if args.no_plots or exit_code != 0:
@@ -129,6 +131,33 @@ if __name__ == "__main__":
         ),
         dest="force_overwrite",
         action="store_true",
+    )
+    parser.add_argument(
+        "-z",
+        "--zoom-in",
+        help=(
+            "When given, must be a number between 0 and 351. This is then the "
+            "ID of the only zoom-in region for which the data will be "
+            "generated and plotted. If left unset, data and plots are created "
+            "for all zoom-in regions."
+        ),
+        dest="zoom",
+        type=int,
+    )
+    parser.add_argument(
+        "--archive-single",
+        help=(
+            "Only has an effect when `--zoom-in` is set: when set, the data "
+            "created for the single zoom-in will be added to the hdf5 archive "
+            "and the intermediate files created will be unlinked, if "
+            "`--unlink` is set. If this is not set, and a zoom-id is "
+            "specified, the pipeline will only create the intermediate file "
+            "and will not attempt to add it to the archive. It must then be "
+            "added later, either manually or by running the script again "
+            "without the `--zoom-id` and `--force-overwrite` arguments."
+        ),
+        action="store_true",
+        dest="archive_single",
     )
 
     # parse arguments
