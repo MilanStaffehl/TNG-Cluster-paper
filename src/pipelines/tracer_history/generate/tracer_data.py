@@ -219,14 +219,24 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         redshift zero.
 
         The indices will be saved all together, with an additional
-        array that identifies their particle type; the final data file
-        has two fields:selected
+        arrays that help making it more usable:
 
-        - ``particle_ids``
-        - ``particle_type``
+        - ``particle_indices``: Array of indices into the contiguous
+            array of all particles, to  only those that contain tracers
+            we track.
+        - ``particle_type``: Array assigning to every index of the
+            ``particle_indices`` array the corresponding particle type
+            as integer (0, 4, or 5).
+        - ``total_part_len``: Array of size 3, containing the total
+            number of particles of gas, star and BH particles in this
+            snapshot and zoom-in respectively.
+        - ``uniqueness_flag``: Array assigning to every index either
+            1 or 0. Indices that are unique and the first occurrence of
+            non-unique indices are assigned a 1, while all but the
+            first occurrence of duplicate indices are assigned 0.
 
         These indices are indices into the list of all particles _of
-        the zoom-in region of the associated cluster_, i.e. the list of
+        the zoom-in region of the associated cluster, i.e. the list of
         particles loaded with
         :func:`~library.data_acquisition.gas_daq.get_gas_properties`.
         Note that to use them on just one type of particles, they will
@@ -287,7 +297,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             )
 
         # Step 4: match selected parent IDs to particles
-        indices, ptypes, lens = self._match_particle_ids_to_particles(
+        indices, ptypes, lens, u = self._match_particle_ids_to_particles(
             selected_particle_ids, zoom_id
         )
         if self.processes <= 1:
@@ -304,6 +314,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             particle_indices=indices,
             particle_type=ptypes,
             total_part_len=lens,
+            uniqueness_flags=u,
         )
         if self.processes <= 1:
             logging.debug(f"Saved indices to file '{filename}'.")
@@ -313,7 +324,7 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         self,
         parent_ids: NDArray,
         zoom_id: int,
-    ) -> tuple[NDArray, NDArray, NDArray]:
+    ) -> tuple[NDArray, NDArray, NDArray, NDArray]:
         """
         Return indices of particles with the given particle IDs.
 
@@ -328,11 +339,26 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
         black holes) so that the indices can be restricted to only one
         particle type.
 
+        Additionally, the method returns two more arrays: the third
+        returned array is an array of shape (3,) containing the total
+        number of particles of type 0, 4, and 5 respectively in the
+        current zoom-in and snapshot. This is useful to allow for
+        transforming indices into the contiguous array to indices into
+        an array of only star or BH particles. The fourth array returned
+        is an array of uniqueness flags. It assigns every index either
+        a 0 or a 1. Indices that are unique are assigned 1, as well as
+        the first occurrence of non-unique indices. All duplications of
+        an index are assigned a 0, so that restricting the indices to
+        only those indices where the uniqueness flags are one creates a
+        unique array of indices (i.e.
+        ``particle_indices[uniqueness_flag == 1]`` is equivalent to
+        ``np.unique(particle_indices)``).
+
         :param parent_ids: Array of unique particle IDs to search for.
             Shape (N, ).
         :param zoom_id: ID of the zoom-in region for which to load the
             particles.
-        :return: Three arrays, the first giving the indices into the list
+        :return: Four arrays, the first giving the indices into the list
             of particle data for gas cells, star cells, and BH cells
             when concatenated in that order, the second one giving the
             particle type as an integer for every corresponding index.
@@ -340,7 +366,11 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             The third array is the number of particles of type 0, 4, and
             5 in the zoom-region respectively. This is useful to convert
             indices into the concatenated list of all particles into
-            indices of only one type.
+            indices of only one type. The fourth array is an array of
+            1s and 0s, where every unique index is assigned a 1 and
+            every subsequent duplicate of it is assigned a 0. This is
+            useful to avoid counting particles containing more than one
+            tracked tracer more than once.
         """
         # gather all particle data for all three types
         particle_ids_list = []
@@ -376,7 +406,13 @@ class FindTracedParticleIDsInSnapshot(base.DiagnosticsPipeline):
             assume_subset=True,
         )
         np.testing.assert_equal(particle_ids[indices], parent_ids)
-        return indices, particle_types[indices], particle_len
+
+        # create uniqueness flags array
+        _, where_unique = np.unique(indices, return_index=True)
+        uniqueness_flags = np.zeros_like(indices, dtype=np.uint8)
+        uniqueness_flags[where_unique] = 1
+
+        return indices, particle_types[indices], particle_len, uniqueness_flags
 
 
 @dataclasses.dataclass
@@ -431,6 +467,7 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
                 indices = orig_data["particle_indices"]
                 type_flags = orig_data["particle_type"]
                 part_num = orig_data["total_part_len"]
+                uniqueness = orig_data["uniqueness_flags"]
 
             # write data to the hdf5 file
             grp.create_dataset(
@@ -451,6 +488,12 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
                 dtype=part_num.dtype,
             )
             f[f"{grp.name}/total_particle_num"][99, :] = part_num
+            grp.create_dataset(
+                "uniqueness_flags",
+                shape=(100, uniqueness.size),
+                dtype=np.uint8,
+            )
+            f[f"{grp.name}/uniqueness_flags"][99, :] = uniqueness
 
             # clean-up
             if self.unlink:
@@ -470,12 +513,14 @@ class ArchiveTNGClusterTracerDataPipeline(base.Pipeline):
                     indices = orig_data["particle_indices"]
                     type_flags = orig_data["particle_type"]
                     part_num = orig_data["total_part_len"]
+                    uniqueness = orig_data["uniqueness_flags"]
 
                 # write data to the hdf5 file
                 group = f"ZoomRegion_{zoom_id:03d}"
                 f[f"{group}/particle_indices"][snap_num, :] = indices
                 f[f"{group}/particle_type_flags"][snap_num, :] = type_flags
                 f[f"{group}/total_particle_num"][snap_num, :] = part_num
+                f[f"{group}/uniqueness_flags"][snap_num, :] = uniqueness
 
                 # clean-up
                 if self.unlink:
