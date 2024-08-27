@@ -6,3 +6,7 @@ Density:
   min: 0  # log scale
   max: 12  # log scale
   log: true
+DistanceToMP:
+  min: 0  # log scale
+  max: 6  # log scale
+  log: true
