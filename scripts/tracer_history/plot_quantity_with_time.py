@@ -14,6 +14,7 @@ from pipelines.tracer_history.generate.particle_data import (
     TraceTemperaturePipeline,
 )
 from pipelines.tracer_history.simple_quantities import (
+    PlotSimpleQuantitiesForSingleClusters,
     PlotSimpleQuantityWithTimePipeline,
 )
 
@@ -25,11 +26,16 @@ def main(args: argparse.Namespace) -> None:
     # type flag, subdirectories, and other config changes
     type_flag = f"time_development_{args.what}"
 
+    # figures subdir
+    figures_subdir = f"./{type_flag}"
+    if args.zoom is not None:
+        figures_subdir += "/individuals"
+
     pipeline_config = scriptparse.startup(
         args,
         "tracer_history",
         type_flag,
-        figures_subdirectory=f"./{type_flag}",
+        figures_subdirectory=figures_subdir,
         data_subdirectory="TNG_Cluster",
         suppress_sim_name_in_files=False,
     )
@@ -52,16 +58,27 @@ def main(args: argparse.Namespace) -> None:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
 
+    # select plotting pipeline
+    if args.zoom is not None:
+        plotting_pipeline = PlotSimpleQuantitiesForSingleClusters
+        additional_configs = {
+            "quantity": pipeline_class.quantity,
+            "quantity_label": quantity_label,
+            "zoom_in": args.zoom,
+            "part_limit": args.particle_limit,
+        }
+    else:
+        plotting_pipeline = PlotSimpleQuantityWithTimePipeline
+        additional_configs = {
+            "quantity": pipeline_class.quantity,
+            "quantity_label": quantity_label,
+            "color": "dodgerblue",
+        }
+
     # select and build pipeline
     if args.from_file:
-        pipeline_config.update(
-            {
-                "quantity": pipeline_class.quantity,
-                "quantity_label": quantity_label,
-                "color": "dodgerblue",
-            }
-        )
-        pipeline = PlotSimpleQuantityWithTimePipeline(**pipeline_config)
+        pipeline_config.update(additional_configs)
+        pipeline = plotting_pipeline(**pipeline_config)
         sys.exit(pipeline.run())
     else:
         # data generation pipeline
@@ -76,14 +93,8 @@ def main(args: argparse.Namespace) -> None:
         if args.no_plots or exit_code != 0:
             sys.exit(exit_code)
         # plotting pipeline
-        pipeline_config.update(
-            {
-                "quantity": pipeline_class.quantity,
-                "quantity_label": quantity_label,
-                "color": "black",
-            }
-        )
-        plot_pipeline = PlotSimpleQuantityWithTimePipeline(**pipeline_config)
+        pipeline_config.update(additional_configs)
+        plot_pipeline = plotting_pipeline(**pipeline_config)
         exit_code += plot_pipeline.run()
         sys.exit(exit_code)
 
@@ -117,7 +128,8 @@ if __name__ == "__main__":
         "--unlink",
         help=(
             "Whether to clean up intermediate files after generating data. "
-            "Has no effect when --from-file is used."
+            "Has no effect when --from-file is used. Has no effect when using "
+            "`--load-data`."
         ),
         dest="unlink",
         action="store_true",
@@ -127,7 +139,8 @@ if __name__ == "__main__":
         "--force-overwrite",
         help=(
             "Force overwriting intermediate files. If not set, existing "
-            "intermediate files are re-used."
+            "intermediate files are re-used. Has no effect when using "
+            "`--load-data`."
         ),
         dest="force_overwrite",
         action="store_true",
@@ -139,7 +152,8 @@ if __name__ == "__main__":
             "When given, must be a number between 0 and 351. This is then the "
             "ID of the only zoom-in region for which the data will be "
             "generated and plotted. If left unset, data and plots are created "
-            "for all zoom-in regions."
+            "for all zoom-in regions. Plots for individual clusters are "
+            "different from those for all clusters."
         ),
         dest="zoom",
         type=int,
@@ -155,10 +169,21 @@ if __name__ == "__main__":
             "specified, the pipeline will only create the intermediate file "
             "and will not attempt to add it to the archive. It must then be "
             "added later, either manually or by running the script again "
-            "without the `--zoom-id` and `--force-overwrite` arguments."
+            "without the `--zoom-id` and `--force-overwrite` arguments. Has "
+            "no effect when using `--load-data`."
         ),
         action="store_true",
         dest="archive_single",
+    )
+    parser.add_argument(
+        "--limit-particles",
+        help=(
+            "Only has an effect when `--zoom-in` is set: Limit the number of "
+            "particles to plot to the given number."
+        ),
+        type=int,
+        dest="particle_limit",
+        metavar="N",
     )
 
     # parse arguments

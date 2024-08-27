@@ -10,12 +10,14 @@ from typing import TYPE_CHECKING, ClassVar
 
 import h5py
 import matplotlib.cm
+import matplotlib.collections
 import matplotlib.colors
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from library import constants
+from library import compute, constants
+from library.data_acquisition import halos_daq
 from library.plotting import common
 from library.plotting import plot_radial_profiles as plot_hists
 from library.processing import statistics
@@ -32,7 +34,6 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
     quantity: str  # name of the dataset in the archive
     quantity_label: str  # y-axis label for quantity
     color: str  # color for faint lines
-    make_ridgeline: bool = False
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -179,7 +180,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 f"Creating line plot for {label_prefix} {self.quantity_label}"
             )
             # create figure and configure axes
-            fig, axes = plt.subplots(figsize=(4, 4))
+            fig, axes = plt.subplots(figsize=(5, 4))
             xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
             axes.set_ylabel(f"{label_prefix} {self.quantity_label}")
             axes.set_yscale("log")
@@ -300,3 +301,149 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             ident_flag = f"2dhist_{method}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} 2D histogram plot to file.")
+
+
+@dataclasses.dataclass
+class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
+    """
+    Plot simple particle quantities, but for individual clusters.
+
+    This includes plots for the development of the quantity for individual
+    particles instead of means and medians.
+    """
+
+    quantity: str  # name of the dataset in the archive
+    quantity_label: str  # y-axis label for quantity
+    zoom_in: int  # the zoom-in region to plot
+    part_limit: int | None = None  # limit plots to this many particles
+
+    n_clusters: ClassVar[int] = 352
+    n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
+    n_bins: ClassVar[int] = 50  # number of bins
+
+    def run(self) -> int:
+        """Load and plot data"""
+        # Step 0: check archive exists, create paths
+        self._verify_directories()
+        if not self.config.cool_gas_history.exists():
+            logging.fatal(
+                f"Did not find cool gas archive file "
+                f"{self.config.cool_gas_history}."
+            )
+            return 1
+
+        # Step 2: open the archive
+        f = h5py.File(self.config.cool_gas_history, "r")
+
+        # Step 3: extract the data required
+        particle_data = f[f"ZoomRegion_{self.zoom_in:03d}/{self.quantity}"][()]
+
+        # Step 4: plot the data
+        self._plot_time_development(particle_data)
+
+        return 0
+
+    def _plot_time_development(self, particle_data: NDArray) -> None:
+        """
+        Plot, for every gas cell, the development of the quantity.
+
+        The plot will contain a single line for every tracer. This means
+        that it is entirely possible that lines will overlap whenever two
+        or more tracers occupy the same particle cell, and also that
+        these lines can be interrupted for quantities that exist only
+        for gas particles, if the tracer is transferred to a star or BH
+        particle. Therefore, these plots may not be useful for every
+        quantity.
+
+        :param particle_data: Array of shape (100, N) where N is the
+            number oif cells (and therefore the number of lines the
+            plot will have), and the first axis orders the data by snap
+            number. The first axis must be ordered such that index i
+            points to snap num i.
+        :return: None, plots are saved to file.
+        """
+        logging.info(
+            f"Plotting development of {self.quantity} for all particles of "
+            f"zoom-in {self.zoom_in}."
+        )
+
+        if self.part_limit is not None:
+            logging.info(
+                f"Limiting particle data to only the first {self.part_limit} "
+                f"particles."
+            )
+            particle_data = particle_data[:, :self.part_limit]
+
+        # set up figure and axes
+        fig, axes = plt.subplots(figsize=(15, 15))  # must be LARGE!
+        axes.set_ylabel(self.quantity_label)
+        xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
+
+        # plot data
+        logging.info("Plotting a line for every tracer. May take a while...")
+        n_part = particle_data.shape[1]
+        cmap = matplotlib.cm.get_cmap("hsv")
+        norm = matplotlib.colors.Normalize(vmin=0, vmax=n_part)
+        colors = cmap(norm(np.arange(0, n_part, step=1)))
+        # BEHOLD: the absolute clusterfuck that matplotlib requires, just
+        # to make LineCollection work. Whatever the developers are on, I
+        # want some of that. Must be good stuff...
+        ys = particle_data[constants.MIN_SNAP:, :]
+        lines = [np.column_stack([xs, ys[:, i]]) for i in range(ys.shape[1])]
+        lc = matplotlib.collections.LineCollection(
+            lines, colors=colors, alpha=0.2
+        )
+        axes.add_collection(lc)
+        axes.autoscale_view()
+
+        # add characteristic cluster property as line
+        logging.info("Overplotting characteristic cluster property.")
+        if self.quantity == "Temperature":
+            label = "Virial temperature at z = 0"
+            cluster_data = halos_daq.get_halo_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                fields=[self.config.radius_field, self.config.mass_field],
+                cluster_restrict=True
+            )
+            cluster_cq = compute.get_virial_temperature(
+                cluster_data[self.config.mass_field],
+                cluster_data[self.config.radius_field],
+            )
+        elif self.quantity == "DistanceToMP":
+            label = "Virial radius at z = 0"
+            cluster_data = halos_daq.get_halo_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                fields=[self.config.radius_field],
+                cluster_restrict=True
+            )
+            cluster_cq = cluster_data[self.config.radius_field][self.zoom_in]
+        else:
+            logging.info(
+                f"No characteristic property to plot for {self.quantity}."
+            )
+            label = None
+            cluster_cq = np.NaN
+        axes.hlines(
+            cluster_cq,
+            xs[-1],
+            xs[0],
+            linestyles="dashed",
+            colors="black",
+            label=label,
+        )
+
+        # add labels
+        if label:
+            axes.legend()
+
+        # save fig
+        logging.info("Saving plot to file, may take a while...")
+        if self.part_limit is None:
+            ident_flag = "all_particles"
+        else:
+            ident_flag = f"first_{self.part_limit:d}_particles"
+        self._save_fig(
+            fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
+        )

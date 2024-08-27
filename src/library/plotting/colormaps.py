@@ -31,8 +31,11 @@ _color_dict = {
 BlackSeismic = cl.LinearSegmentedColormap("BlackSeismic", _color_dict)
 
 
-def sample_cmap(colormap: str, samples: int,
-                index: int | None) -> RGBAColor | Sequence[RGBAColor]:
+def sample_cmap(
+    colormap: str,
+    samples: int,
+    index: int | None = None,
+) -> RGBAColor | Sequence[RGBAColor]:
     """
     Return a color sample from the given color map.
 
