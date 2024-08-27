@@ -157,6 +157,7 @@ def process_data_starmap(
         )
         pool.close()
         pool.join()
+    logging.info(f"Finished processing data on {processes} processes.")
 
     # return array of results
     return np.array(results)

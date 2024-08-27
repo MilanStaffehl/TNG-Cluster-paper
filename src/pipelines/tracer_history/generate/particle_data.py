@@ -66,7 +66,8 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             logging.info(f"Tracing {self.quantity} of particles back in time.")
         else:
             logging.info(
-                f"Tracing {self.quantity} of particles back in time for zoom-in {self.zoom_id} only."
+                f"Tracing {self.quantity} of particles back in time for "
+                f"zoom-in {self.zoom_id} only."
             )
 
         # Step 1: Load cluster primary
@@ -112,6 +113,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 "Processed only one zoom, will not attempt to archive data."
             )
             return 0
+        logging.info("Starting to archive all created data.")
         tracer_file = h5py.File(self.config.cool_gas_history, "r+")
         if self.zoom_id is None:
             for zoom_id in range(self.n_clusters):

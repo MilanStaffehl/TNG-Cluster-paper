@@ -143,6 +143,7 @@ if __name__ == "__main__":
         ),
         dest="zoom",
         type=int,
+        metavar="ZOOM-IN ID",
     )
     parser.add_argument(
         "--archive-single",
