@@ -29,7 +29,7 @@ def particle_parents(
     every particle passed.
 
     If a particle is unbound, i.e. it does not belong to a (sub)halo,
-    the corresponding parent ID is set to NaN.
+    the corresponding parent ID is set to -1.
 
     :param particle_ids: ID of a single particle or array of multiple
         particle IDs.
@@ -51,10 +51,10 @@ def particle_parents(
     subhalo_offsets, subhalo_lens = offsets_and_lens[2:]
 
     # allocate memory for the final results
-    parent_halos = np.empty_like(particle_ids, dtype=np.float64)
-    parent_halos[:] = np.nan  # initialize to NaN
-    parent_subhalos = np.empty_like(parent_halos, dtype=np.float64)
-    parent_subhalos[:] = np.nan  # initialize to NaN
+    parent_halos = np.empty_like(particle_ids, dtype=np.int64)
+    parent_halos[:] = -1  # initialize to -1
+    parent_subhalos = np.empty_like(parent_halos, dtype=np.int64)
+    parent_subhalos[:] = -1  # initialize to -1
 
     # assign parents by type
     for part_type in [0, 4, 5]:
@@ -89,7 +89,7 @@ def _find_parent(
     then assigns to every particle the index/ID of the parent group (or
     subgroup) and returns it.
 
-    Particles that have no parent will be assigned NaN instead.
+    Particles that have no parent will be assigned -1 instead.
 
     The functions works by using searchsort to sort particles into the
     array of last particle IDs (effectively the sum of offsets and
@@ -141,7 +141,7 @@ def _find_parent(
         of shape (N, ).
     :return: Array of parent IDs, i.e. the indices into the array of
         offsets that the corresponding particle ID in ``particle_ids``
-        belongs to. If there is no parent, the parent is set to NaN.
+        belongs to. If there is no parent, the parent is set to -1.
     """
     # find indices where the particle would be sorted into:
     index_wrt_start = np.searchsorted(offsets, particle_ids, side="right")
@@ -149,8 +149,8 @@ def _find_parent(
         offsets + lengths, particle_ids, side="right"
     )
     # create array of indices
-    parent_ids = index_wrt_end.copy().astype(np.float64)
-    parent_ids[index_wrt_start - index_wrt_end != 1] = np.nan
+    parent_ids = index_wrt_end.copy().astype(np.int64)
+    parent_ids[index_wrt_start - index_wrt_end != 1] = -1
     return parent_ids
 
 

@@ -45,93 +45,20 @@ def mock_data() -> Iterator[tuple[NDArray, NDArray, NDArray, NDArray]]:
 @pytest.fixture
 def mock_pids() -> Iterator[tuple[NDArray, NDArray, NDArray]]:
     """Return an array of mock particle IDs and expected parents"""
+    # yapf: disable
     pids = np.array(
-        [
-            0,
-            15,
-            20,
-            39,
-            40,
-            65,
-            68,
-            80,
-            98,
-            100,
-            119,
-            120,
-            155,
-            192,
-            200,
-            205,
-            215,
-            219,
-            220,
-            226,
-            227,
-            228,
-            230,
-            234,
-            249
-        ]
+        [0, 15, 20, 39, 40, 65, 68, 80, 98, 100, 119, 120, 155, 192, 200,
+         205, 215, 219, 220, 226, 227, 228, 230, 234, 249]
     )
     expected_g_parents = np.array(
-        [
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            1,
-            1,
-            1,
-            1,
-            1,
-            2,
-            2,
-            2,
-            3,
-            3,
-            3,
-            4,
-            4,
-            4,
-            5,
-            5,
-            np.nan,
-            np.nan
-        ]
+        [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 2, 2,
+         3, 3, 3, 4, 4, 4, 5, 5, -1, -1]
     )
     expected_s_parents = np.array(
-        [
-            0,
-            0,
-            1,
-            1,
-            2,
-            np.nan,
-            np.nan,
-            4,
-            5,
-            5,
-            np.nan,
-            np.nan,
-            7,
-            9,
-            np.nan,
-            10,
-            11,
-            np.nan,
-            12,
-            np.nan,
-            np.nan,
-            13,
-            13,
-            np.nan,
-            np.nan
-        ]
+        [0, 0, 1, 1, 2, -1, -1, 4, 5, 5, -1, -1, 7, 9, -1,
+         10, 11, -1, 12, -1, -1, 13, 13, -1, -1]
     )
+    # yapf: enable
     yield pids, expected_g_parents, expected_s_parents
 
 
@@ -195,14 +122,14 @@ def mock_pids_by_type() -> Iterator[tuple[NDArray, NDArray, NDArray, NDArray]]:
         5, 5, 5, 5, 5, 5, 5, 5, 5,  # BHs
     ])
     expected_group_parents = np.array([
-        0, 0, 0, 0, 1, 1, 1, 2, 2, 2, np.nan,  # gas
-        0, 0, 0, 0, 1, 1, 1, 2, 2, np.nan,  # stars
-        0, 0, 0, 1, 1, 2, 2, np.nan, np.nan,  # BHs
+        0, 0, 0, 0, 1, 1, 1, 2, 2, 2, -1,  # gas
+        0, 0, 0, 0, 1, 1, 1, 2, 2, -1,  # stars
+        0, 0, 0, 1, 1, 2, 2, -1, -1,  # BHs
     ])
     expected_subhalo_parents = np.array([
-        0, 0, 1, np.nan, 2, np.nan, np.nan, 4, 4, np.nan, np.nan,  # gas
-        0, 0, 1, np.nan, 2, 3, np.nan, 4, np.nan, np.nan,  # stars
-        0, 1, np.nan, 2, np.nan, np.nan, np.nan, np.nan, np.nan  # BHs
+        0, 0, 1, -1, 2, -1, -1, 4, 4, -1, -1,  # gas
+        0, 0, 1, -1, 2, 3, -1, 4, -1, -1,  # stars
+        0, 1, -1, 2, -1, -1, -1, -1, -1  # BHs
     ])
     # yapf: enable
     yield pids, part_types, expected_group_parents, expected_subhalo_parents
@@ -236,7 +163,7 @@ def test_find_parents_empty_groups() -> None:
     offset = np.array([0, 4])
     length = np.array([4, 0])
     pids = np.array([3, 4, 5])
-    expected = np.array([0, np.nan, np.nan])
+    expected = np.array([0, -1, -1])
     output = membership._find_parent(pids, offset, length)
     np.testing.assert_array_equal(expected, output)
 
@@ -252,6 +179,10 @@ def test_particle_parents(
     # assert output
     np.testing.assert_array_equal(output[0], expected_g_parents)
     np.testing.assert_array_equal(output[1], expected_s_parents)
+
+    # assert output dtype
+    assert np.issubdtype(output[0].dtype, np.int64)
+    assert np.issubdtype(output[1].dtype, np.int64)
 
     # assert method call
     patch_offset_loader.assert_called_with(Path("base/path/string"), 99)
