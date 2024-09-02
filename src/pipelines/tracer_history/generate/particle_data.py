@@ -570,6 +570,8 @@ class TraceMassPipeline(TraceSimpleQuantitiesBackABC):
                 fields=["Masses"],
                 zoom_id=zoom_id,
             )
+            if data["count"] == 0:
+                continue  # no particles of this type exist
             masses_list.append(data["Masses"])
 
         # concatenate particle positions
