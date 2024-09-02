@@ -117,8 +117,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 else:
                     q = quantity[snap]
                 hist = np.histogram(q, self.n_bins, range=hist_range)[0]
-                # TODO: column-normalize
-                quantity_hists[zoom_id, i] = hist
+                # normalize histogram such that it sums to 1
+                quantity_hists[zoom_id, i] = hist / np.sum(hist)
 
         # Step 4: plot line plots
         self._plot_and_save_lineplots(
@@ -293,8 +293,9 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 xlabel="Snap num",
                 ylabel=f"{method.capitalize()} {q_label}",
                 colormap="inferno",
-                cbar_label="Count [log]",
+                cbar_label="Normalized count [log]",
                 scale="log",
+                cbar_limits=(-4, None),
             )
 
             # Step 6: save figure
