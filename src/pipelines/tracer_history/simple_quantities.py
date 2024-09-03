@@ -134,12 +134,12 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
 
         # Step 5: plot 2D histograms
         self._plot_and_save_2dhistograms(
-            quantity_hists, hist_range[0], hist_range[1]
+            quantity_hists, hist_range[0], hist_range[1], log
         )
 
         # Step 6: plot ridgeline plots
         self._plot_and_save_ridgelineplots(
-            quantity_hists, hist_range[0], hist_range[1]
+            quantity_hists, hist_range[0], hist_range[1], log
         )
 
         return 0
@@ -207,7 +207,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             )
 
     def _plot_and_save_ridgelineplots(
-        self, hists: NDArray, minimum: float, maximum: float
+        self, hists: NDArray, minimum: float, maximum: float, is_log: bool
     ) -> None:
         """
         Plot a ridgeline plot of the development of the quantity.
@@ -220,6 +220,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             N is the number of bins.
         :param minimum: Leftmost edge of the histogram bins.
         :param maximum: Rightmost edge of the histogram bins.
+        :param is_log: Whether the y-axis is in log scale.
         :return: None, figure saved to file.
         """
         # color map
@@ -235,6 +236,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5, 5))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
+            if is_log:
+                q_label.replace("[", r"[$\log_{10}$")
             axes.set_xlabel(f"{method.capitalize()} {q_label}")
             axes.set_ylabel("Snap num")
 
@@ -259,7 +262,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             logging.info(f"Saved {method} ridgeline plot to file.")
 
     def _plot_and_save_2dhistograms(
-        self, hists: NDArray, minimum: float, maximum: float
+        self, hists: NDArray, minimum: float, maximum: float, is_log: bool
     ) -> None:
         """
         Plot a 2D histogram plot of the development of the quantity.
@@ -272,6 +275,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             N is the number of bins.
         :param minimum: Leftmost edge of the histogram bins.
         :param maximum: Rightmost edge of the histogram bins.
+        :param is_log: Whether the y-axis is in log scale.
         :return: None, figure saved to file.
         """
         for method in ["mean", "median"]:
@@ -283,6 +287,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5.7, 5))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
+            if is_log:
+                q_label.replace("[", r"[$\log_{10}$")
 
             # Step 3: plot 2D histograms
             plot_hists.plot_2d_radial_profile(

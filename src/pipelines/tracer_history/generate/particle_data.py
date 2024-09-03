@@ -15,7 +15,7 @@ import numpy as np
 
 from library import constants, units
 from library.data_acquisition import gas_daq, halos_daq, particle_daq
-from library.processing import parallelization
+from library.processing import membership, parallelization
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -194,7 +194,20 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         else:
             shape = indices.shape
         traced_part_data = np.empty(shape, dtype=part_data.dtype)
-        traced_part_data[:] = np.nan  # set all to NaN
+        if np.issubdtype(part_data.dtype, np.floating):
+            sentinel_value = np.nan
+        elif np.issubdtype(part_data.dtype, np.unsignedinteger):
+            # we set this to -1 as we require all uint values to be
+            # converted to a signed integer type by subclasses
+            sentinel_value = -1
+        else:
+            logging.warning(
+                f"Could not assign proper sentinel value for allocation "
+                f"of result array of dtype {part_data.dtype}. Setting "
+                f"sentinel value to 0 which may cause problems later."
+            )
+            sentinel_value = 0
+        traced_part_data[:] = sentinel_value  # fill with dummy value
 
         # Step 5: Mask data and fill array with results
         if np.max(indices) > part_data.shape[0]:
@@ -206,7 +219,11 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
         # Step 6: Process particle data into sought quantity
         quantity = self._process_into_quantity(
-            zoom_id, snap_num, traced_part_data, primary_subhalo_id
+            zoom_id,
+            snap_num,
+            traced_part_data,
+            primary_subhalo_id,
+            tracer_file,
         )
 
         # Step 6: Save to intermediate file
@@ -238,11 +255,17 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 self.quantity, shape=(100, ) + shape, dtype=dtype
             )
 
+        # find appropriate sentinel value
+        if np.issubdtype(dtype, np.integer):
+            sentinel = -1
+        else:
+            sentinel = np.nan
+
         # fill with data from intermediate files
         for snap_num in range(100):
             if snap_num < constants.MIN_SNAP:
                 data = np.empty(shape, dtype=dtype)
-                data[:] = np.nan
+                data[:] = sentinel
             else:
                 fn = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
                 data = np.load(self.tmp_dir / fn)
@@ -346,6 +369,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         snap_num: int,
         particle_data: NDArray,
         primary_subhalo_id: int,
+        data_file: h5py.File,
     ) -> NDArray:
         """
         Abstract method to process particle data.
@@ -368,6 +392,8 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         :param primary_subhalo_id: The ID of the primary subhalo of the
             cluster at redshift 0, i.e. at snapshot 99. Required to load
             the MPB of this subhalo for distance and velocity calculations.
+        :param data_file: The opened file containing the gas particle
+            data.
         :return: The array of whatever quantity is to be saved to file.
             Must be a 1D array.
         """
@@ -416,6 +442,7 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
         snap_num: int,
         particle_data: NDArray,
         primary_subhalo_id: int,
+        data_file: h5py.File,
     ) -> NDArray:
         """
         Process particle coordinates into distances to primary subhalo.
@@ -424,6 +451,8 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
         :param snap_num: Snapshot number.
         :param particle_data: Array of particle coordinates, shape (N, 3).
         :param primary_subhalo_id: ID of the primary subhalo of this
+            cluster at redshift 0.
+        :param data_file: Dummy parameter.
         :return:
         """
         # Step 1: load subhalo position at this snap
@@ -486,6 +515,7 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
         snap_num: int,
         particle_data: NDArray,
         primary_subhalo_id: int,
+        data_file: h5py.File,
     ) -> NDArray:
         """
         Return temperatures as-is, no processing required.
@@ -494,6 +524,7 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
         :param snap_num: Dummy parameter.
         :param particle_data: Array of particle temperatures.
         :param primary_subhalo_id: Dummy parameter.
+        :param data_file: Dummy parameter.
         :return: Array of particle temperatures.
         """
         return particle_data
@@ -532,6 +563,7 @@ class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
         snap_num: int,
         particle_data: NDArray,
         primary_subhalo_id: int,
+        data_file: h5py.File,
     ) -> NDArray:
         """
         Return density as-is, no processing required.
@@ -540,6 +572,7 @@ class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
         :param snap_num: Dummy parameter.
         :param particle_data: Array of particle densities.
         :param primary_subhalo_id: Dummy parameter.
+        :param data_file: Dummy parameter.
         :return: Array of particle densities.
         """
         return particle_data
@@ -584,6 +617,7 @@ class TraceMassPipeline(TraceSimpleQuantitiesBackABC):
         snap_num: int,
         particle_data: NDArray,
         primary_subhalo_id: int,
+        data_file: h5py.File,
     ) -> NDArray:
         """
         Return masses as-is, no processing required.
@@ -592,6 +626,98 @@ class TraceMassPipeline(TraceSimpleQuantitiesBackABC):
         :param snap_num: Dummy parameter.
         :param particle_data: Array of particle masses.
         :param primary_subhalo_id: Dummy parameter.
+        :param data_file: Dummy parameter.
         :return: Array of particle masses.
         """
         return particle_data
+
+
+class TraceParticleParentHaloPipeline(TraceSimpleQuantitiesBackABC):
+    """
+    Trace particle parent halo indices back in time.
+    """
+
+    quantity: ClassVar[str] = "ParentHaloIndex"
+
+    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
+        """
+        Load the particle IDs of all particles in the zoom-in.
+
+        :param snap_num: Snapshot at which to load the particles.
+        :param zoom_id: ID of the zoom-in from which to load particle IDs.
+        :return: Array of particle IDs for all particles, in order of
+            particle type.
+        """
+        pids_list = []
+        for part_type in [0, 4, 5]:
+            cur_pids = particle_daq.get_particle_ids(
+                self.config.base_path,
+                snap_num,
+                part_type=part_type,
+                zoom_id=zoom_id,
+            )
+            if cur_pids.size == 0:
+                continue  # no particles of this type exist
+            pids_list.append(cur_pids)
+
+        # concatenate particle positions
+        pids = np.concatenate(pids_list, axis=0)
+        return pids
+
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+        data_file: h5py.File,
+    ) -> NDArray:
+        """
+        Process particle IDs of traced particles into parent halo indices.
+
+        :param zoom_id: ID of the zoom-in region to process.
+        :param snap_num: The snapshot at which to find parents.
+        :param particle_data: The array of particle IDs of all traced
+            particles at this snapshot and zoom-in.
+        :param primary_subhalo_id: Dummy parameter.
+        :return: Array of parent halo indices.
+        """
+        field = f"ZoomRegion_{zoom_id:03d}/particle_type_flags"
+        part_types = data_file[field][snap_num, :]
+        halo_indices, _ = membership.particle_parents(
+            particle_data, part_types, snap_num, self.config.base_path
+        )
+        return halo_indices
+
+
+class TraceParticleParentSubhaloPipeline(TraceParticleParentHaloPipeline):
+    """
+    Trace particle parent subhalo index back in time.
+    """
+
+    quantity: ClassVar[str] = "ParentSubhaloIndex"
+
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+        data_file: h5py.File,
+    ) -> NDArray:
+        """
+        Process particle IDs of traced particles into parent subhalo indices.
+
+        :param zoom_id: ID of the zoom-in region to process.
+        :param snap_num: The snapshot at which to find parents.
+        :param particle_data: The array of particle IDs of all traced
+            particles at this snapshot and zoom-in.
+        :param primary_subhalo_id: Dummy parameter.
+        :return: Array of parent subhalo indices.
+        """
+        field = f"ZoomRegion_{zoom_id:03d}/particle_type_flags"
+        part_types = data_file[field][snap_num, :]
+        _, subhalo_indices = membership.particle_parents(
+            particle_data, part_types, snap_num, self.config.base_path
+        )
+        return subhalo_indices

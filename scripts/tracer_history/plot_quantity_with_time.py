@@ -11,6 +11,8 @@ from pipelines.tracer_history.generate.particle_data import (
     TraceDensityPipeline,
     TraceDistancePipeline,
     TraceMassPipeline,
+    TraceParticleParentHaloPipeline,
+    TraceParticleParentSubhaloPipeline,
     TraceTemperaturePipeline,
 )
 from pipelines.tracer_history.simple_quantities import (
@@ -47,13 +49,19 @@ def main(args: argparse.Namespace) -> None:
             quantity_label = "Gas temperature [K]"
         case "distance":
             pipeline_class = TraceDistancePipeline
-            quantity_label = "Distance from cluster center [ckpc]"
+            quantity_label = r"Distance from cluster center [ckpc]"
         case "density":
             pipeline_class = TraceDensityPipeline
             quantity_label = r"Gas density [$M_\odot / ckpc^3$]"
         case "mass":
             pipeline_class = TraceMassPipeline
             quantity_label = r"Particle mass [$M_\odot$]"
+        case "parent-halo":
+            pipeline_class = TraceParticleParentHaloPipeline
+            quantity_label = "Parent halo index"
+        case "parent-subhalo":
+            pipeline_class = TraceParticleParentSubhaloPipeline
+            quantity_label = "Parent subhalo index"
         case _:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
@@ -121,7 +129,14 @@ if __name__ == "__main__":
             "traced back in time for those cells that end up in cool "
             "gas at redshift zero. Can only choose from the valid options."
         ),
-        choices=["temperature", "distance", "density", "mass"],
+        choices=[
+            "temperature",
+            "distance",
+            "density",
+            "mass",
+            "parent-halo",
+            "parent-subhalo",
+        ],
     )
     parser.add_argument(
         "-u",
