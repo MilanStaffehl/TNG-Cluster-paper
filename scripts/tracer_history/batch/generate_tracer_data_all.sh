@@ -1,100 +1,33 @@
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_00.sh > output/job_ids/TNG_Cluster_snap_00.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_01.sh > output/job_ids/TNG_Cluster_snap_01.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_02.sh > output/job_ids/TNG_Cluster_snap_02.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_03.sh > output/job_ids/TNG_Cluster_snap_03.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_04.sh > output/job_ids/TNG_Cluster_snap_04.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_05.sh > output/job_ids/TNG_Cluster_snap_05.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_06.sh > output/job_ids/TNG_Cluster_snap_06.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_07.sh > output/job_ids/TNG_Cluster_snap_07.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_08.sh > output/job_ids/TNG_Cluster_snap_08.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_09.sh > output/job_ids/TNG_Cluster_snap_09.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_10.sh > output/job_ids/TNG_Cluster_snap_10.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_11.sh > output/job_ids/TNG_Cluster_snap_11.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_12.sh > output/job_ids/TNG_Cluster_snap_12.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_13.sh > output/job_ids/TNG_Cluster_snap_13.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_14.sh > output/job_ids/TNG_Cluster_snap_14.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_15.sh > output/job_ids/TNG_Cluster_snap_15.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_16.sh > output/job_ids/TNG_Cluster_snap_16.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_17.sh > output/job_ids/TNG_Cluster_snap_17.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_18.sh > output/job_ids/TNG_Cluster_snap_18.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_19.sh > output/job_ids/TNG_Cluster_snap_19.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_20.sh > output/job_ids/TNG_Cluster_snap_20.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_21.sh > output/job_ids/TNG_Cluster_snap_21.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_22.sh > output/job_ids/TNG_Cluster_snap_22.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_23.sh > output/job_ids/TNG_Cluster_snap_23.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_24.sh > output/job_ids/TNG_Cluster_snap_24.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_25.sh > output/job_ids/TNG_Cluster_snap_25.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_26.sh > output/job_ids/TNG_Cluster_snap_26.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_27.sh > output/job_ids/TNG_Cluster_snap_27.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_28.sh > output/job_ids/TNG_Cluster_snap_28.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_29.sh > output/job_ids/TNG_Cluster_snap_29.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_30.sh > output/job_ids/TNG_Cluster_snap_30.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_31.sh > output/job_ids/TNG_Cluster_snap_31.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_32.sh > output/job_ids/TNG_Cluster_snap_32.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_33.sh > output/job_ids/TNG_Cluster_snap_33.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_34.sh > output/job_ids/TNG_Cluster_snap_34.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_35.sh > output/job_ids/TNG_Cluster_snap_35.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_36.sh > output/job_ids/TNG_Cluster_snap_36.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_37.sh > output/job_ids/TNG_Cluster_snap_37.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_38.sh > output/job_ids/TNG_Cluster_snap_38.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_39.sh > output/job_ids/TNG_Cluster_snap_39.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_40.sh > output/job_ids/TNG_Cluster_snap_40.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_41.sh > output/job_ids/TNG_Cluster_snap_41.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_42.sh > output/job_ids/TNG_Cluster_snap_42.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_43.sh > output/job_ids/TNG_Cluster_snap_43.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_44.sh > output/job_ids/TNG_Cluster_snap_44.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_45.sh > output/job_ids/TNG_Cluster_snap_45.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_46.sh > output/job_ids/TNG_Cluster_snap_46.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_47.sh > output/job_ids/TNG_Cluster_snap_47.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_48.sh > output/job_ids/TNG_Cluster_snap_48.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_49.sh > output/job_ids/TNG_Cluster_snap_49.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_50.sh > output/job_ids/TNG_Cluster_snap_50.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_51.sh > output/job_ids/TNG_Cluster_snap_51.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_52.sh > output/job_ids/TNG_Cluster_snap_52.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_53.sh > output/job_ids/TNG_Cluster_snap_53.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_54.sh > output/job_ids/TNG_Cluster_snap_54.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_55.sh > output/job_ids/TNG_Cluster_snap_55.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_56.sh > output/job_ids/TNG_Cluster_snap_56.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_57.sh > output/job_ids/TNG_Cluster_snap_57.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_58.sh > output/job_ids/TNG_Cluster_snap_58.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_59.sh > output/job_ids/TNG_Cluster_snap_59.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_60.sh > output/job_ids/TNG_Cluster_snap_60.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_61.sh > output/job_ids/TNG_Cluster_snap_61.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_62.sh > output/job_ids/TNG_Cluster_snap_62.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_63.sh > output/job_ids/TNG_Cluster_snap_63.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_64.sh > output/job_ids/TNG_Cluster_snap_64.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_65.sh > output/job_ids/TNG_Cluster_snap_65.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_66.sh > output/job_ids/TNG_Cluster_snap_66.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_67.sh > output/job_ids/TNG_Cluster_snap_67.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_68.sh > output/job_ids/TNG_Cluster_snap_68.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_69.sh > output/job_ids/TNG_Cluster_snap_69.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_70.sh > output/job_ids/TNG_Cluster_snap_70.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_71.sh > output/job_ids/TNG_Cluster_snap_71.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_72.sh > output/job_ids/TNG_Cluster_snap_72.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_73.sh > output/job_ids/TNG_Cluster_snap_73.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_74.sh > output/job_ids/TNG_Cluster_snap_74.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_75.sh > output/job_ids/TNG_Cluster_snap_75.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_76.sh > output/job_ids/TNG_Cluster_snap_76.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_77.sh > output/job_ids/TNG_Cluster_snap_77.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_78.sh > output/job_ids/TNG_Cluster_snap_78.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_79.sh > output/job_ids/TNG_Cluster_snap_79.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_80.sh > output/job_ids/TNG_Cluster_snap_80.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_81.sh > output/job_ids/TNG_Cluster_snap_81.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_82.sh > output/job_ids/TNG_Cluster_snap_82.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_83.sh > output/job_ids/TNG_Cluster_snap_83.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_84.sh > output/job_ids/TNG_Cluster_snap_84.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_85.sh > output/job_ids/TNG_Cluster_snap_85.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_86.sh > output/job_ids/TNG_Cluster_snap_86.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_87.sh > output/job_ids/TNG_Cluster_snap_87.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_88.sh > output/job_ids/TNG_Cluster_snap_88.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_89.sh > output/job_ids/TNG_Cluster_snap_89.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_90.sh > output/job_ids/TNG_Cluster_snap_90.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_91.sh > output/job_ids/TNG_Cluster_snap_91.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_92.sh > output/job_ids/TNG_Cluster_snap_92.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_93.sh > output/job_ids/TNG_Cluster_snap_93.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_94.sh > output/job_ids/TNG_Cluster_snap_94.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_95.sh > output/job_ids/TNG_Cluster_snap_95.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_96.sh > output/job_ids/TNG_Cluster_snap_96.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_97.sh > output/job_ids/TNG_Cluster_snap_97.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_98.sh > output/job_ids/TNG_Cluster_snap_98.id
-sbatch --parsable ./TNG_Cluster/tracer_data/generate_tracer_data_99.sh > output/job_ids/TNG_Cluster_snap_99.id
+#!/bin/bash -l
+#
+#SBATCH -o /vera/u/mista/thesisProject/scripts/tracer_history/batch/output/tracer_job_global_out.%j
+#SBATCH -e /vera/u/mista/thesisProject/scripts/tracer_history/batch/output/tracer_job_global_err.%j
+#SBATCH -D ./
+#SBATCH -J TDCL-GLOB
+#SBATCH --time=20:00:00       # maximum time the job is allowed to take
+
+module purge
+module load gcc/13 impi/2021.9
+module load anaconda/3/2023.03
+
+# Important:
+# Set the number of OMP threads *per process* to avoid overloading of the node!
+export OMP_NUM_THREADS=1
+
+# verify number of threads used afterwards
+echo "Number of cores: $SLURM_CPUS_PER_TASK"
+source ~/venvs/illustris/bin/activate
+which python3
+
+# Launch individual jobs
+for i in $(seq 0 351)
+do
+  srun --ntasks-per-node=1 \
+       --partition=p.large \
+       --cpus-per-task=36 \
+       --time=1:00:00 \
+       --output=/vera/u/mista/thesisProject/scripts/tracer_history/batch/output/tracer_job_"$i"_out.%j \
+       --error=/vera/u/mista/thesisProject/scripts/tracer_history/batch/output/tracer_job_"$i"_err.%j \
+       python3 ~/thesisProject/scripts/tracer_history/generate_tracer_data.py trace-back -s TNG-Cluster -p "$SLURM_CPUS_PER_TASK" -n "$i" &
+done
+wait  # wait for all jobs to complete
