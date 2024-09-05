@@ -339,6 +339,20 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             )
             return 1
 
+        # Step 1: get plot config
+        cfg = Path(__file__).parent / "simple_quantities_plot_config.yaml"
+        with open(cfg, "r") as cfg_file:
+            stream = cfg_file.read()
+        try:
+            plot_config = yaml.full_load(stream)[self.quantity]
+            log = plot_config["individual-log"]
+        except KeyError:
+            logging.warning(
+                f"Found no plot config for quantity {self.quantity}, will set "
+                f"no scale to linear."
+            )
+            log = False
+
         # Step 2: open the archive
         f = h5py.File(self.config.cool_gas_history, "r")
 
@@ -346,11 +360,13 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         particle_data = f[f"ZoomRegion_{self.zoom_in:03d}/{self.quantity}"][()]
 
         # Step 4: plot the data
-        self._plot_time_development(particle_data)
+        self._plot_time_development(particle_data, log)
 
         return 0
 
-    def _plot_time_development(self, particle_data: NDArray) -> None:
+    def _plot_time_development(
+        self, particle_data: NDArray, log: bool
+    ) -> None:
         """
         Plot, for every gas cell, the development of the quantity.
 
@@ -367,6 +383,8 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             plot will have), and the first axis orders the data by snap
             number. The first axis must be ordered such that index i
             points to snap num i.
+        :param log: Whether to take the logarithm of the quantity before
+            plotting.
         :return: None, plots are saved to file.
         """
         logging.info(
@@ -380,6 +398,9 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 f"particles."
             )
             particle_data = particle_data[:, :self.part_limit]
+
+        if log:
+            particle_data = np.log10(particle_data)
 
         # set up figure and axes
         fig, axes = plt.subplots(figsize=(15, 15))  # must be LARGE!
@@ -414,8 +435,8 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 cluster_restrict=True
             )
             cluster_cq = compute.get_virial_temperature(
-                cluster_data[self.config.mass_field],
-                cluster_data[self.config.radius_field],
+                cluster_data[self.config.mass_field][self.zoom_in],
+                cluster_data[self.config.radius_field][self.zoom_in],
             )
         elif self.quantity == "DistanceToMP":
             label = "Virial radius at z = 0"
@@ -433,7 +454,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             label = None
             cluster_cq = np.NaN
         axes.hlines(
-            cluster_cq,
+            cluster_cq if not log else np.log10(cluster_cq),
             xs[-1],
             xs[0],
             linestyles="dashed",
