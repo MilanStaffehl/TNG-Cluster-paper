@@ -6,8 +6,8 @@
 #SBATCH --cpus-per-task=72
 #SBATCH --array=0-351%8
 #SBATCH -D ./
-#SBATCH -o /vera/u/mista/thesisProject/scripts/tracer_history/batch/output/generate_parent_halo_index_z%a.out.%A
-#SBATCH -e /vera/u/mista/thesisProject/scripts/tracer_history/batch/output/generate_parent_halo_index_z%a.err.%A
+#SBATCH -o /vera/u/mista/thesisProject/scripts/tracer_history/batch/output/generate_parent_halo_index_z%a.%A.out
+#SBATCH -e /vera/u/mista/thesisProject/scripts/tracer_history/batch/output/generate_parent_halo_index_z%a.%A.err
 
 module purge
 module load gcc/13 impi/2021.9
