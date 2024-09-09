@@ -109,6 +109,80 @@ def test_compute_get_radial_velocities():
     np.testing.assert_allclose(output, expected, rtol=1e-4)
 
 
+def test_get_distance_periodic_box():
+    """Test function with two simple vectors"""
+    a = np.array([1, 0, -1], dtype=float)
+    b = np.array([0, 1, -1], dtype=float)
+    output = compute.get_distance_periodic_box(a, b, 2)
+    assert isinstance(output, float)
+    assert output == np.sqrt(2)
+
+
+def test_get_distance_periodic_box_surpassed_distance():
+    """Test function with two vectors, surpassing box length"""
+    a = np.array([1, 0, -2.5], dtype=float)
+    b = np.array([0, 1, 0], dtype=float)
+    output = compute.get_distance_periodic_box(a, b, 2)
+    assert isinstance(output, float)
+    assert output == 1.5
+
+
+def test_get_distance_periodic_box_surpassed_multiple():
+    """Test function for multiple box lengths too many"""
+    a = np.array([1, 0, -1], dtype=float)
+    b = np.array([4, 5, -3], dtype=float)
+    output = compute.get_distance_periodic_box(a, b, 2)
+    assert isinstance(output, float)
+    assert output == np.sqrt(2)
+
+
+def test_get_distance_periodic_box_array():
+    """Test the function with an array of vectors"""
+    a = np.array(
+        [[2, 1, 0], [-1, 0, 1], [0, 0, 0], [2, -2, 2]],
+        dtype=float,
+    )
+    b = np.array(
+        [[-2, 1, -1], [0, 2, 2], [-1, 1, -1], [0, 0, 0]],
+        dtype=float,
+    )
+    expected = np.array([1, np.sqrt(2), np.sqrt(3), 0], dtype=float)
+    output = compute.get_distance_periodic_box(a, b, 2)
+    assert isinstance(output, np.ndarray)
+    assert output.shape == (4, )
+    np.testing.assert_array_equal(expected, output)
+
+
+def test_get_distance_periodic_box_array_and_vector():
+    """Test function when mixing vector and list of vectors"""
+    a = np.array([0, 0, 0], dtype=float)
+    b = np.array([[1, 0, -1], [2, 2, 2], [1, 1, 2]], dtype=float)
+    expected = np.array([np.sqrt(2), 0, np.sqrt(2)], dtype=float)
+
+    # test both permutations of parameters
+    output = compute.get_distance_periodic_box(a, b, 2)
+    assert isinstance(output, np.ndarray)
+    assert output.shape == (3, )
+    np.testing.assert_array_equal(expected, output)
+
+    output = compute.get_distance_periodic_box(b, a, 2)
+    assert isinstance(output, np.ndarray)
+    assert output.shape == (3, )
+    np.testing.assert_array_equal(expected, output)
+
+
+def test_get_distance_periodic_box_integer_dtype():
+    """Test that the function can handle arrays of dtype integer"""
+    a = np.array([0, 0, 0], dtype=np.int32)
+    b = np.array([[1, 0, -1], [2, 2, 2], [1, 1, 2]], dtype=np.int32)
+    expected = np.array([np.sqrt(2), 0, np.sqrt(2)], dtype=float)
+    output = compute.get_distance_periodic_box(a, b, 2)
+
+    assert isinstance(output, np.ndarray)
+    assert np.issubdtype(output.dtype, np.floating)
+    np.testing.assert_array_equal(expected, output)
+
+
 def test_lookback_time_from_redshift_valid_values():
     """Test the function with valid redhsifts"""
     redshifts = np.array([0, 2, 8], dtype=np.float64)

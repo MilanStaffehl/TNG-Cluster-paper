@@ -169,6 +169,50 @@ def get_virial_velocity(
     return np.sqrt(G * virial_mass * M_sol / (virial_radius * kpc)) / 100000
 
 
+def get_distance_periodic_box(
+    positions_a: NDArray, positions_b: NDArray, box_size: float
+) -> NDArray | float:
+    """
+    Get the distance between points A and points B within a periodic box.
+
+    The function calculates the distance between the points A and B,
+    taking into account periodic boundaries of a box of edge size
+    ``box_size``. It will automatically limit all distances in one
+    direction to half the box size before finding the norm of the
+    distance vector between points A and B.
+
+    :param positions_a: Either an array of shape (N, 3) or a vector of
+        shape (3, ).
+    :param positions_b: Either an array of shape (N, 3) or a vector of
+        shape (3, ).
+    :param box_size: The edge length of the cubic box. Distances are
+        calculated assuming the box has periodic boundaries, i.e.
+        crossing a face one will end up on the opposite face of the
+        cube.
+    :return: The distance between point(s) A and point(s) B taking into
+        account periodic boundaries of a box of size ``box_size``.
+    """
+    if not np.issubdtype(positions_a.dtype, np.floating):
+        positions_a = positions_a.astype(float)
+    if not np.issubdtype(positions_b.dtype, np.floating):
+        positions_b = positions_b.astype(float)
+
+    half_box_size = 0.5 * box_size
+    d = positions_a - positions_b
+    # limit to box size
+    pos_multiple = np.floor(d[d > half_box_size] / box_size)
+    d[d > half_box_size] -= box_size * pos_multiple
+    neg_multiple = np.floor(d[d < -half_box_size] / -box_size)
+    d[d < -half_box_size] += box_size * neg_multiple
+
+    if len(d.shape) > 1:
+        # list of vectors
+        return np.linalg.norm(d, axis=1)
+    else:
+        # single vector
+        return np.linalg.norm(d)
+
+
 def lookback_time_from_redshift(redshift: NDArray) -> NDArray:
     """
     Return the lookback time for a set of redshifts.
