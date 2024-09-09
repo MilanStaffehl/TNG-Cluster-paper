@@ -13,3 +13,8 @@ DistanceToMP:
   max: 6  # log scale
   log: true
   individual-log: false
+Mass:
+  min: 6  # log scale
+  max: 10  # log scale
+  log: true
+  individual-log: true
