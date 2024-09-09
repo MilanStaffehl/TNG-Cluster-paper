@@ -280,7 +280,7 @@ def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
     # axes set-up
     axes.set_xlabel("Redshift")
     axes.set_xscale("log")
-    xticks = np.array([0.01, 0.05, 0.1, 0.5, 1, 2, 5, 10])
+    xticks = np.array([0.01, 0.1, 0.5, 1, 2, 5, 10])
     axes.set_xticks(xticks, labels=xticks)
     axes.set_xlim(redshifts[stop], redshifts[start])
 

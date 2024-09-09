@@ -154,18 +154,21 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         plus the mean and median over all clusters in a line plot over
         redshift. It saves the plots to file.
 
+        Note: Below, S is the number of snaps from the minimum snap
+        considered to snap 99.
+
         :param means: Array of mean of the quantity for every cluster,
-            i.e. an array of shape (100, 352) where every entry is the
+            i.e. an array of shape (352, S) where every entry is the
             mean of the gas quantity at that snapshot for that cluster.
         :param medians: Array of medians of the quantity for every
-            cluster, i.e. an array of shape (100, 352) where every entry
+            cluster, i.e. an array of shape (352, S) where every entry
             is the median of the gas quantity at that snapshot for that
             cluster.
         :param mins: Array of minimum of the quantity for every cluster,
-            i.e. an array of shape (100, 352) where every entry is the
+            i.e. an array of shape (352, S) where every entry is the
             min of the gas quantity at that snapshot for that cluster.
         :param maxs: Array of maximums of the quantity for every cluster,
-            i.e. an array of shape (100, 352) where every entry is the
+            i.e. an array of shape (352, S) where every entry is the
             max of the gas quantity at that snapshot for that cluster.
         :return: None
         """
@@ -175,6 +178,19 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             "Minimum": mins,
             "Maximum": maxs,
         }
+        # create a colormap for the current mass range
+        cmap = matplotlib.cm.get_cmap("plasma")
+        norm = matplotlib.colors.Normalize(vmin=14.0, vmax=15.4)
+        # load masses to color plots by them
+        cluster_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            [self.config.mass_field],
+            cluster_restrict=True,
+        )
+        masses = np.log10(cluster_data[self.config.mass_field])
+        colors = [cmap(norm(mass)) for mass in masses]
+
         for label_prefix, plot_quantity in plot_types.items():
             logging.info(
                 f"Creating line plot for {label_prefix} {self.quantity_label}"
@@ -182,7 +198,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             # create figure and configure axes
             fig, axes = plt.subplots(figsize=(5, 4))
             xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
-            axes.set_ylabel(f"{label_prefix} {self.quantity_label}")
+            label = self.quantity_label[0].lower() + self.quantity_label[1:]
+            axes.set_ylabel(f"{label_prefix} {label}")
             axes.set_yscale("log")
 
             # plot mean, median, etc.
@@ -190,9 +207,20 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 "marker": "none",
                 "linestyle": "solid",
                 "alpha": 0.1,
-                "color": self.color,  # TODO: color by cluster mass
             }
-            axes.plot(xs, plot_quantity.transpose(), **plot_config)
+            for i in range(self.n_clusters):
+                axes.plot(
+                    xs,
+                    plot_quantity[i],
+                    color=colors[i],
+                    **plot_config,
+                )
+            fig.colorbar(
+                matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap),
+                ax=axes,
+                location="right",
+                label="$log_{10} M_{200c}$ at z = 0",
+            )
 
             # plot mean and median
             m_config = {"marker": "none", "color": "black"}
@@ -234,7 +262,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             )[0]
 
             # Step 2: set up figure
-            fig, axes = plt.subplots(figsize=(5, 5))
+            fig, axes = plt.subplots(figsize=(5, 4))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
             if is_log:
                 q_label.replace("[", r"[$\log_{10}$")
@@ -285,7 +313,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             )[0]
 
             # Step 2: set up figure
-            fig, axes = plt.subplots(figsize=(5.7, 5))
+            fig, axes = plt.subplots(figsize=(5, 4))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
             if is_log:
                 q_label.replace("[", r"[$\log_{10}$")
