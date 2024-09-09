@@ -275,13 +275,16 @@ def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
     """
     planck15 = astropy.cosmology.Planck15
     redshifts = np.array(constants.REDSHIFTS)
-    redshifts[-1] = 1e-3  # avoid log-problems with zero
+    zero_sentinel = 1e-3
+    redshifts[-1] = zero_sentinel  # avoid log-problems with zero
 
     # axes set-up
     axes.set_xlabel("Redshift")
     axes.set_xscale("log")
-    xticks = np.array([0.01, 0.1, 0.5, 1, 2, 5, 10])
-    axes.set_xticks(xticks, labels=xticks)
+    xticks = np.array([zero_sentinel, 0.01, 0.1, 0.5, 1, 2, 5, 10])
+    xtick_labels = [f"{x:g}" for x in xticks]
+    xtick_labels[0] = "0"  # set label for zero to actually say zero
+    axes.set_xticks(xticks, labels=xtick_labels)
     axes.set_xlim(redshifts[stop], redshifts[start])
 
     # secondary axis setup
@@ -289,11 +292,12 @@ def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
     sec_axes.set_xlabel("Lookback time [Gyr]")
     sec_axes.set_xscale("log")
     ticks = np.array([0.1, 1., 2., 5., 8., 11., 13.])
+    tick_labels = [f"{t:g}" for t in ticks]
     lookback_times = astropy.units.Quantity(ticks, unit="Gyr")
     tick_pos = astropy.cosmology.z_at_value(
         planck15.lookback_time, lookback_times
     )
-    sec_axes.set_xticks(tick_pos.value, labels=ticks)
+    sec_axes.set_xticks(tick_pos.value, labels=tick_labels)
     sec_axes.set_xlim(redshifts[stop], redshifts[start])
 
     # redshifts as proxy values for snapnum
