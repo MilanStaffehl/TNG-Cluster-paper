@@ -13,7 +13,7 @@ import h5py
 import illustris_python as il
 import numpy as np
 
-from library import constants, units
+from library import compute, constants, units
 from library.data_acquisition import gas_daq, halos_daq, particle_daq
 from library.processing import membership, parallelization
 from pipelines import base
@@ -479,7 +479,11 @@ class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
         )
 
         # Step 3: Calculate distances
-        distances = np.linalg.norm(primary_pos - particle_data, axis=1)
+        distances = compute.get_distance_periodic_box(
+            primary_pos,
+            particle_data,
+            constants.BOX_SIZES[self.config.sim_name],
+        )
         return distances
 
 
@@ -721,3 +725,88 @@ class TraceParticleParentSubhaloPipeline(TraceParticleParentHaloPipeline):
             particle_data, part_types, snap_num, self.config.base_path
         )
         return subhalo_indices
+
+
+class TraceDistanceToParentHaloPipeline(TraceSimpleQuantitiesBackABC):
+    """
+    Trace the particle distance to current parent halo back in time.
+    """
+
+    quantity: ClassVar[str] = "DistanceToParentHalo"
+
+    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
+        """
+        Find the position of every gas particle to the cluster.
+
+        :param snap_num: Snapshot to find the positions at.
+        :param zoom_id: The ID of the zoom-in region.
+        :return: Array of the positions of all particles.
+        """
+        positions_list = []
+        for part_type in [0, 4, 5]:
+            data = particle_daq.get_particle_properties(
+                self.config.base_path,
+                snap_num,
+                part_type=part_type,
+                fields=["Coordinates"],
+                zoom_id=zoom_id,
+            )
+            if data["count"] == 0:
+                continue  # no particles of this type exist
+            positions_list.append(data["Coordinates"])
+
+        # concatenate particle positions
+        part_positions = np.concatenate(positions_list, axis=0)
+        return part_positions
+
+    def _process_into_quantity(
+        self,
+        zoom_id: int,
+        snap_num: int,
+        particle_data: NDArray,
+        primary_subhalo_id: int,
+        data_file: h5py.File,
+    ) -> NDArray:
+        """
+        Find distance to parent halo for every particle.
+
+        :param zoom_id: ID of the current zoom-in.
+        :param snap_num: The snapshot at which to find distance.
+        :param particle_data: Array of particle positions.
+        :param primary_subhalo_id: Dummy parameter.
+        :param data_file: File containing dataset of parent halo IDs.
+        :return: Array of distance to parent halo. NaN for particles
+            that have no parent halo, i.e. unbound particles.
+        """
+        # Step 1: Load halo positions
+        halo_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            snap_num,
+            ["GroupPos"],
+            cluster_restrict=False,  # IMPORTANT! Indices are into ALL halos!
+        )
+
+        # Step 2: allocate memory for parent positions
+        shape = (particle_data.shape[0], )
+        parent_positions = np.empty(shape, dtype=particle_data.dtype)
+        parent_positions[:] = np.nan
+
+        # Step 3: get indices of parent halos
+        field = f"ZoomRegion_{zoom_id:03d}/ParentHaloIndex"
+        parent_halo_indices = data_file[field][snap_num, :]
+        bound_particle_indices = parent_halo_indices[parent_halo_indices >= 0]
+
+        # Step 4: get parent halo positions
+        x = halo_data["Coordinates"][bound_particle_indices]
+        parent_positions[parent_halo_indices >= 0] = x
+
+        # At this point, `parent_positions` contains NaN wherever unbound
+        # particles are, and the position of a parent halo everywhere else.
+
+        # Step 5: find distances
+        distances = compute.get_distance_periodic_box(
+            particle_data,
+            parent_positions,
+            constants.BOX_SIZES[self.config.sim_name],
+        )
+        return distances

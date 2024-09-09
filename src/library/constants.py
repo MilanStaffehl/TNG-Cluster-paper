@@ -11,6 +11,11 @@ HUBBLE = 0.6774
 X_H = 0.76
 MIN_SNAP = 8
 """First snapshot at which all clusters progenitors exist"""
+BOX_SIZES = {
+    "TNG300-1": 205000.0 / HUBBLE,
+    "TNG-Cluster": 680000.0 / HUBBLE,
+}
+"""Size of simulation box in ckpc"""
 
 # physical constants (copied to minimize lookup time)
 G = copy.copy(astropy.constants.G.cgs.value)
