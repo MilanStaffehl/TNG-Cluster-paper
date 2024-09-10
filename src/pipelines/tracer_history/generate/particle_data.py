@@ -186,7 +186,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         # Step 3: Find gas particle indices
         group = f"ZoomRegion_{zoom_id:03d}"
         indices = tracer_file[f"{group}/particle_indices"][snap_num, :]
-        flags = (tracer_file[f"{group}/particle_type_flags"][snap_num, :])
+        flags = tracer_file[f"{group}/particle_type_flags"][snap_num, :]
 
         # Step 4: Create an array for the results
         if len(part_data.shape) > 1:
@@ -787,7 +787,7 @@ class TraceDistanceToParentHaloPipeline(TraceSimpleQuantitiesBackABC):
         )
 
         # Step 2: allocate memory for parent positions
-        shape = (particle_data.shape[0], )
+        shape = particle_data.shape
         parent_positions = np.empty(shape, dtype=particle_data.dtype)
         parent_positions[:] = np.nan
 
