@@ -127,6 +127,16 @@ def test_get_distance_periodic_box_surpassed_distance():
     assert output == 1.5
 
 
+def test_get_distance_periodic_box_barely_surpassed_distance():
+    """Test function, surpassing box length just slightly"""
+    a = np.array([1, 0, -1.5], dtype=float)
+    b = np.array([0, 1, 0], dtype=float)
+    output = compute.get_distance_periodic_box(a, b, 2)
+    assert isinstance(output, float)
+    assert output == 1.5
+
+
+@pytest.mark.skip(reason="Multiples of box size not supported.")
 def test_get_distance_periodic_box_surpassed_multiple():
     """Test function for multiple box lengths too many"""
     a = np.array([1, 0, -1], dtype=float)
@@ -139,11 +149,11 @@ def test_get_distance_periodic_box_surpassed_multiple():
 def test_get_distance_periodic_box_array():
     """Test the function with an array of vectors"""
     a = np.array(
-        [[2, 1, 0], [-1, 0, 1], [0, 0, 0], [2, -2, 2]],
+        [[1, 1, 0], [-1, 0, 1], [0, 0, 0], [2, -2, 2]],
         dtype=float,
     )
     b = np.array(
-        [[-2, 1, -1], [0, 2, 2], [-1, 1, -1], [0, 0, 0]],
+        [[-1, 1, -1], [0, 2, 2], [-1, 1, -1], [0, 0, 0]],
         dtype=float,
     )
     expected = np.array([1, np.sqrt(2), np.sqrt(3), 0], dtype=float)

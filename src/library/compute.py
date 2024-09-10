@@ -181,6 +181,12 @@ def get_distance_periodic_box(
     direction to half the box size before finding the norm of the
     distance vector between points A and B.
 
+    .. attention:: This function implicitly assumes that all coordinates
+        are limited to the box domain, i.e. it assumes that no distance
+        between two points can be larger than the box size itself. If
+        you have coordinates that can lie outside the box volume, they
+        must be normalized to the box volume first!
+
     :param positions_a: Either an array of shape (N, 3) or a vector of
         shape (3, ).
     :param positions_b: Either an array of shape (N, 3) or a vector of
@@ -200,10 +206,8 @@ def get_distance_periodic_box(
     half_box_size = 0.5 * box_size
     d = positions_a - positions_b
     # limit to box size
-    pos_multiple = np.floor(d[d > half_box_size] / box_size)
-    d[d > half_box_size] -= box_size * pos_multiple
-    neg_multiple = np.floor(d[d < -half_box_size] / -box_size)
-    d[d < -half_box_size] += box_size * neg_multiple
+    d[d > half_box_size] -= box_size
+    d[d < -half_box_size] += box_size
 
     if len(d.shape) > 1:
         # list of vectors
