@@ -69,6 +69,21 @@ class ArchiveMixin:
             tracer_file[group].create_dataset(
                 self.quantity, shape=(100, ) + shape, dtype=dtype
             )
+        else:
+            # check shapes match
+            dset_shape = (tracer_file[group][self.quantity].shape[1], )
+            if dset_shape != shape:
+                logging.error(
+                    f"Existing group in archive has different shape than the "
+                    f"data I am currently attempting to archive: dataset has "
+                    f"shape {dset_shape}, but intermediate files contain data "
+                    f"of shape {shape}. Aborting archiving."
+                )
+                raise ValueError(
+                    "Archive dataset and intermediate data have mismatched "
+                    f"shapes. hdf5 dataset: {dset_shape}, intermediate file: "
+                    f"{shape}"
+                )
 
         # find appropriate sentinel value
         if np.issubdtype(dtype, np.integer):
@@ -564,7 +579,7 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
                     zoom_id,
                     snap_num,
                     primary_positions[index],
-                    particle_indices
+                    particle_indices[snap_num],
                 )
         archive_file.close()
 
@@ -576,7 +591,7 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
             99, i.e. redshift zero.
         :return: None, saves intermediate results to file.
         """
-        logging.debug(f"Processing zoom-in {self.zoom_id} sequentially.")
+        logging.info(f"Processing zoom-in {self.zoom_id} sequentially.")
         archive_file = h5py.File(self.config.cool_gas_history, "r")
         # Step 1: get primary positions for this zoom-id
         primary_positions = self._get_main_progenitor_positions(
@@ -597,7 +612,7 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
                 self.zoom_id,
                 snap_num,
                 primary_positions[index],
-                particle_indices
+                particle_indices[snap_num],
             )
 
         archive_file.close()
@@ -661,7 +676,7 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
 
         # Zoom-IDs and snap nums
         snap_nums = np.arange(constants.MIN_SNAP, 100, step=1, dtype=np.uint64)
-        zoom_ids = np.arange(0, self.n_clusters, step=1)
+        zoom_ids = np.arange(0, self.n_clusters, step=1, dtype=np.uint64)
         snap_nums = np.broadcast_to(
             snap_nums[:, None],
             (self.n_snaps, self.n_clusters),
@@ -781,6 +796,10 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
         )
         snaps = mpb["SnapNum"]
 
+        # limit to only the snaps we analyze (above and equal MIN_SNAP)
+        positions = positions[snaps >= constants.MIN_SNAP]
+        snaps = snaps[snaps >= constants.MIN_SNAP]
+
         # assign existing positions to array of results
         snap_indices = snaps - constants.MIN_SNAP
         primary_positions[snap_indices] = positions
@@ -793,7 +812,8 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
         where_nan = where_nan[::3, 0]  # need only one index per 3-vector
         logging.debug(
             f"Interpolating missing main branch progenitor position for "
-            f"zoom_in {zoom_id} at snapshots {', '.join(where_nan)}."
+            f"zoom_in {zoom_id} at snapshots "
+            f"{', '.join(where_nan.astype(str))}."
         )
         for index in where_nan:
             before = primary_positions[index - 1]
@@ -841,13 +861,24 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
         :param primary_position: Position of the primary subhalo at this
             snapshot for the current zoom-in. Must be a 3D vector.
         :param particle_indices: The list of indices into the array of
-            all particles for the traced particles.
+            all particles for the traced particles. This should be only
+            the indices for the current snapshot, i.e. it must be a 1D
+            array of indices, **not** a shape (100, N) array!
         :return: None, distances saved to file.
         """
+        # Step 0: skip if not required
+        filename = f"{self.quantity}_z{zoom_id:03d}s{snap_num:02d}.npy"
+        if (self.tmp_dir / filename).exists() and not self.force_overwrite:
+            if self.processes <= 1:
+                logging.debug(
+                    f"Data file for zoom-in {zoom_id} at snapshot {snap_num} "
+                    f"exists and overwrite was not forced. Skipping."
+                )
+            return
         # Step 1: get particle positions
         particle_positions = self._particle_positions(snap_num, zoom_id)
         # Step 2: select only traced particles
-        traced_positions = particle_positions[particle_indices[snap_num]]
+        traced_positions = particle_positions[particle_indices]
         # Step 3: get the distance to the MP
         distances = compute.get_distance_periodic_box(
             traced_positions,
@@ -855,5 +886,4 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
             box_size=constants.BOX_SIZES[self.config.sim_name],
         )
         # Step 4: save to intermediate file
-        filename = f"{self.quantity}_z{zoom_id:03d}s{snap_num:02d}.npy"
         np.save(self.tmp_dir / filename, distances)

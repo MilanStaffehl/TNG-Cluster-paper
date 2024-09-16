@@ -79,7 +79,7 @@ def load_original_zoom_particle_properties(
                 error_msg = e
                 location.append("halo")
 
-    fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
+    fuzz_file = f"snap_{snap_num:03d}.{int(zoom_id + 352)}.hdf5"
     with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
         for field in fields:
             try:
