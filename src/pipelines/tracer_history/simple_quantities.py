@@ -130,6 +130,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 "Plot config was incomplete, cannot plot ridgeline and 2D "
                 "histogram plots."
             )
+            logging.info("All other plots are done and saved to file.")
             return 0
 
         # Step 5: plot 2D histograms
@@ -142,6 +143,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             quantity_hists, hist_range[0], hist_range[1], log
         )
 
+        logging.info("Done plotting! Saved all plots to file.")
         return 0
 
     def _plot_and_save_lineplots(
@@ -451,6 +453,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         )
         axes.add_collection(lc)
         axes.autoscale_view()
+        axes.set_rasterization_zorder(5)
 
         # add characteristic cluster property as line
         logging.info("Overplotting characteristic cluster property.")
@@ -488,6 +491,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             linestyles="dashed",
             colors="black",
             label=label,
+            zorder=10,
         )
 
         # add labels
