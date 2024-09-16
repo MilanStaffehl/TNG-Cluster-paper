@@ -7,23 +7,110 @@ import abc
 import contextlib
 import dataclasses
 import logging
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Protocol
 
 import h5py
 import illustris_python as il
+import multiprocess as mp
 import numpy as np
 
 from library import compute, constants, units
 from library.data_acquisition import gas_daq, halos_daq, particle_daq
-from library.processing import membership, parallelization
+from library.processing import parallelization
 from pipelines import base
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from numpy.typing import NDArray
 
 
+class TracePipelineProtocol(Protocol):
+    """Dummy protocol to make mixin classes work without complaints."""
+
+    @property
+    def quantity(self) -> str:
+        ...
+
+    @property
+    def tmp_dir(self) -> Path:
+        ...
+
+    @property
+    def zoom_id(self) -> int | None:
+        ...
+
+
+class ArchiveMixin:
+    """
+    Mixin to provide methods for archiving data.
+    """
+
+    def _archive_zoom_in(
+        self: TracePipelineProtocol, zoom_id: int, tracer_file: h5py.File
+    ) -> None:
+        """
+        Write data for the zoom-in to hdf5 archive from intermediate file.
+
+        :param zoom_id: Zoom-in ID of the zoom-in to archive.
+        :return: None.
+        """
+        logging.debug(f"Archiving zoom-in {zoom_id}.")
+
+        group = f"ZoomRegion_{zoom_id:03d}"
+        fn = f"{self.quantity}_z{zoom_id:03d}s99.npy"
+        test_data = np.load(self.tmp_dir / fn)
+        shape = test_data.shape
+        dtype = test_data.dtype
+
+        # create a dataset if non-existent
+        if self.quantity not in tracer_file[group].keys():
+            logging.debug(f"Creating missing dataset for {self.quantity}.")
+            tracer_file[group].create_dataset(
+                self.quantity, shape=(100, ) + shape, dtype=dtype
+            )
+
+        # find appropriate sentinel value
+        if np.issubdtype(dtype, np.integer):
+            sentinel = -1
+        else:
+            sentinel = np.nan
+
+        # fill with data from intermediate files
+        for snap_num in range(100):
+            if snap_num < constants.MIN_SNAP:
+                data = np.empty(shape, dtype=dtype)
+                data[:] = sentinel
+            else:
+                fn = f"{self.quantity}_z{zoom_id:03d}s{snap_num:02d}.npy"
+                data = np.load(self.tmp_dir / fn)
+            tracer_file[group][self.quantity][snap_num, :] = data
+
+    def _clean_up(self: TracePipelineProtocol):
+        """
+        Clean up temporary intermediate files.
+
+        :return: None
+        """
+        logging.info("Cleaning up temporary intermediate files.")
+        if self.zoom_id is None:
+            for file in self.tmp_dir.iterdir():
+                file.unlink()
+            self.tmp_dir.rmdir()
+            logging.info("Successfully cleaned up all intermediate files.")
+        else:
+            for snap_num in range(constants.MIN_SNAP, 100):
+                f = f"{self.quantity}z{self.zoom_id:03d}s{snap_num:02d}.npy"
+                with contextlib.suppress(FileNotFoundError):
+                    (self.tmp_dir / f).unlink()
+            logging.info(
+                f"Successfully cleaned up all intermediate files of zoom-in "
+                f"{self.zoom_id}."
+            )
+
+
 @dataclasses.dataclass
-class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
+class TraceSimpleQuantitiesBackABC(base.Pipeline, ArchiveMixin, abc.ABC):
     """
     Base class to trace back simple tracer quantities.
 
@@ -70,17 +157,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 f"zoom-in {self.zoom_id} only."
             )
 
-        # Step 1: Load cluster primary
-        group_primaries = halos_daq.get_halo_properties(
-            self.config.base_path,
-            self.config.snap_num,
-            ["GroupFirstSub"],
-            cluster_restrict=True,
-        )["GroupFirstSub"]
-
-        # Step 2: Loop through snapshots and zooms to get quantity
+        # Step 1: Loop through snapshots and zooms to get quantity
         if self.processes > 1:
-            self._multiprocess(group_primaries)
+            self._multiprocess()
         elif self.zoom_id is None:
             # find data for all zoom-ins
             tracer_file = h5py.File(self.config.cool_gas_history, "r")
@@ -90,7 +169,6 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                     self._save_intermediate_file(
                         snap_num,
                         zoom_id,
-                        group_primaries[zoom_id],
                         tracer_file,
                     )
             tracer_file.close()
@@ -102,12 +180,11 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 self._save_intermediate_file(
                     snap_num,
                     self.zoom_id,
-                    group_primaries[self.zoom_id],
                     tracer_file,
                 )
             tracer_file.close()
 
-        # Step 3: archive data
+        # Step 2: archive data
         if self.zoom_id is not None and not self.archive_single:
             logging.info(
                 "Processed only one zoom, will not attempt to archive data."
@@ -122,7 +199,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             self._archive_zoom_in(self.zoom_id, tracer_file)
         tracer_file.close()
 
-        # Step 4: clean-up
+        # Step 3: clean-up
         if not self.unlink:
             return 0  # done, can end pipeline execution
         self._clean_up()
@@ -133,7 +210,6 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         self,
         snap_num: int,
         zoom_id: int,
-        primary_subhalo_id: int,
         tracer_file: h5py.File | None = None,
     ) -> None:
         """
@@ -146,8 +222,6 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
 
         :param snap_num: Snapshot to load from.
         :param zoom_id: Zoom-in region ID to load from.
-        :param primary_subhalo_id: ID of the primary subhalo of the
-            cluster in the current zoom-in at redshift zero.
         :param tracer_file: Either the opened tracer file archive or
             None. None must be used during multiprocessing to avoid
             concurrency issue in reading. If set to None, the tracer
@@ -159,7 +233,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         # Step 0: skip if file exists
         if not self.force_overwrite:
             filename = (
-                f"{self.quantity}z{int(zoom_id):03d}s{int(snap_num):02d}.npy"
+                f"{self.quantity}_z{int(zoom_id):03d}s{int(snap_num):02d}.npy"
             )
             if (self.tmp_dir / filename).exists():
                 logging.debug(
@@ -175,7 +249,6 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             # coerce type
             snap_num = int(snap_num)
             zoom_id = int(zoom_id)
-            primary_subhalo_id = int(primary_subhalo_id)
         else:
             multiprocessing = False
             logging.debug(f"Processing snap {snap_num}, zoom-in {zoom_id}.")
@@ -193,7 +266,7 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             shape = indices.shape + part_data.shape[1:]
         else:
             shape = indices.shape
-        traced_part_data = np.empty(shape, dtype=part_data.dtype)
+        quantity = np.empty(shape, dtype=part_data.dtype)
         if np.issubdtype(part_data.dtype, np.floating):
             sentinel_value = np.nan
         elif np.issubdtype(part_data.dtype, np.unsignedinteger):
@@ -207,71 +280,24 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
                 f"sentinel value to 0 which may cause problems later."
             )
             sentinel_value = 0
-        traced_part_data[:] = sentinel_value  # fill with dummy value
+        quantity[:] = sentinel_value  # fill with dummy value
 
         # Step 5: Mask data and fill array with results
         if np.max(indices) > part_data.shape[0]:
             # gas only
-            traced_part_data[flags == 0] = part_data[indices[flags == 0]]
+            quantity[flags == 0] = part_data[indices[flags == 0]]
         else:
             # all particles available
-            traced_part_data[:] = part_data[indices]
-
-        # Step 6: Process particle data into sought quantity
-        quantity = self._process_into_quantity(
-            zoom_id,
-            snap_num,
-            traced_part_data,
-            primary_subhalo_id,
-            tracer_file,
-        )
+            quantity[:] = part_data[indices]
 
         # Step 6: Save to intermediate file
-        filename = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
+        filename = f"{self.quantity}_z{zoom_id:03d}s{snap_num:02d}.npy"
         np.save(self.tmp_dir / filename, quantity)
 
         if multiprocessing:
             tracer_file.close()
 
-    def _archive_zoom_in(self, zoom_id: int, tracer_file: h5py.File) -> None:
-        """
-        Write data for the zoom-in to hdf5 archive from intermediate file.
-
-        :param zoom_id: Zoom-in ID of the zoom-in to archive.
-        :return: None.
-        """
-        logging.debug(f"Archiving zoom-in {zoom_id}.")
-
-        group = f"ZoomRegion_{zoom_id:03d}"
-        fn = f"{self.quantity}z{zoom_id:03d}s99.npy"
-        test_data = np.load(self.tmp_dir / fn)
-        shape = test_data.shape
-        dtype = test_data.dtype
-
-        # create a dataset if non-existent
-        if self.quantity not in tracer_file[group].keys():
-            logging.debug(f"Creating missing dataset for {self.quantity}.")
-            tracer_file[group].create_dataset(
-                self.quantity, shape=(100, ) + shape, dtype=dtype
-            )
-
-        # find appropriate sentinel value
-        if np.issubdtype(dtype, np.integer):
-            sentinel = -1
-        else:
-            sentinel = np.nan
-
-        # fill with data from intermediate files
-        for snap_num in range(100):
-            if snap_num < constants.MIN_SNAP:
-                data = np.empty(shape, dtype=dtype)
-                data[:] = sentinel
-            else:
-                fn = f"{self.quantity}z{zoom_id:03d}s{snap_num:02d}.npy"
-                data = np.load(self.tmp_dir / fn)
-            tracer_file[group][self.quantity][snap_num, :] = data
-
-    def _multiprocess(self, group_primaries: NDArray) -> None:
+    def _multiprocess(self) -> None:
         """
         Process multiple snapshots and zoom-ins in parallel.
 
@@ -280,8 +306,6 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         individual processes write the data to file, so this method
         returns nothing.
 
-        :param group_primaries: List of primary subhalos IDs of every
-            zoom-in.
         :return: None
         """
         # create combinations of args
@@ -305,38 +329,13 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
             )
             zoom_ids = np.empty_like(snap_nums, dtype=np.uint64)
             zoom_ids[:] = self.zoom_id
-        # get a list of primaries belonging to each pair of snaps/zooms
-        primaries = group_primaries[zoom_ids]
         # run all jobs in parallel
         parallelization.process_data_starmap(
             self._save_intermediate_file,
             self.processes,
             snap_nums,
             zoom_ids,
-            primaries,
         )
-
-    def _clean_up(self):
-        """
-        Clean up temporary intermediate files.
-
-        :return: None
-        """
-        logging.info("Cleaning up temporary intermediate files.")
-        if self.zoom_id is None:
-            for file in self.tmp_dir.iterdir():
-                file.unlink()
-            self.tmp_dir.rmdir()
-            logging.info("Successfully cleaned up all intermediate files.")
-        else:
-            for snap_num in range(constants.MIN_SNAP, 100):
-                f = f"{self.quantity}z{self.zoom_id:03d}s{snap_num:02d}.npy"
-                with contextlib.suppress(FileNotFoundError):
-                    (self.tmp_dir / f).unlink()
-            logging.info(
-                f"Successfully cleaned up all intermediate files of zoom-in "
-                f"{self.zoom_id}."
-            )
 
     @abc.abstractmethod
     def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
@@ -362,129 +361,9 @@ class TraceSimpleQuantitiesBackABC(base.Pipeline, abc.ABC):
         """
         pass
 
-    @abc.abstractmethod
-    def _process_into_quantity(
-        self,
-        zoom_id: int,
-        snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
-    ) -> NDArray:
-        """
-        Abstract method to process particle data.
-
-        Subclasses to this class must implement this method such that it
-        can take the particle data loaded by ``_load_quantity``, restricted
-        to only the traced particles, and turn it into the sought after
-        quantity. For example, if a pipeline should give the distance to
-        the primary subhalo, this method must accept particle coordinates
-        for the traced particles and load the position of the given
-        primary subhalo, then compute the distance and return it as an
-        array.
-
-        :param zoom_id: The ID of the zoom-in region at which data is
-            processed.
-        :param snap_num: The snapshot at which to process the data.
-        :param particle_data: The array of particle data acquired from
-            ``_load_quantity`` and restricted to only the particles that
-            are tracked.
-        :param primary_subhalo_id: The ID of the primary subhalo of the
-            cluster at redshift 0, i.e. at snapshot 99. Required to load
-            the MPB of this subhalo for distance and velocity calculations.
-        :param data_file: The opened file containing the gas particle
-            data.
-        :return: The array of whatever quantity is to be saved to file.
-            Must be a 1D array.
-        """
-        pass
-
 
 # -----------------------------------------------------------------------------
 # CONCRETE CLASSES:
-
-
-class TraceDistancePipeline(TraceSimpleQuantitiesBackABC):
-    """
-    Trace distance of all particles to cluster with time.
-    """
-
-    quantity: ClassVar[str] = "DistanceToMP"
-
-    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
-        """
-        Find the position of every gas particle to the cluster.
-
-        :param snap_num: Snapshot to find the positions at.
-        :param zoom_id: The ID of the zoom-in region.
-        :return: Array of the positions of all particles.
-        """
-        positions_list = []
-        for part_type in [0, 4, 5]:
-            data = particle_daq.get_particle_properties(
-                self.config.base_path,
-                snap_num,
-                part_type=part_type,
-                fields=["Coordinates"],
-                zoom_id=zoom_id,
-            )
-            if data["count"] == 0:
-                continue  # no particles of this type exist
-            positions_list.append(data["Coordinates"])
-
-        # concatenate particle positions
-        part_positions = np.concatenate(positions_list, axis=0)
-        return part_positions
-
-    def _process_into_quantity(
-        self,
-        zoom_id: int,
-        snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
-    ) -> NDArray:
-        """
-        Process particle coordinates into distances to primary subhalo.
-
-        :param zoom_id: ID of zoom-in region.
-        :param snap_num: Snapshot number.
-        :param particle_data: Array of particle coordinates, shape (N, 3).
-        :param primary_subhalo_id: ID of the primary subhalo of this
-            cluster at redshift 0.
-        :param data_file: Dummy parameter.
-        :return:
-        """
-        # Step 1: load subhalo position at this snap
-        mpb = il.sublink.loadTree(
-            self.config.base_path,
-            self.config.snap_num,
-            primary_subhalo_id,
-            fields=["SubhaloPos", "SnapNum"],
-            onlyMPB=True,
-        )
-        positions = mpb["SubhaloPos"]
-        snaps = mpb["SnapNum"]
-
-        # Step 2: convert position into physical units
-        try:
-            primary_pos_code_units = positions[snaps == snap_num][0]
-        except IndexError:
-            # snap is not in sublink, have to interpolate
-            prev_pos = positions[snaps == snap_num - 1][0]
-            next_pos = positions[snaps == snap_num + 1][0]
-            primary_pos_code_units = (prev_pos + next_pos) / 2
-        primary_pos = units.UnitConverter.convert(
-            primary_pos_code_units, "SubhaloPos", snap_num=snap_num
-        )
-
-        # Step 3: Calculate distances
-        distances = compute.get_distance_periodic_box(
-            primary_pos,
-            particle_data,
-            constants.BOX_SIZES[self.config.sim_name],
-        )
-        return distances
 
 
 class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
@@ -513,26 +392,6 @@ class TraceTemperaturePipeline(TraceSimpleQuantitiesBackABC):
             zoom_id=zoom_id,
         )
 
-    def _process_into_quantity(
-        self,
-        zoom_id: int,
-        snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
-    ) -> NDArray:
-        """
-        Return temperatures as-is, no processing required.
-
-        :param zoom_id: Dummy parameter.
-        :param snap_num: Dummy parameter.
-        :param particle_data: Array of particle temperatures.
-        :param primary_subhalo_id: Dummy parameter.
-        :param data_file: Dummy parameter.
-        :return: Array of particle temperatures.
-        """
-        return particle_data
-
 
 class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
     """
@@ -560,26 +419,6 @@ class TraceDensityPipeline(TraceSimpleQuantitiesBackABC):
             zoom_id=zoom_id,
         )
         return gas_data["Density"]
-
-    def _process_into_quantity(
-        self,
-        zoom_id: int,
-        snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
-    ) -> NDArray:
-        """
-        Return density as-is, no processing required.
-
-        :param zoom_id: Dummy parameter.
-        :param snap_num: Dummy parameter.
-        :param particle_data: Array of particle densities.
-        :param primary_subhalo_id: Dummy parameter.
-        :param data_file: Dummy parameter.
-        :return: Array of particle densities.
-        """
-        return particle_data
 
 
 class TraceMassPipeline(TraceSimpleQuantitiesBackABC):
@@ -615,126 +454,354 @@ class TraceMassPipeline(TraceSimpleQuantitiesBackABC):
         part_masses = np.concatenate(masses_list, axis=0)
         return part_masses
 
-    def _process_into_quantity(
-        self,
-        zoom_id: int,
-        snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
-    ) -> NDArray:
-        """
-        Return masses as-is, no processing required.
 
-        :param zoom_id: Dummy parameter.
-        :param snap_num: Dummy parameter.
-        :param particle_data: Array of particle masses.
-        :param primary_subhalo_id: Dummy parameter.
-        :param data_file: Dummy parameter.
-        :return: Array of particle masses.
-        """
-        return particle_data
+# -----------------------------------------------------------------------------
+# COMPLEX QUANTITIES
 
 
-class TraceParticleParentHaloPipeline(TraceSimpleQuantitiesBackABC):
+@dataclasses.dataclass
+class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
     """
-    Trace particle parent halo indices back in time.
+    Trace distance to main progenitor back in time.
     """
 
-    quantity: ClassVar[str] = "ParentHaloIndex"
+    unlink: bool = False  # delete intermediate files after archiving?
+    force_overwrite: bool = False  # overwrite intermediate files?
+    zoom_id: int | None = None  # process only one zoom-in or all?
+    archive_single: bool = False  # archive data even for a single zoom?
 
-    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
-        """
-        Load the particle IDs of all particles in the zoom-in.
+    quantity: ClassVar[str] = "DistanceToMP"
+    n_clusters: ClassVar[int] = 352
+    n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
 
-        :param snap_num: Snapshot at which to load the particles.
-        :param zoom_id: ID of the zoom-in from which to load particle IDs.
-        :return: Array of particle IDs for all particles, in order of
-            particle type.
+    def __post_init__(self):
+        super().__post_init__()
+        self.tmp_dir = (
+            self.paths["data_dir"] / "intermediate" / self.quantity.lower()
+        )
+
+    def run(self) -> int:
         """
-        pids_list = []
-        for part_type in [0, 4, 5]:
-            cur_pids = particle_daq.get_particle_ids(
-                self.config.base_path,
-                snap_num,
-                part_type=part_type,
-                zoom_id=zoom_id,
+        Trace the distance of every particle to the main progenitor
+        with time.
+
+        :return: Exit code.
+        """
+        # Step 0: prepare directories
+        self._create_directories(
+            subdirs=[f"intermediate/{self.quantity.lower()}"], force=True
+        )
+        if self.zoom_id is None:
+            logging.info(f"Tracing {self.quantity} of particles back in time.")
+        else:
+            logging.info(
+                f"Tracing {self.quantity} of particles back in time for "
+                f"zoom-in {self.zoom_id} only."
             )
-            if cur_pids.size == 0:
-                continue  # no particles of this type exist
-            pids_list.append(cur_pids)
 
-        # concatenate particle positions
-        pids = np.concatenate(pids_list, axis=0)
-        return pids
+        # TODO: move to implementation of seq/multiproc
+        # Step 1: Load cluster primary subhalo IDs
+        group_primaries = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            ["GroupFirstSub"],
+            cluster_restrict=True,
+        )["GroupFirstSub"]
 
-    def _process_into_quantity(
-        self,
-        zoom_id: int,
-        snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
+        # Step 2: process data:
+        if self.processes > 1:
+            self._multiprocess(group_primaries)
+        elif self.zoom_id is None:
+            self._sequential(group_primaries)
+        else:
+            self._sequential_single(group_primaries[self.zoom_id])
+
+        # Step 3: archive data
+        archive_file = h5py.File(self.config.cool_gas_history, "r+")
+        if self.zoom_id is None:
+            for zoom_id in range(self.n_clusters):
+                self._archive_zoom_in(zoom_id, archive_file)
+        elif self.archive_single:
+            self._archive_zoom_in(self.zoom_id, archive_file)
+        else:
+            logging.info("Was instructed to not archive data.")
+
+        # Step 4: clean-up
+        if not self.unlink:
+            return 0
+        self._clean_up()
+
+        return 0
+
+    def _sequential(self, group_primaries: NDArray[np.integer]) -> None:
+        """
+        Find distance to MBP of every particle sequentially.
+
+        :param group_primaries: List of primary subhalo IDs at snapshot
+            99, i.e. redshift zero.
+        :return: None, saves intermediate results to file.
+        """
+        logging.debug("Started processing clusters sequentially.")
+        archive_file = h5py.File(self.config.cool_gas_history, "r")
+        for zoom_id in range(self.n_clusters):
+            logging.info(f"Processing zoom-in {zoom_id}.")
+            # Step 1: get primary positions for this zoom-id
+            primary_positions = self._get_main_progenitor_positions(
+                group_primaries[zoom_id], zoom_id
+            )
+
+            # Step 2: get particle indices
+            dataset = f"ZoomRegion_{zoom_id:03d}/particle_indices"
+            particle_indices = archive_file[dataset][()]
+
+            # Step 3: loop over snapshots
+            for snap_num in range(constants.MIN_SNAP, 100):
+                logging.debug(
+                    f"Processing zoom-in {zoom_id}, snap {snap_num}."
+                )
+                index = snap_num - constants.MIN_SNAP
+                self._save_particle_distances(
+                    zoom_id,
+                    snap_num,
+                    primary_positions[index],
+                    particle_indices
+                )
+        archive_file.close()
+
+    def _sequential_single(self, primary_subhalo_id: int) -> None:
+        """
+        Find distance to MBP of every particle for one zoom-in sequentially.
+
+        :param primary_subhalo_id: ID of primary subhalo at snapshot
+            99, i.e. redshift zero.
+        :return: None, saves intermediate results to file.
+        """
+        logging.debug(f"Processing zoom-in {self.zoom_id} sequentially.")
+        archive_file = h5py.File(self.config.cool_gas_history, "r")
+        # Step 1: get primary positions for this zoom-id
+        primary_positions = self._get_main_progenitor_positions(
+            primary_subhalo_id, self.zoom_id
+        )
+
+        # Step 2: get particle indices
+        dataset = f"ZoomRegion_{self.zoom_id:03d}/particle_indices"
+        particle_indices = archive_file[dataset][()]
+
+        # Step 3: loop over snapshots
+        for snap_num in range(constants.MIN_SNAP, 100):
+            logging.debug(
+                f"Processing zoom-in {self.zoom_id}, snap {snap_num}."
+            )
+            index = snap_num - constants.MIN_SNAP
+            self._save_particle_distances(
+                self.zoom_id,
+                snap_num,
+                primary_positions[index],
+                particle_indices
+            )
+
+        archive_file.close()
+
+    def _multiprocess(self, group_primaries: NDArray[np.integer]) -> None:
+        """
+        Find distance to MBP using multiple processes.
+
+        Method must first load all required data to reduce the load on
+        the file system during parallel execution, which can take quite
+        some time.
+
+        :param group_primaries: List of primary subhalo IDs at snapshot
+            99, i.e. redshift zero.
+        :return: None, saves intermediate results to file.
+        """
+        logging.info("Start preparing args for multiprocessing.")
+        if self.zoom_id is None:
+            args = self._prepare_multiproc_args(group_primaries)
+        else:
+            args = self._prepare_multiproc_args_single(
+                group_primaries[self.zoom_id]
+            )
+
+        # open a pool for all arguments
+        chunksize = round(len(args) / self.processes / 4, -2)
+        chunksize = max(chunksize, 1)
+        logging.info(
+            f"Starting {self.processes} processes with auto-determined "
+            f"chunksize {chunksize} to find distances. This will take a "
+            f"while..."
+        )
+        with mp.Pool(processes=self.processes) as pool:
+            pool.starmap(
+                self._save_particle_distances, args, chunksize=int(chunksize)
+            )
+            pool.close()
+            pool.join()
+        logging.info("Finished calculating distance for all particles!")
+
+    def _prepare_multiproc_args(
+        self, group_primaries: NDArray
+    ) -> list[tuple[NDArray | int]]:
+        """
+        Load all info required for multiprocessing and arrange it.
+
+        The method creates all possible combinations of zoom-in ID and
+        snapshot number, and adds to each pair of zoom-in Id and snapshot
+        number the corresponding primary subhalo position and the array
+        of particle indices pointing to the traced particles.
+
+        :param group_primaries: List of IDs of primary subhalo for every
+            zoom-in at redshift zero.
+        :return: List of tuples, containing zoom-in ID, snapshot number
+            and the corresponding MBP primary position and list of traced
+            particle indices.
+        """
+        # We must construct a list of tuples, containing zoom-ID, snap
+        # num, group primary position at that snap for that zoom-in, and
+        # the array of particle indices at that snapshot for that zom-in.
+
+        # Zoom-IDs and snap nums
+        snap_nums = np.arange(constants.MIN_SNAP, 100, step=1, dtype=np.uint64)
+        zoom_ids = np.arange(0, self.n_clusters, step=1)
+        snap_nums = np.broadcast_to(
+            snap_nums[:, None],
+            (self.n_snaps, self.n_clusters),
+        ).transpose().flatten()
+        zoom_ids = np.broadcast_to(
+            zoom_ids[:, None],
+            (self.n_clusters, self.n_snaps),
+        ).flatten()
+
+        # primary positions at every zoom-in
+        primaries_positions = np.empty((self.n_clusters, self.n_snaps, 3))
+        for zoom_id in range(self.n_clusters):
+            primaries_positions[zoom_id] = self._get_main_progenitor_positions(
+                group_primaries[zoom_id], zoom_id
+            )
+        # collapsing first two axes into one gives us desired result
+        primaries_positions = primaries_positions.reshape([-1, 3])
+
+        # particles indices (these are trickier since the arrays have
+        # different shapes)
+        particle_indices = []
+        archive_file = h5py.File(self.config.cool_gas_history, "r")
+        for zoom_id in range(self.n_clusters):
+            dataset = f"ZoomRegion_{zoom_id:03d}/particle_indices"
+            indices = archive_file[dataset][constants.MIN_SNAP:]
+            for i in range(self.n_snaps):
+                particle_indices.append(indices[i])
+        archive_file.close()
+
+        # combine list of arguments together
+        args = list(
+            zip(zoom_ids, snap_nums, primaries_positions, particle_indices)
+        )
+        logging.info("Finished constructing list of arguments.")
+        return args
+
+    def _prepare_multiproc_args_single(
+        self, primary_subhalo_id: int
+    ) -> list[tuple[NDArray | int]]:
+        """
+        Load info required for multiprocessing a single zoom-in.
+
+        The method creates a list of snapshot numbers and a list of
+        constant zoom-in ID, namely the selected current one, and adds
+        to each pair of zoom-in ID and snapshot number the corresponding
+        primary subhalo position and the array of particle indices
+        pointing to the traced particles.
+
+        :param primary_subhalo_id: ID of primary subhalo for selected
+            zoom-in at redshift zero.
+        :return: List of tuples, containing zoom-in ID, snapshot number
+            and the corresponding MBP primary position and list of traced
+            particle indices.
+        """
+        # We must construct a list of tuples, containing zoom-ID, snap
+        # num, group primary position at that snap for that zoom-in, and
+        # the array of particle indices at that snapshot for that zom-in.
+
+        # Zoom-IDs and snap nums
+        snap_nums = np.arange(constants.MIN_SNAP, 100, step=1, dtype=np.uint64)
+        zoom_ids = np.empty_like(snap_nums, dtype=np.uint64)
+        zoom_ids[:] = self.zoom_id
+
+        # primary positions at selected zoom-in
+        primary_positions = self._get_main_progenitor_positions(
+            primary_subhalo_id, self.zoom_id
+        )
+
+        # particles indices (these are trickier since the arrays have
+        # different shapes)
+        particle_indices = []
+        archive_file = h5py.File(self.config.cool_gas_history, "r")
+        dataset = f"ZoomRegion_{self.zoom_id:03d}/particle_indices"
+        indices = archive_file[dataset][constants.MIN_SNAP:]
+        for i in range(self.n_snaps):
+            particle_indices.append(indices[i])
+        archive_file.close()
+
+        # combine list of arguments together
+        args = list(
+            zip(zoom_ids, snap_nums, primary_positions, particle_indices)
+        )
+        logging.info(
+            f"Finished constructing list of arguments for zoom-in "
+            f"{self.zoom_id}."
+        )
+        return args
+
+    def _get_main_progenitor_positions(
+        self, primary_id_at_snap99: int, zoom_id: int
     ) -> NDArray:
         """
-        Process particle IDs of traced particles into parent halo indices.
+        Load the positions of the primary subhalo along the MPB.
 
-        :param zoom_id: ID of the zoom-in region to process.
-        :param snap_num: The snapshot at which to find parents.
-        :param particle_data: The array of particle IDs of all traced
-            particles at this snapshot and zoom-in.
-        :param primary_subhalo_id: Dummy parameter.
-        :return: Array of parent halo indices.
+        Function loads the positions of the main progenitor branch for
+        the given subhalo and returns its position at all snapshots,
+        starting from ``constants.MIN_SNAP``.
+
+        :param primary_id_at_snap99: ID of the primary at redshift zero.
+        :param zoom_id: ID of the zoom-in region.
+        :return: Array of position vectors of the primary along its
+            main progenitor branch.
         """
-        field = f"ZoomRegion_{zoom_id:03d}/particle_type_flags"
-        part_types = data_file[field][snap_num, :]
-        halo_indices, _ = membership.particle_parents(
-            particle_data, part_types, snap_num, self.config.base_path
+        logging.debug(f"Loading primary positions for zoom-in {zoom_id}.")
+        primary_positions = np.empty((self.n_snaps, 3))
+        primary_positions[:] = np.nan
+
+        mpb = il.sublink.loadTree(
+            self.config.base_path,
+            self.config.snap_num,
+            primary_id_at_snap99,
+            fields=["SubhaloPos", "SnapNum"],
+            onlyMPB=True,
         )
-        return halo_indices
-
-
-class TraceParticleParentSubhaloPipeline(TraceParticleParentHaloPipeline):
-    """
-    Trace particle parent subhalo index back in time.
-    """
-
-    quantity: ClassVar[str] = "ParentSubhaloIndex"
-
-    def _process_into_quantity(
-        self,
-        zoom_id: int,
-        snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
-    ) -> NDArray:
-        """
-        Process particle IDs of traced particles into parent subhalo indices.
-
-        :param zoom_id: ID of the zoom-in region to process.
-        :param snap_num: The snapshot at which to find parents.
-        :param particle_data: The array of particle IDs of all traced
-            particles at this snapshot and zoom-in.
-        :param primary_subhalo_id: Dummy parameter.
-        :return: Array of parent subhalo indices.
-        """
-        field = f"ZoomRegion_{zoom_id:03d}/particle_type_flags"
-        part_types = data_file[field][snap_num, :]
-        _, subhalo_indices = membership.particle_parents(
-            particle_data, part_types, snap_num, self.config.base_path
+        positions = units.UnitConverter.convert(
+            mpb["SubhaloPos"], "SubhaloPos"
         )
-        return subhalo_indices
+        snaps = mpb["SnapNum"]
 
+        # assign existing positions to array of results
+        snap_indices = snaps - constants.MIN_SNAP
+        primary_positions[snap_indices] = positions
 
-class TraceDistanceToParentHaloPipeline(TraceSimpleQuantitiesBackABC):
-    """
-    Trace the particle distance to current parent halo back in time.
-    """
+        # fill missing entries by interpolation
+        where_nan = np.argwhere(np.isnan(primary_positions))
+        if where_nan.size == 0:
+            return primary_positions
 
-    quantity: ClassVar[str] = "DistanceToParentHalo"
+        where_nan = where_nan[::3, 0]  # need only one index per 3-vector
+        logging.debug(
+            f"Interpolating missing main branch progenitor position for "
+            f"zoom_in {zoom_id} at snapshots {', '.join(where_nan)}."
+        )
+        for index in where_nan:
+            before = primary_positions[index - 1]
+            after = primary_positions[index + 1]
+            primary_positions[index] = (before + after) / 2
+        return primary_positions
 
-    def _load_quantity(self, snap_num: int, zoom_id: int) -> NDArray:
+    def _particle_positions(self, snap_num: int, zoom_id: int) -> NDArray:
         """
         Find the position of every gas particle to the cluster.
 
@@ -759,54 +826,34 @@ class TraceDistanceToParentHaloPipeline(TraceSimpleQuantitiesBackABC):
         part_positions = np.concatenate(positions_list, axis=0)
         return part_positions
 
-    def _process_into_quantity(
+    def _save_particle_distances(
         self,
         zoom_id: int,
         snap_num: int,
-        particle_data: NDArray,
-        primary_subhalo_id: int,
-        data_file: h5py.File,
-    ) -> NDArray:
+        primary_position: NDArray,
+        particle_indices: NDArray,
+    ) -> None:
         """
-        Find distance to parent halo for every particle.
+        Calculate distance to MP for every particle and save them to file.
 
-        :param zoom_id: ID of the current zoom-in.
-        :param snap_num: The snapshot at which to find distance.
-        :param particle_data: Array of particle positions.
-        :param primary_subhalo_id: Dummy parameter.
-        :param data_file: File containing dataset of parent halo IDs.
-        :return: Array of distance to parent halo. NaN for particles
-            that have no parent halo, i.e. unbound particles.
+        :param zoom_id: Zoom-in region to process.
+        :param snap_num: Snapshot at which to find distance.
+        :param primary_position: Position of the primary subhalo at this
+            snapshot for the current zoom-in. Must be a 3D vector.
+        :param particle_indices: The list of indices into the array of
+            all particles for the traced particles.
+        :return: None, distances saved to file.
         """
-        # Step 1: Load halo positions
-        halo_data = halos_daq.get_halo_properties(
-            self.config.base_path,
-            snap_num,
-            ["GroupPos"],
-            cluster_restrict=False,  # IMPORTANT! Indices are into ALL halos!
-        )
-
-        # Step 2: allocate memory for parent positions
-        shape = particle_data.shape
-        parent_positions = np.empty(shape, dtype=particle_data.dtype)
-        parent_positions[:] = np.nan
-
-        # Step 3: get indices of parent halos
-        field = f"ZoomRegion_{zoom_id:03d}/ParentHaloIndex"
-        parent_halo_indices = data_file[field][snap_num, :]
-        bound_particle_indices = parent_halo_indices[parent_halo_indices >= 0]
-
-        # Step 4: get parent halo positions
-        x = halo_data["Coordinates"][bound_particle_indices]
-        parent_positions[parent_halo_indices >= 0] = x
-
-        # At this point, `parent_positions` contains NaN wherever unbound
-        # particles are, and the position of a parent halo everywhere else.
-
-        # Step 5: find distances
+        # Step 1: get particle positions
+        particle_positions = self._particle_positions(snap_num, zoom_id)
+        # Step 2: select only traced particles
+        traced_positions = particle_positions[particle_indices[snap_num]]
+        # Step 3: get the distance to the MP
         distances = compute.get_distance_periodic_box(
-            particle_data,
-            parent_positions,
-            constants.BOX_SIZES[self.config.sim_name],
+            traced_positions,
+            primary_position,
+            box_size=constants.BOX_SIZES[self.config.sim_name],
         )
-        return distances
+        # Step 4: save to intermediate file
+        filename = f"{self.quantity}_z{zoom_id:03d}s{snap_num:02d}.npy"
+        np.save(self.tmp_dir / filename, distances)

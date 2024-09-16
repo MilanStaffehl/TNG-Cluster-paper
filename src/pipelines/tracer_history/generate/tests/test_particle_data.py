@@ -78,6 +78,7 @@ def patch_loader(mocker: MockerFixture) -> Iterator[Mock]:
     yield m
 
 
+@pytest.mark.skip(reason="Tested feature currently not implemented.")
 def test_distance_to_parent_halo_pipeline_process_to_quantity_method(
     distance_to_parent_pipeline: PipelineClass,
     patch_loader: Mock,
@@ -112,7 +113,7 @@ def test_distance_to_parent_halo_pipeline_process_to_quantity_method(
             1,
             mock_particle_positions,
             -1,
-            mock_hdf5_file  # type: ignore
+            mock_hdf5_file,  # type: ignore
         )
 
         # check output
@@ -140,7 +141,7 @@ def test_distance_to_parent_halo_pipeline_process_to_quantity_method(
             1,
             mock_particle_positions,
             -1,
-            mock_hdf5_file  # type: ignore
+            mock_hdf5_file,  # type: ignore
         )
 
         # check output
@@ -148,3 +149,8 @@ def test_distance_to_parent_halo_pipeline_process_to_quantity_method(
             [np.sqrt(14), np.nan, np.sqrt(17), np.sqrt(42), 3.0, np.nan]
         )
         np.testing.assert_allclose(output, expected, rtol=1e-6)
+
+
+def test_distance_to_parent_pipeline_prepare_multiproc_args() -> None:
+    """Test the method that arranges multiprocessing args"""
+    pass
