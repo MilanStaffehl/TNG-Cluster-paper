@@ -885,5 +885,11 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
             primary_position,
             box_size=constants.BOX_SIZES[self.config.sim_name],
         )
-        # Step 4: save to intermediate file
-        np.save(self.tmp_dir / filename, distances)
+        # Step 4: save to intermediate file:
+        # Python has a bad habit of flushing file buffers as late as
+        # possible - which causes huge memory pile-up. So we force Python
+        # to flush and close immediately to prevent this.
+        with open(self.tmp_dir / filename, "wb") as file:
+            np.save(file, distances)
+        # Step 5: just for good measure: clean-up
+        del distances, traced_positions, particle_positions
