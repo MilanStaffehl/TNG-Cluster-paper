@@ -269,13 +269,14 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             if is_log:
                 q_label.replace("[", r"[$\log_{10}$")
             axes.set_xlabel(f"{method.capitalize()} {q_label}")
-            axes.set_ylabel("Snap num")
 
             # Step 3: set up x-values
             xs = np.linspace(minimum, maximum, num=self.n_bins)
 
             # Step 4: set up y-values and y-axis ticks and labels
-            y_base = np.arange(constants.MIN_SNAP, 100, step=1)
+            y_base = common.label_snapshots_with_redshift(
+                axes, constants.MIN_SNAP, 99, (5, 115), "y"
+            )
 
             # Step 5: plot baselines
             axes.hlines(y_base, minimum, maximum, color="grey", linewidths=1)
@@ -315,7 +316,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             )[0]
 
             # Step 2: set up figure
-            fig, axes = plt.subplots(figsize=(5, 4))
+            fig, axes = plt.subplots(figsize=(5.5, 4))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
             if is_log:
                 q_label.replace("[", r"[$\log_{10}$")
@@ -334,7 +335,16 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 cbar_limits=(-4, None),
             )
 
-            # Step 6: save figure
+            # Step 4: label x-axis appropriately
+            common.label_snapshots_with_redshift(
+                axes,
+                constants.MIN_SNAP,
+                99,
+                tick_positions_z=np.array([0, 0.1, 0.5, 1, 2, 5]),
+                tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
+            )
+
+            # Step 5: save figure
             ident_flag = f"2dhist_{method}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} 2D histogram plot to file.")

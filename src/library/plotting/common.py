@@ -4,7 +4,7 @@ Common plotting utilities.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Sequence
 
 import astropy.cosmology
 import astropy.units
@@ -247,7 +247,12 @@ def plot_scatterplot(
     return figure, axes
 
 
-def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
+def make_redshift_plot(
+    axes: Axes,
+    start: int = 0,
+    stop: int = 99,
+    zero_sentinel: float = 1e-3,
+) -> NDArray:
     """
     Prepare the given axes to be a plot over redshift.
 
@@ -270,12 +275,16 @@ def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
     :param stop: The snapshot at which to stop. The resulting x-values
         will be limited to end at this snapshot. The result will include
         the ``stop`` snapshot. Defaults to snap 99.
+    :param zero_sentinel: The sentinel value to use instead of 0 for
+        redshift zero. This is needed to show redshift zero at a finite
+        position in logarithmic scaling. Must be set lower than the
+        smallest redshift value above zero, which for TNG is roughly
+        0.0095. Defaults to ``1e-3``.
     :return: An array of 100 x-values equivalent to the redshifts of
         the 100 snapshots of the TNG simulations to use in plotting.
     """
     planck15 = astropy.cosmology.Planck15
     redshifts = np.array(constants.REDSHIFTS)
-    zero_sentinel = 1e-3
     redshifts[-1] = zero_sentinel  # avoid log-problems with zero
 
     # axes set-up
@@ -303,3 +312,93 @@ def make_redshift_plot(axes: Axes, start: int = 0, stop: int = 99) -> NDArray:
     # redshifts as proxy values for snapnum
     redshift_proxies = redshifts[start:stop + 1]
     return redshift_proxies
+
+
+def label_snapshots_with_redshift(
+    axes: Axes,
+    start: int,
+    stop: int,
+    axis_limits: tuple[float, float] | None = None,
+    which_axis: Literal["x", "y"] = "x",
+    tick_positions_z: NDArray = np.array([0.01, 0.1, 0.5, 1, 2, 5]),
+    tick_positions_t: NDArray = np.array([0.1, 1, 5, 8, 11, 13]),
+) -> NDArray | None:
+    """
+    Label an axis with snapshot numbers with redshift instead.
+
+    Function takes an axis, which has snapshots at either x or y-axis
+    and labels them with redshift. The spacing between the snapshots is
+    not changed, meaning they remain evenly spaced. This is the difference
+    to :func:`make_redshift_axis`, which changes the spacing between the
+    snapshots.
+
+    Function also adds a secondary axis showing the lookback time.
+
+    :param axes: The figure axes object for which to label the snapshot
+        axes with redshifts.
+    :param start: The number of the first snapshot to place on the axis.
+    :param stop: The number of the last snapshot to place on the axis.
+    :param axis_limits: The limits of the axis in units of snapshot
+        numbers. This must be set to correctly align lookback time with
+        the corresponding redshifts. If not set or set to None, the
+        axis limits will be set to ``[start, stop]``.
+    :param which_axis: Which of the two axes to treat as redshift axis.
+        Must be either ``x`` or ``y``. Defaults to x-axis.
+    :param tick_positions_z: Array of redshifts at which to place a
+        major tick and corresponding label. Defaults to numbered ticks
+        at redshifts 0.01, 0.1, 0.5, 1, 2, and 5.
+    :param tick_positions_t: Array of lookback times in Gyr at which to
+        place a major tick and a corresponding label. Defaults to
+        numbered ticks at lookback times 0.1 Gyr, 1 Gyr, 5 Gyr, 8 Gyr,
+        11 Gyr, and 13 Gyr.
+    :return: The array of snapshots, evenly spaced between ``start`` and
+        ``stop``, to use as values for the transformed axis.
+    """
+    if which_axis not in ["x", "y"]:
+        logging.error(f"Invalid axis for redshift given: {which_axis}.")
+        return
+
+    # set axis limits
+    if axis_limits is None:
+        axis_limits = (start, stop)
+
+    # set up vars for interpolation
+    snaps = np.flip(np.arange(0, 100, step=1))
+    zs = np.flip(constants.REDSHIFTS)
+    ts = np.flip(constants.LOOKBACK_TIMES)
+
+    # set up secondary axis
+    if which_axis == "x":
+        sec_axes = axes.twiny()
+    else:
+        sec_axes = axes.twinx()
+
+    # zip args
+    args = (
+        (axes, tick_positions_z, zs, "Redshift z"),
+        (sec_axes, tick_positions_t, ts, "Lookback time [Gyr]")
+    )
+
+    # set up the axes
+    for ax, ticks, interp_xs, label in args:
+        tick_positions_s = np.interp(ticks, interp_xs, snaps)
+        # set tick labels
+        getattr(ax, f"set_{which_axis}label")(label)
+        tick_labels = [f"{x:g}" for x in ticks]
+        getattr(ax, f"set_{which_axis}ticks")(
+            tick_positions_s, labels=tick_labels
+        )
+        # set minor ticks
+        minor_ticks = np.concatenate(
+            [
+                np.arange(0.01, 0.1, 0.01),
+                np.arange(0.1, 1, 0.1),
+                np.arange(1, 15, 1),
+            ]
+        )
+        minor_ticks_s = np.interp(minor_ticks, interp_xs, snaps)
+        getattr(ax, f"set_{which_axis}ticks")(minor_ticks_s, minor=True)
+        # set axis limits
+        getattr(ax, f"set_{which_axis}lim")(axis_limits)
+
+    return np.arange(start, stop + 1, step=1)
