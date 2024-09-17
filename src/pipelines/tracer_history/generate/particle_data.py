@@ -534,12 +534,16 @@ class TraceDistancePipeline(base.DiagnosticsPipeline, ArchiveMixin):
         # Step 3: archive data
         archive_file = h5py.File(self.config.cool_gas_history, "r+")
         if self.zoom_id is None:
+            logging.info(f"Archiving {self.quantity} for all zoom-ins.")
             for zoom_id in range(self.n_clusters):
                 self._archive_zoom_in(zoom_id, archive_file)
         elif self.archive_single:
+            logging.info(
+                f"Archiving {self.quantity} for zoom-in {self.zoom_id}."
+            )
             self._archive_zoom_in(self.zoom_id, archive_file)
         else:
-            logging.info("Was instructed to not archive data.")
+            logging.info("Was instructed to not archive data. Skipping.")
 
         # Step 4: clean-up
         if not self.unlink:
