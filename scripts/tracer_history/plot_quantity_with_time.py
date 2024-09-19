@@ -7,13 +7,16 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.generate.particle_data import (
-    TraceDensityPipeline,
+from pipelines.tracer_history.generate.complex_particle_data import (
     TraceDistancePipeline,
+    TraceParentHaloPipeline,
+)
+from pipelines.tracer_history.generate.simple_particle_data import (
+    TraceDensityPipeline,
     TraceMassPipeline,
     TraceTemperaturePipeline,
 )
-from pipelines.tracer_history.simple_quantities import (
+from pipelines.tracer_history.traced_quantities import (
     PlotSimpleQuantitiesForSingleClusters,
     PlotSimpleQuantityWithTimePipeline,
 )
@@ -54,9 +57,9 @@ def main(args: argparse.Namespace) -> None:
         case "mass":
             pipeline_class = TraceMassPipeline
             quantity_label = r"Particle mass [$M_\odot$]"
-        # case "parent-halo":
-        #     pipeline_class = TraceParticleParentHaloPipeline
-        #     quantity_label = "Parent halo index"
+        case "parent-halo":
+            pipeline_class = TraceParentHaloPipeline
+            quantity_label = "Parent halo index"
         # case "parent-subhalo":
         #     pipeline_class = TraceParticleParentSubhaloPipeline
         #     quantity_label = "Parent subhalo index"
@@ -132,6 +135,7 @@ if __name__ == "__main__":
             "distance",
             "density",
             "mass",
+            "parent-halo",
         ],
     )
     parser.add_argument(
