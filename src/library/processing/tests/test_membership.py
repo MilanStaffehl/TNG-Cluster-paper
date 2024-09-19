@@ -141,11 +141,11 @@ def test_find_parent(mock_data, mock_pids) -> None:
     g_offset, g_lens, s_offset, s_lens = mock_data
 
     # test for group
-    output = membership._find_parent(pids, g_offset, g_lens)
+    output = membership.find_parent(pids, g_offset, g_lens)
     np.testing.assert_array_equal(expected_parent_halos, output)
 
     # test for subhalos
-    output = membership._find_parent(pids, s_offset, s_lens)
+    output = membership.find_parent(pids, s_offset, s_lens)
     np.testing.assert_array_equal(expected_parent_subhalos, output)
 
 
@@ -156,7 +156,7 @@ def test_find_parents_empty_groups() -> None:
     length = np.array([4, 0, 2])
     pids = np.array([3, 4, 5])
     expected = np.array([0, 2, 2])
-    output = membership._find_parent(pids, offset, length)
+    output = membership.find_parent(pids, offset, length)
     np.testing.assert_array_equal(expected, output)
 
     # scenario 2: empty group followed by fuzz
@@ -164,7 +164,7 @@ def test_find_parents_empty_groups() -> None:
     length = np.array([4, 0])
     pids = np.array([3, 4, 5])
     expected = np.array([0, -1, -1])
-    output = membership._find_parent(pids, offset, length)
+    output = membership.find_parent(pids, offset, length)
     np.testing.assert_array_equal(expected, output)
 
 

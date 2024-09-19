@@ -4,6 +4,7 @@ Functions to determine membership of particles and subhalos.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TypeAlias
 
 import h5py
 import illustris_python as il
@@ -46,7 +47,7 @@ def particle_parents(
         base_path = Path(base_path)
 
     # load offsets and group lens
-    offsets_and_lens = _load_offsets_and_lens(base_path, snap_num)
+    offsets_and_lens = load_offsets_and_lens(base_path, snap_num)
     group_offsets, group_lens = offsets_and_lens[:2]
     subhalo_offsets, subhalo_lens = offsets_and_lens[2:]
 
@@ -59,14 +60,14 @@ def particle_parents(
     # assign parents by type
     for part_type in [0, 4, 5]:
         # find parents for current type
-        current_parent_halos = _find_parent(
+        current_parent_halos = find_parent(
             particle_ids[particle_types == part_type],
             group_offsets[:, part_type],
             group_lens[:, part_type],
         )
         parent_halos[particle_types == part_type] = current_parent_halos
         # same for subhalos
-        current_parent_subhalos = _find_parent(
+        current_parent_subhalos = find_parent(
             particle_ids[particle_types == part_type],
             subhalo_offsets[:, part_type],
             subhalo_lens[:, part_type],
@@ -76,7 +77,7 @@ def particle_parents(
     return parent_halos, parent_subhalos
 
 
-def _find_parent(
+def find_parent(
     particle_ids: NDArray, offsets: NDArray, lengths: NDArray
 ) -> NDArray:
     """
@@ -154,9 +155,17 @@ def _find_parent(
     return parent_ids
 
 
-def _load_offsets_and_lens(
-    base_path: Path, snap_num: int
-) -> tuple[NDArray, NDArray, NDArray, NDArray]:
+AllResults: TypeAlias = tuple[NDArray, NDArray, NDArray, NDArray]
+OnlyFoF: TypeAlias = tuple[NDArray, NDArray, None, None]
+OnlySubhalo: TypeAlias = tuple[None, None, NDArray, NDArray]
+
+
+def load_offsets_and_lens(
+    base_path: Path | str,
+    snap_num: int,
+    group_only: bool = False,
+    subhalo_only: bool = False,
+) -> AllResults | OnlyFoF | OnlySubhalo:
     """
     Helper function; return offsets and lens for FoF groups and subhalos.
 
@@ -164,22 +173,40 @@ def _load_offsets_and_lens(
 
     :param base_path: Simulation base path.
     :param snap_num: Snapshot number.
+    :param group_only: Set to True to only load offsets and lens for
+        FoF groups.
+    :param subhalo_only: Set to True to only load offsets and lens for
+        subhalos.
     :return: Tuple of group offsets by type, group lengths by type,
         subhalo offsets by type, subhalo lengths by type, in that order.
+        If either group or subhalo offsets/lens were not loaded due to
+        setting ``group_only`` or ``subhalo_only``, then the offsets and
+        lengths that were not loaded are None instead.
     """
-    # load offsets and group lengths
+    if not isinstance(base_path, Path):
+        base_path = Path(base_path)
+
+    group_offsets, group_lens = None, None
+    subhalo_offsets, subhalo_lens = None, None
+
     offset_directory = base_path.parent / "postprocessing/offsets"
     offset_filepath = f"offsets_{snap_num:03d}.hdf5"
-    with h5py.File(offset_directory / offset_filepath, "r") as offset_file:
-        group_offsets = offset_file["Group/SnapByType"][()]
-    group_lens = il.groupcat.loadHalos(
-        str(base_path), snap_num, ["GroupLenType"]
-    )
+
+    # load offsets and group lengths
+    if not subhalo_only:
+        with h5py.File(offset_directory / offset_filepath, "r") as offset_file:
+            group_offsets = offset_file["Group/SnapByType"][()]
+        group_lens = il.groupcat.loadHalos(
+            str(base_path), snap_num, ["GroupLenType"]
+        )
 
     # load offsets and subhalo lengths
-    with h5py.File(offset_directory / offset_filepath, "r") as offset_file:
-        subhalo_offsets = offset_file["Subhalo/SnapByType"][()]
-    subhalo_lens = il.groupcat.loadSubhalos(
-        str(base_path), snap_num, ["SubhaloLenType"]
-    )
+    if not group_only:
+        with h5py.File(offset_directory / offset_filepath, "r") as offset_file:
+            subhalo_offsets = offset_file["Subhalo/SnapByType"][()]
+        subhalo_lens = il.groupcat.loadSubhalos(
+            str(base_path), snap_num, ["SubhaloLenType"]
+        )
+
+    # return tuple of results
     return group_offsets, group_lens, subhalo_offsets, subhalo_lens
