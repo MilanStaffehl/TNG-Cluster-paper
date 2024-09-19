@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import abc
 import dataclasses
-import itertools
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
@@ -31,6 +30,22 @@ class TraceComplexQuantityPipeline(base.Pipeline, abc.ABC, ArchiveMixin):
 
     For multiprocessing, the function which saves the data to intermediate
     files must be explicitly specified as class variable ``working_method``.
+    It is the job of the implementations of this ABC to ensure that the
+    returned tuples from the methods that prepare the multiprocessing
+    args actually match the signature of that method.
+
+    Since some jobs require such large amounts of data per snapshot,
+    this class also allows multiprocessing on a per-snapshot basis, where
+    the specified number of processes is sequentially started for every
+    snapshot. The pool is joined and closed before the one for the next
+    snapshot is started, which allows discarding the data for the previous
+    snapshot, keeping load on memory minimal. For this purpose, the
+    class variable ``split_by_snap`` must be overwritten to be True. If
+    this is done, then the method to create args for only one snapshot
+    but all zoom-ins :meth:`_prepare_multiproc_by_snap_args` must be
+    implemented and the other two methods :meth:`_prepare_multiproc_args`
+    and :meth:`_prepare_multiproc_args_single` are never called, and can
+    therefore be left empty.
     """
 
     unlink: bool = False  # delete intermediate files after archiving?
@@ -45,6 +60,11 @@ class TraceComplexQuantityPipeline(base.Pipeline, abc.ABC, ArchiveMixin):
     # replace this with the name of the method that saves the intermediate
     # files to disk in implementations of this ABC
     working_method: ClassVar[str | None] = None
+
+    # For jobs where each snap requires a lot of data, the multiprocessing
+    # step can be split to run on a per-snapshot basis. Set this to True
+    # to run one multiprocessing pool per snapshot.
+    split_by_snap: ClassVar[bool] = False
 
     def __post_init__(self):
         super().__post_init__()
@@ -70,7 +90,10 @@ class TraceComplexQuantityPipeline(base.Pipeline, abc.ABC, ArchiveMixin):
 
         # Step 1: process data:
         if self.processes > 1:
-            self._multiprocess()
+            if self.split_by_snap:
+                self._multiprocess_by_snap()
+            else:
+                self._multiprocess()
         elif self.zoom_id is None:
             self._sequential()
         else:
@@ -92,9 +115,11 @@ class TraceComplexQuantityPipeline(base.Pipeline, abc.ABC, ArchiveMixin):
 
         # Step 3: clean-up
         if not self.unlink:
+            logging.info("Nothing to delete, done!")
             return 0
         self._clean_up()
 
+        logging.info("Pipeline completed successfully!")
         return 0
 
     def _check_working_method(self):
@@ -103,6 +128,7 @@ class TraceComplexQuantityPipeline(base.Pipeline, abc.ABC, ArchiveMixin):
 
         :return: Bool, whether method is valid.
         """
+        logging.debug(f"Checking working method {self.working_method}.")
         if self.processes <= 1:
             return True  # no multiprocessing, so it doesn't matter
         if self.working_method is None:
@@ -147,19 +173,61 @@ class TraceComplexQuantityPipeline(base.Pipeline, abc.ABC, ArchiveMixin):
             args = self._prepare_multiproc_args_single()
 
         # open a pool for all arguments
-        chunksize = round(len(args) / self.processes / 4, -2)
+        chunksize = round(len(args) / self.processes / 4, 1)
         chunksize = max(chunksize, 1)
         logging.info(
             f"Starting {self.processes} processes with auto-determined "
-            f"chunksize {chunksize} to find distances. This will take a "
-            f"while..."
+            f"chunksize {chunksize} to find {self.quantity}."
         )
         working_method = getattr(self, self.working_method)
         with mp.Pool(processes=self.processes) as pool:
             pool.starmap(working_method, args, chunksize=int(chunksize))
             pool.close()
             pool.join()
-        logging.info("Finished calculating distance for all particles!")
+        logging.info(
+            f"Finished calculating {self.quantity} for all particles!"
+        )
+
+    def _multiprocess_by_snap(self):
+        """
+        Find quantity using multiple processes, one snap at a time.
+
+        This is effectively the same as the :meth:`_multiprocess` method,
+        but it will start one pool per snapshot. This is useful for those
+        jobs that must load data on a per-snapshot basis that is very
+        large and cannot be loaded all at the same time.
+
+        :return: None, saves intermediate results to file.
+        """
+        logging.info("Starting per-snapshot multiprocessing.")
+        working_method = getattr(self, self.working_method)
+        for snap_num in range(constants.MIN_SNAP, 100):
+            logging.info(f"Loading args for snapshot {snap_num}.")
+            if self.zoom_id is None:
+                args = self._prepare_multiproc_by_snap_args(snap_num)
+            else:
+                logging.fatal(
+                    "Multiprocessing for a single zoom-in split by snapshot "
+                    "is functionally equivalent to running a single process "
+                    "for one zoom-in without multiprocessing. This is not "
+                    "supported."
+                )
+                raise RuntimeError("Unnecessary multiprocessing instruction")
+
+            # open a pool for all arguments
+            chunksize = round(len(args) / self.processes / 2, 0)
+            chunksize = max(chunksize, 1)
+            logging.info(
+                f"Starting {self.processes} processes with auto-determined "
+                f"chunksize {chunksize} to find {self.quantity}."
+            )
+            with mp.Pool(processes=self.processes) as pool:
+                pool.starmap(working_method, args, chunksize=int(chunksize))
+                pool.close()
+                pool.join()
+            logging.info(
+                f"Finished calculating {self.quantity} for snapshot {snap_num}."
+            )
 
     @abc.abstractmethod
     def _sequential(self):
@@ -212,6 +280,26 @@ class TraceComplexQuantityPipeline(base.Pipeline, abc.ABC, ArchiveMixin):
 
         :return: List of tuples, containing zoom-in ID, snapshot number
             and the other arguments required for ``self.working_method``.
+        """
+        pass
+
+    @abc.abstractmethod
+    def _prepare_multiproc_by_snap_args(
+        self, snap_num: int
+    ) -> list[tuple[NDArray | int]]:
+        """
+        Load all info required for multiprocessing by snap and arrange it.
+
+        The method creates all combinations of the zoom-id with the given
+        snap number, and adds to each pair of other arguments that
+        the function stored in ``self.working_method`` requires.
+
+        .. note:: If processing by snap is not required, i.e. unless
+            ``self.split_by_snap`` is set to True, this method should
+            be implemented to raise an exception.
+
+        :return: List of tuples, containing zoom-in ID, snapshot number
+            and other arguments required for ``self.working_method``.
         """
         pass
 
@@ -402,6 +490,19 @@ class TraceDistancePipeline(TraceComplexQuantityPipeline):
         )
         return args
 
+    def _prepare_multiproc_by_snap_args(
+        self, snap_num: int
+    ) -> list[tuple[NDArray | int]]:
+        """
+        Not implemented, raises exception.
+
+        :param snap_num: Snapshot.
+        :return: Never returns, raises exception.
+        """
+        raise NotImplementedError(
+            "Pipeline does not support by-snap multiprocessing."
+        )
+
     def _save_particle_distances(
         self,
         zoom_id: int,
@@ -554,6 +655,7 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
 
     quantity: ClassVar[str] = "ParentHaloIndex"
     working_method: ClassVar[str] = "_save_parent_halo_index"
+    split_by_snap: ClassVar[bool] = True  # process on per-snap basis!
 
     def _sequential(self):
         """
@@ -578,12 +680,15 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
                 )
                 # Step 2.1: get particle indices and type flags
                 dataset = f"ZoomRegion_{zoom_id:03d}"
-                pind = archive_file[dataset]["particle_indices"][snap_num:]
-                ptfs = archive_file[dataset]["particle_type_flags"][snap_num:]
+                pind = archive_file[dataset]["particle_indices"][snap_num]
+                ptfs = archive_file[dataset]["particle_type_flags"][snap_num]
                 # Step 2.2: save parent halo index
                 self._save_parent_halo_index(
                     zoom_id, snap_num, fof_offsets, fof_lens, pind, ptfs
                 )
+
+            # Step 3: clean-up
+            del fof_offsets, fof_lens
         archive_file.close()
 
     def _sequential_single(self) -> None:
@@ -604,89 +709,57 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
 
             # Step 2: find parent halo indices
             dataset = f"ZoomRegion_{self.zoom_id:03d}"
-            pind = archive_file[dataset]["particle_indices"][snap_num:]
-            ptfs = archive_file[dataset]["particle_type_flags"][snap_num:]
+            pind = archive_file[dataset]["particle_indices"][snap_num]
+            ptfs = archive_file[dataset]["particle_type_flags"][snap_num]
             # Step 2.2: save parent halo index
             self._save_parent_halo_index(
                 self.zoom_id, snap_num, fof_offsets, fof_lens, pind, ptfs
             )
+
+            # Step 3: clean-up
+            del fof_offsets, fof_lens
         archive_file.close()
 
     def _prepare_multiproc_args(self) -> list[tuple[NDArray | int]]:
         """
-        Load all info required for multiprocessing and arrange it.
+        Not implemented.
 
-        The method creates all possible combinations of zoom-in ID and
-        snapshot number, and adds to each pair of zoom-in ID and snapshot
-        number the corresponding FoF offsets and lengths, the particle
-        indices and particle type flags of the traced particles.
+        Loading all args required for multiprocessing at once creates
+        too much data to handle reliably, so this is not allowed. Raises
+        an exception when called, but shouldn't ever be called by the
+        pipeline anyway.
 
-        :return: List of tuples, containing zoom-in ID, snapshot number
-            and the corresponding FoF offsets, FoF lengths, indices of
-            traced particles and their type flags.
+        :return: Never returns, raises ``NotImplementedError``.
         """
-        # Zoom-IDs and snap nums
-        snap_nums = np.arange(constants.MIN_SNAP, 100, step=1, dtype=np.uint64)
-        zoom_ids = np.arange(0, self.n_clusters, step=1, dtype=np.uint64)
-        snap_nums = np.broadcast_to(
-            snap_nums[:, None],
-            (self.n_snaps, self.n_clusters),
-        ).transpose().flatten()
-        zoom_ids = np.broadcast_to(
-            zoom_ids[:, None],
-            (self.n_clusters, self.n_snaps),
-        ).flatten()
-
-        # FoF offsets and lengths
-        offsets = []
-        lengths = []
-        for snap_num in snap_nums:
-            offs, lens, _, _ = membership.load_offsets_and_lens(
-                self.config.base_path, snap_num, group_only=True
-            )
-            offsets.append(offs)
-            lengths.append(lens)
-        fof_offsets = list(
-            itertools.chain.from_iterable([offsets for _ in range(352)])
+        raise NotImplementedError(
+            f"Multiprocessing over all snaps and zoom-ins not supported "
+            f"for {self.quantity}."
         )
-        fof_lens = list(
-            itertools.chain.from_iterable([lengths for _ in range(352)])
-        )
-
-        # particle indices and tpe flags
-        particle_indices = []
-        particle_type_flags = []
-        archive_file = h5py.File(self.config.cool_gas_history, "r")
-        for zoom_id in range(self.n_clusters):
-            ds_indices = f"ZoomRegion_{zoom_id:03d}/particle_indices"
-            indices = archive_file[ds_indices][constants.MIN_SNAP:]
-            ds_flags = f"ZoomRegion_{zoom_id:03d}/particle_type_flags"
-            flags = archive_file[ds_flags][constants.MIN_SNAP:]
-            for i in range(self.n_snaps):
-                particle_indices.append(indices[i])
-                particle_type_flags.append(flags[i])
-        archive_file.close()
-
-        # combine lists/arrays into list of argument tuples
-        args = list(
-            zip(
-                zoom_ids,
-                snap_nums,
-                fof_offsets,
-                fof_lens,
-                particle_indices,
-                particle_type_flags
-            )
-        )
-        logging.info("Finished constructing list of arguments.")
-        return args
 
     def _prepare_multiproc_args_single(self) -> list[tuple[NDArray | int]]:
         """
-        Load info required for multiprocessing a single zoom-in.
+        Not implemented.
 
-        The method creates a list of snapshot numbers and a list of
-        constant zoom-in ID, namely the selected current one, and adds
+        Loading all args required for multiprocessing at once creates
+        too much data to handle reliably, so this is not allowed. Raises
+        an exception when called, but shouldn't ever be called by the
+        pipeline anyway.
+
+        :return: Never returns, raises ``NotImplementedError``.
+        """
+        raise NotImplementedError(
+            f"Multiprocessing over all snaps not supported for "
+            f"{self.quantity}."
+        )
+
+    def _prepare_multiproc_by_snap_args(
+        self, snap_num: int
+    ) -> list[tuple[NDArray | int]]:
+        """
+        Load info required for multiprocessing a single snapshot.
+
+        The method creates a list of zoom-in IDs and a list of constant
+        snapshot number, namely the selected current one, and adds
         to each pair of zoom-in ID and snapshot number the corresponding
         FoF offsets and FoF lengths, as well as the particle indices and
         particle type flags for the traced particles.
@@ -696,30 +769,27 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             indices and type flags.
         """
         # Zoom-IDs and snap nums
-        snap_nums = np.arange(constants.MIN_SNAP, 100, step=1, dtype=np.uint64)
-        zoom_ids = np.empty_like(snap_nums, dtype=np.uint64)
-        zoom_ids[:] = self.zoom_id
+        zoom_ids = np.arange(0, self.n_clusters, step=1, dtype=np.uint64)
+        snap_nums = np.empty_like(zoom_ids, dtype=np.uint64)
+        snap_nums[:] = snap_num
 
         # FoF offsets and lengths
-        offsets = []
-        lengths = []
-        for snap_num in snap_nums:
-            offs, lens, _, _ = membership.load_offsets_and_lens(
-                self.config.base_path, snap_num, group_only=True
-            )
-            offsets.append(offs)
-            lengths.append(lens)
+        logging.debug(f"Loading FoF offsets and lengths for snap {snap_num}.")
+        offsets, lengths, _, _ = membership.load_offsets_and_lens(
+            self.config.base_path, snap_num, group_only=True
+        )
+        fof_offsets = [offsets for _ in range(self.n_clusters)]
+        fof_lengths = [lengths for _ in range(self.n_clusters)]
 
-        # particle indices and type flags
+        # particle indices and tpe flags
         particle_indices = []
         particle_type_flags = []
         archive_file = h5py.File(self.config.cool_gas_history, "r")
-        grp = f"ZoomRegion_{self.zoom_id:03d}"
-        indices = archive_file[grp]["particle_indices"][constants.MIN_SNAP:]
-        flags = archive_file[grp]["particle_type_flags"][constants.MIN_SNAP:]
-        for i in range(self.n_snaps):
-            particle_indices.append(indices[i])
-            particle_type_flags.append(flags[i])
+        for zoom_id in zoom_ids:
+            ds_indices = f"ZoomRegion_{zoom_id:03d}/particle_indices"
+            particle_indices.append(archive_file[ds_indices][snap_num])
+            ds_flags = f"ZoomRegion_{zoom_id:03d}/particle_type_flags"
+            particle_type_flags.append(archive_file[ds_flags][snap_num])
         archive_file.close()
 
         # combine lists/arrays into list of argument tuples
@@ -727,15 +797,14 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             zip(
                 zoom_ids,
                 snap_nums,
-                offsets,
-                lengths,
+                fof_offsets,
+                fof_lengths,
                 particle_indices,
                 particle_type_flags
             )
         )
         logging.info(
-            f"Finished constructing list of arguments for zoom-in "
-            f"{self.zoom_id}."
+            f"Finished constructing list of arguments for snap {snap_num}."
         )
         return args
 

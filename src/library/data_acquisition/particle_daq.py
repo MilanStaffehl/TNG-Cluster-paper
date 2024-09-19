@@ -116,7 +116,7 @@ def _load_original_zoom_particle_ids(
         except KeyError:
             particle_ids_fof = np.empty((0, ), dtype=np.uint64)
 
-    fuzz_file = f"snap_{snap_num:03d}.{zoom_id + 352}.hdf5"
+    fuzz_file = f"snap_{snap_num:03d}.{int(zoom_id + 352)}.hdf5"
     with h5py.File(str(snapshot_path + fuzz_file), "r") as file:
         try:
             particle_ids_fuzz = file[f"PartType{part_type}"]["ParticleIDs"][()]
