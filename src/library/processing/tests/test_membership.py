@@ -91,7 +91,7 @@ def patch_offset_loader(mocker) -> Iterator[Mock]:
     subhalo_len_by_type[:, 5] = np.array([1, 1, 1, 0, 0])
 
     # patch loading function to return the mock data
-    m = mocker.patch("library.processing.membership._load_offsets_and_lens")
+    m = mocker.patch("library.processing.membership.load_offsets_and_lens")
     m.return_value = (
         group_offset_by_type,
         group_len_by_type,
