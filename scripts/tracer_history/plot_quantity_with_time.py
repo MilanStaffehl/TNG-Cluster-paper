@@ -118,7 +118,6 @@ if __name__ == "__main__":
         allowed_sims=["TNG-Cluster"],
     )
     # remove unnecessary args
-    parser.remove_argument("processes")
     parser.remove_argument("sim")
     parser.remove_argument("to_file")
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 import h5py
+import illustris_python as il
 import matplotlib.cm
 import matplotlib.collections
 import matplotlib.colors
@@ -16,7 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from library import compute, constants
+from library import compute, constants, units
 from library.data_acquisition import halos_daq
 from library.plotting import common
 from library.plotting import plot_radial_profiles as plot_hists
@@ -480,26 +481,37 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 cluster_data[self.config.radius_field][self.zoom_in],
             )
         elif self.quantity == "DistanceToMP":
-            label = "Virial radius at z = 0"
-            cluster_data = halos_daq.get_halo_properties(
+            label = r"$2R_{200c}$"
+            primary_id = halos_daq.get_halo_properties(
                 self.config.base_path,
                 self.config.snap_num,
-                fields=[self.config.radius_field],
-                cluster_restrict=True
+                ["GroupFirstSub"],
+                cluster_restrict=True,
+            )["GroupFirstSub"][self.zoom_in]
+            mpb_data = il.sublink.loadTree(
+                self.config.base_path,
+                self.config.snap_num,
+                primary_id,
+                ["SnapNum", self.config.radius_field],
+                onlyMPB=True,
             )
-            cluster_cq = cluster_data[self.config.radius_field][self.zoom_in]
+            cluster_cq = np.zeros(100)
+            virial_radii = units.UnitConverter.convert_distancelike(
+                mpb_data[self.config.radius_field]
+            )
+            cluster_cq[mpb_data["SnapNum"]] = virial_radii
+            cluster_cq = 2 * cluster_cq[constants.MIN_SNAP:]
         else:
             logging.info(
                 f"No characteristic property to plot for {self.quantity}."
             )
             label = None
             cluster_cq = np.NaN
-        axes.hlines(
+        axes.plot(
+            xs,
             cluster_cq if not log else np.log10(cluster_cq),
-            xs[-1],
-            xs[0],
-            linestyles="dashed",
-            colors="black",
+            ls="dashed",
+            color="black",
             label=label,
             zorder=10,
         )
