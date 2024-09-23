@@ -76,6 +76,7 @@ class UnitConverter:
                 "GroupLen",
                 "GroupFirstSub",
                 "GroupNsubs",
+                "SubhaloLen",
                 "BH_Progs",
                 "ParticleIDs",
                 "ParentID",
@@ -163,7 +164,7 @@ class UnitConverter:
         return quantity * np.sqrt(a)
 
     @staticmethod
-    def convert_groupvelocitylike(quantity: N, snap_num: int) -> N:
+    def convert_groupvelocitylike(quantity: N, snap_num: int | N) -> N:
         """
         Return the group-velocity-like quantity in km/s.
 

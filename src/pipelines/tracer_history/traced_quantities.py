@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 import h5py
-import illustris_python as il
 import matplotlib.cm
 import matplotlib.collections
 import matplotlib.colors
@@ -17,8 +16,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import yaml
 
-from library import compute, constants, units
-from library.data_acquisition import halos_daq
+from library import compute, constants
+from library.data_acquisition import halos_daq, sublink_daq
 from library.plotting import common
 from library.plotting import plot_radial_profiles as plot_hists
 from library.processing import statistics
@@ -488,19 +487,15 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 ["GroupFirstSub"],
                 cluster_restrict=True,
             )["GroupFirstSub"][self.zoom_in]
-            mpb_data = il.sublink.loadTree(
+            mpb_data = sublink_daq.get_mpb_properties(
                 self.config.base_path,
                 self.config.snap_num,
                 primary_id,
-                ["SnapNum", self.config.radius_field],
-                onlyMPB=True,
+                fields=[self.config.radius_field],
+                start_snap=constants.MIN_SNAP,
+                log_warning=True,
             )
-            cluster_cq = np.zeros(100)
-            virial_radii = units.UnitConverter.convert_distancelike(
-                mpb_data[self.config.radius_field]
-            )
-            cluster_cq[mpb_data["SnapNum"]] = virial_radii
-            cluster_cq = 2 * cluster_cq[constants.MIN_SNAP:]
+            cluster_cq = mpb_data[self.config.radius_field]
         else:
             logging.info(
                 f"No characteristic property to plot for {self.quantity}."

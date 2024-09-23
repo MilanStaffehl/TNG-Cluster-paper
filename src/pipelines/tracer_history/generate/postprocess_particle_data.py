@@ -8,11 +8,10 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 import h5py
-import illustris_python as il
 import numpy as np
 
-from library import constants, units
-from library.data_acquisition import halos_daq
+from library import constants
+from library.data_acquisition import halos_daq, sublink_daq
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -161,45 +160,15 @@ class TimeOfCrossingPipeline(base.Pipeline):
             progenitor branch.
         """
         logging.debug(f"Loading virial radii for zoom-in {zoom_id}.")
-        virial_radii = np.empty(self.n_snaps)
-        virial_radii[:] = np.nan
-
-        mpb = il.sublink.loadTree(
+        mpb_data = sublink_daq.get_mpb_properties(
             self.config.base_path,
             self.config.snap_num,
             primary_subhalo_id,
-            fields=["SnapNum", self.config.radius_field],
-            onlyMPB=True,
+            fields=[self.config.radius_field],
+            start_snap=constants.MIN_SNAP,
+            log_warning=True,
         )
-        radii = units.UnitConverter.convert_distancelike(
-            mpb[self.config.radius_field]
-        )
-        snaps = mpb["SnapNum"]
-
-        # limit to only the snaps we analyze (above and equal MIN_SNAP)
-        radii = radii[snaps >= constants.MIN_SNAP]
-        snaps = snaps[snaps >= constants.MIN_SNAP]
-
-        # assign existing radii to array of results
-        snap_indices = snaps - constants.MIN_SNAP
-        virial_radii[snap_indices] = radii
-
-        # fill missing entries by interpolation
-        where_nan = np.argwhere(np.isnan(virial_radii))
-        if where_nan.size == 0:
-            return virial_radii
-
-        where_nan = where_nan[:, 0]
-        logging.debug(
-            f"Interpolating missing main branch progenitor virial radius for "
-            f"zoom_in {zoom_id} at snapshots "
-            f"{', '.join(where_nan.astype(str))}."
-        )
-        for index in where_nan:
-            before = virial_radii[index - 1]
-            after = virial_radii[index + 1]
-            virial_radii[index] = (before + after) / 2
-        return virial_radii
+        return mpb_data[self.config.radius_field]
 
     @staticmethod
     def _first_and_last_zero_crossing(

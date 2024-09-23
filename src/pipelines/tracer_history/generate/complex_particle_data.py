@@ -9,12 +9,11 @@ import logging
 from typing import TYPE_CHECKING, ClassVar
 
 import h5py
-import illustris_python as il
 import multiprocess as mp
 import numpy as np
 
-from library import compute, constants, units
-from library.data_acquisition import halos_daq, particle_daq
+from library import compute, constants
+from library.data_acquisition import halos_daq, particle_daq, sublink_daq
 from library.processing import membership
 from pipelines import base
 from pipelines.tracer_history.generate.mixin import ArchiveMixin
@@ -582,45 +581,15 @@ class TraceDistancePipeline(TraceComplexQuantityPipeline):
             main progenitor branch.
         """
         logging.debug(f"Loading primary positions for zoom-in {zoom_id}.")
-        primary_positions = np.empty((self.n_snaps, 3))
-        primary_positions[:] = np.nan
-
-        mpb = il.sublink.loadTree(
+        mpb = sublink_daq.get_mpb_properties(
             self.config.base_path,
             self.config.snap_num,
             primary_id_at_snap99,
-            fields=["SubhaloPos", "SnapNum"],
-            onlyMPB=True,
+            fields=["SubhaloPos"],
+            start_snap=constants.MIN_SNAP,
+            log_warning=True,
         )
-        positions = units.UnitConverter.convert(
-            mpb["SubhaloPos"], "SubhaloPos"
-        )
-        snaps = mpb["SnapNum"]
-
-        # limit to only the snaps we analyze (above and equal MIN_SNAP)
-        positions = positions[snaps >= constants.MIN_SNAP]
-        snaps = snaps[snaps >= constants.MIN_SNAP]
-
-        # assign existing positions to array of results
-        snap_indices = snaps - constants.MIN_SNAP
-        primary_positions[snap_indices] = positions
-
-        # fill missing entries by interpolation
-        where_nan = np.argwhere(np.isnan(primary_positions))
-        if where_nan.size == 0:
-            return primary_positions
-
-        where_nan = where_nan[::3, 0]  # need only one index per 3-vector
-        logging.debug(
-            f"Interpolating missing main branch progenitor position for "
-            f"zoom_in {zoom_id} at snapshots "
-            f"{', '.join(where_nan.astype(str))}."
-        )
-        for index in where_nan:
-            before = primary_positions[index - 1]
-            after = primary_positions[index + 1]
-            primary_positions[index] = (before + after) / 2
-        return primary_positions
+        return mpb["SubhaloPos"]
 
     def _particle_positions(self, snap_num: int, zoom_id: int) -> NDArray:
         """
