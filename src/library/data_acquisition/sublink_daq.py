@@ -81,6 +81,9 @@ def get_mpb_properties(
     final_results = {}
     warnings = []
     for field, value in mpb.items():
+        if field == "count":
+            final_results[field] = snap_num - start_snap + 1
+            continue
         if field == "SnapNum":
             final_results[field] = np.arange(start_snap, snap_num + 1, step=1)
             continue

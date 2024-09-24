@@ -42,6 +42,8 @@ def patch_il_sublink(mocker) -> Iterator[Mock]:
             np.array([0.2, 0.3, 0.4, 0.6, 0.5, 0.7, 0.8, 1.0, 1.1, 1.2]),
         "SubhaloLen":
             np.array([100, 110, 120, 140, 130, 150, 200, 220, 230, 240]),
+        "count":
+            10,
     }
     mock_load = mocker.patch("illustris_python.sublink.loadTree")
     mock_load.return_value = mock_data
@@ -73,7 +75,8 @@ def expected_results() -> Iterator[dict[str, NDArray]]:
         "Group_R_Crit200": expected_radii,
         "SubhaloLen": np.array(
             [100, 110, 120, 130, 140, 150, 200, 210, 220, 230, 240]
-        )
+        ),
+        "count": 11,
     }  # yapf: disable
     yield expected_data
 
@@ -97,7 +100,10 @@ def test_get_mpb_properties(
     assert isinstance(output, dict)
     for field in expected_results.keys():
         assert field in output.keys()
-        np.testing.assert_allclose(output[field], expected_results[field])
+        if field == "count":
+            assert output[field] == expected_results[field]
+        else:
+            np.testing.assert_allclose(output[field], expected_results[field])
 
     fields = ["Coordinates", "Group_R_Crit200", "SubhaloLen", "SnapNum"]
     mock_load.assert_called_with(
@@ -122,7 +128,12 @@ def test_get_mpb_properties_with_start_snap(
     assert isinstance(output, dict)
     for field in expected_results.keys():
         assert field in output.keys()
-        np.testing.assert_allclose(output[field], expected_results[field][2:])
+        if field == "count":
+            assert output[field] == 9
+        else:
+            np.testing.assert_allclose(
+                output[field], expected_results[field][2:]
+            )
 
     fields = ["Coordinates", "Group_R_Crit200", "SubhaloLen", "SnapNum"]
     mock_load.assert_called_with(
