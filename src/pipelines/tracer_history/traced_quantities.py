@@ -3,6 +3,7 @@ Trace back some simple quantities of the tracer particles.
 """
 from __future__ import annotations
 
+import copy
 import dataclasses
 import logging
 from pathlib import Path
@@ -26,6 +27,13 @@ from pipelines import base
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+PLOT_TYPES = [
+    "lineplot",
+    "global2dhist",
+    "globalridgeline",
+    "zoomedridgeline",
+]
+
 
 @dataclasses.dataclass
 class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
@@ -34,13 +42,26 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
     quantity: str  # name of the dataset in the archive
     quantity_label: str  # y-axis label for quantity
     color: str  # color for faint lines
+    plot_types: list[str] | None = None  # what to plot
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
     n_bins: ClassVar[int] = 50  # number of bins
 
+    def __post_init__(self):
+        super().__post_init__()
+        self.hist_range: tuple[float, float] | None = None
+        self.log: bool | None = None
+        if self.plot_types is None:
+            self.plot_types = PLOT_TYPES
+
     def run(self) -> int:
         """Load and plot data"""
+        logging.info(
+            f"Starting pipeline to plot {', '.join(self.plot_types)} for "
+            f"{self.quantity}."
+        )
+
         # Step 0: check archive exists
         if not self.config.cool_gas_history.exists():
             logging.fatal(
@@ -55,100 +76,134 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             stream = cfg_file.read()
         try:
             plot_config = yaml.full_load(stream)[self.quantity]
-            hist_range = plot_config["min"], plot_config["max"]
-            log = plot_config["log"]
+            self.hist_range = plot_config["min"], plot_config["max"]
+            self.log = plot_config["log"]
         except KeyError:
             logging.warning(
                 f"Found no plot config for quantity {self.quantity}, will set "
                 f"no boundaries for histograms; 2D plot creation will be "
                 f"skipped."
             )
-            hist_range = None
-            log = False
 
-        # Step 2: allocate memory for quantities to trace
-        quantity_mean = np.zeros((self.n_clusters, self.n_snaps))
-        quantity_median = np.zeros_like(quantity_mean)
-        quantity_min = np.zeros_like(quantity_mean)
-        quantity_max = np.zeros_like(quantity_mean)
-        quantity_hists = np.zeros((self.n_clusters, self.n_snaps, self.n_bins))
-
-        # Step 3: open the archive
+        # Step 2: open the archive, ensure quantity exists
         f = h5py.File(self.config.cool_gas_history, "r")
-
-        # Step 4: load quantity and process for plotting
-        logging.info(
-            "Loading particle data from file and processing. May take a while."
-        )
+        logging.info("Checking archive for all required datasets.")
+        quantity_archived = True
         for zoom_id in range(self.n_clusters):
-            logging.debug(
-                f"Loading and processing {self.quantity} for zoom-in "
-                f"{zoom_id}."
-            )
-            group = f"ZoomRegion_{zoom_id:03d}"
-            # check field exists
-            try:
-                quantity = f[group][self.quantity]
-                uniqueness_flags = f[group]["uniqueness_flags"]
-            except KeyError:
-                logging.fatal(
-                    f"Zoom-in {zoom_id} is missing dataset {self.quantity}. "
-                    f"Cannot proceed with plotting."
+            grp = f"ZoomRegion_{zoom_id:03d}"
+            if self.quantity not in f[grp].keys():
+                logging.error(
+                    f"Zoom-in {zoom_id} missing dataset {self.quantity}."
                 )
-                return 2
-
-            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-                # make sure particles are not counted twice
-                unique_q = quantity[snap][uniqueness_flags[snap] == 1]
-                quantity_mean[zoom_id, i] = np.nanmean(unique_q)
-                quantity_median[zoom_id, i] = np.nanmedian(unique_q)
-            # max and min over all data points per snapshot
-            quantity_max[zoom_id] = np.nanmax(
-                quantity[constants.MIN_SNAP:], axis=1
+                quantity_archived = False
+            if "uniqueness_flags" not in f[grp].keys():
+                logging.error(f"Zoom-in {zoom_id} missing uniqueness flags.")
+                quantity_archived = False
+        if not quantity_archived:
+            logging.fatal(
+                f"Quantity {self.quantity} is not archived for all zoom-ins. "
+                f"Cannot proceed with plotting."
             )
-            quantity_min[zoom_id] = np.nanmin(
-                quantity[constants.MIN_SNAP:], axis=1
-            )
-            if hist_range is None:
-                continue
-            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-                if log:
-                    q = np.log10(quantity[snap])
-                else:
-                    q = quantity[snap]
-                hist = np.histogram(q, self.n_bins, range=hist_range)[0]
-                # normalize histogram such that it sums to 1
-                quantity_hists[zoom_id, i] = hist / np.sum(hist)
+            return 2
+        logging.info("Archive OK. Continuing with plotting.")
 
-        # Step 4: plot line plots
-        self._plot_and_save_lineplots(
-            quantity_mean, quantity_median, quantity_min, quantity_max
-        )
+        # Step 3: check for lineplots and plot
+        if "lineplot" in self.plot_types:
+            logging.info("Plotting line plots.")
+            self._plot_and_save_lineplots(f)
+            logging.info("Finished line plots, saved to file.")
 
-        if hist_range is None:
-            logging.warning(
-                "Plot config was incomplete, cannot plot ridgeline and 2D "
-                "histogram plots."
-            )
-            logging.info("All other plots are done and saved to file.")
-            return 0
+        # Step 4: plot 2D histograms
+        if "global2dhist" in self.plot_types:
+            logging.info("Plotting global 2D histograms.")
+            self._plot_and_save_2dhistograms(f)
+            logging.info("Finished global 2D histograms, saved to file.")
 
-        # Step 5: plot 2D histograms
-        self._plot_and_save_2dhistograms(
-            quantity_hists, hist_range[0], hist_range[1], log
-        )
+        # Step 5: plot global ridgeline plot
+        if "globalridgeline" in self.plot_types:
+            logging.info("Plotting global ridgeline plots.")
+            self._plot_and_save_ridgelineplots(f)
+            logging.info("Finished global ridgeline plots, saved to file.")
 
-        # Step 6: plot ridgeline plots
-        self._plot_and_save_ridgelineplots(
-            quantity_hists, hist_range[0], hist_range[1], log
-        )
+        # Step 6: plot zoomed-in ridgeline plot
+        if "zoomedridgeline" in self.plot_types:
+            logging.info("Plotting zoomed-in ridgeline plots.")
+            # see if zoomed-in plot it supported
+            try:
+                plot_config = yaml.full_load(stream)[self.quantity]
+                zoomed_config = plot_config["zoomed"]
+                hist_range = zoomed_config["min"], zoomed_config["max"]
+            except KeyError:
+                logging.warning(
+                    "None or incomplete config for zoomed ridgeline plot. "
+                    "Skipping."
+                )
+            else:
+                # change ranges
+                old_range = copy.copy(self.hist_range)
+                self.hist_range = hist_range
+                self._plot_and_save_ridgelineplots(f, True, "_zoomed_in")
+                logging.info(
+                    "Finished zoomed-in ridgeline plots, saved to file."
+                )
+                self.hist_range = old_range  # reset to old value
 
         logging.info("Done plotting! Saved all plots to file.")
         return 0
 
-    def _plot_and_save_lineplots(
-        self, means: NDArray, medians: NDArray, mins: NDArray, maxs: NDArray
-    ) -> None:
+    def _get_quantity_hists(self, archive_file: h5py.File) -> NDArray:
+        """
+        Create and return 2D histograms for all clusters.
+
+        Function loads the quantity from the given archive file, and
+        creates histograms of it at every snapshot. It does so taking
+        into account possibly duplicated particles, counting every
+        particle only once. The histograms are normalized before being
+        saved into an array of shape (N, S, B) where N is the number of
+        clusters, S is the number of snapshots analyzed, and B is the
+        number of bins.
+
+        Normalizations are:
+
+        - Distance to MP: normalized to the volume of the respective
+          radial shell.
+        - All other: normalized such that the histogram at every snapshot
+          sums to unity.
+
+        :param archive_file: Opened cool gas history archive file.
+        :return: Array of histograms of the distribution of the quantity
+            at all snapshots analyzed for all clusters. Suitably
+            normalized for the given quantity.
+        """
+        quantity_hists = np.zeros((self.n_clusters, self.n_snaps, self.n_bins))
+        for zoom_id in range(self.n_clusters):
+            logging.debug(f"Creating histogram for zoom-in {zoom_id}.")
+            group = f"ZoomRegion_{zoom_id:03d}"
+            quantity = archive_file[group][self.quantity]
+            uniqueness_flags = archive_file[group]["uniqueness_flags"]
+            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+                unique_q = quantity[snap][uniqueness_flags[snap] == 1]
+                if self.log:
+                    q = np.log10(unique_q)
+                else:
+                    q = unique_q
+                # different normalizations
+                if self.quantity == "DistanceToMP":
+                    hist = statistics.volume_normalized_radial_profile(
+                        q,
+                        np.ones_like(q),
+                        self.n_bins,
+                        radial_range=self.hist_range,
+                    )[0]
+                else:
+                    hist = np.histogram(
+                        q, self.n_bins, range=self.hist_range
+                    )[0]
+                    hist = hist / np.sum(hist)  # normalize to unity
+                quantity_hists[zoom_id, i] = hist
+        return quantity_hists
+
+    def _plot_and_save_lineplots(self, archive_file: h5py.File) -> None:
         """
         Plot the development of the quantity with time.
 
@@ -159,26 +214,39 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         Note: Below, S is the number of snaps from the minimum snap
         considered to snap 99.
 
-        :param means: Array of mean of the quantity for every cluster,
-            i.e. an array of shape (352, S) where every entry is the
-            mean of the gas quantity at that snapshot for that cluster.
-        :param medians: Array of medians of the quantity for every
-            cluster, i.e. an array of shape (352, S) where every entry
-            is the median of the gas quantity at that snapshot for that
-            cluster.
-        :param mins: Array of minimum of the quantity for every cluster,
-            i.e. an array of shape (352, S) where every entry is the
-            min of the gas quantity at that snapshot for that cluster.
-        :param maxs: Array of maximums of the quantity for every cluster,
-            i.e. an array of shape (352, S) where every entry is the
-            max of the gas quantity at that snapshot for that cluster.
+        :param archive_file: The opened archive file containing the
+            particle data and uniqueness flags.
         :return: None
         """
+        # load quantities and find max, min, mean, and median
+        quantity_mean = np.zeros((self.n_clusters, self.n_snaps))
+        quantity_median = np.zeros_like(quantity_mean)
+        quantity_min = np.zeros_like(quantity_mean)
+        quantity_max = np.zeros_like(quantity_mean)
+
+        for zoom_id in range(self.n_clusters):
+            group = f"ZoomRegion_{zoom_id:03d}"
+            quantity = archive_file[group][self.quantity]
+            uniqueness_flags = archive_file[group]["uniqueness_flags"]
+
+            quantity_max[zoom_id] = np.nanmax(
+                quantity[constants.MIN_SNAP:], axis=1
+            )
+            quantity_min[zoom_id] = np.nanmin(
+                quantity[constants.MIN_SNAP:], axis=1
+            )
+            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+                # make sure particles are not counted twice
+                unique_q = quantity[snap][uniqueness_flags[snap] == 1]
+                quantity_mean[zoom_id, i] = np.nanmean(unique_q)
+                quantity_median[zoom_id, i] = np.nanmedian(unique_q)
+
+        # plot
         plot_types = {
-            "Mean": means,
-            "Median": medians,
-            "Minimum": mins,
-            "Maximum": maxs,
+            "Mean": quantity_mean,
+            "Median": quantity_median,
+            "Minimum": quantity_min,
+            "Maximum": quantity_max,
         }
         # create a colormap for the current mass range
         cmap = matplotlib.cm.get_cmap("plasma")
@@ -237,7 +305,10 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             )
 
     def _plot_and_save_ridgelineplots(
-        self, hists: NDArray, minimum: float, maximum: float, is_log: bool
+        self,
+        archive_file: h5py.File,
+        log_height: bool = False,
+        suffix: str = "",
     ) -> None:
         """
         Plot a ridgeline plot of the development of the quantity.
@@ -246,13 +317,22 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         redshifts. It plots the mean and median distribution over all
         clusters in every snapshot.
 
-        :param hists: Array of histograms, of shape (352, 92, N) where
-            N is the number of bins.
-        :param minimum: Leftmost edge of the histogram bins.
-        :param maximum: Rightmost edge of the histogram bins.
-        :param is_log: Whether the y-axis is in log scale.
+        :param archive_file: The opened cool gas history archive file.
+        :param log_height: Whether to plot the height of the line in log
+            space.
+        :param suffix: Suffix for the file name, to distinguish different
+            ridgeline plot types.
         :return: None, figure saved to file.
         """
+        # Check if plotting is possible
+        if self.hist_range is None or self.log is None:
+            logging.error("Cannot plot global ridgeline; missing plot config.")
+            return
+
+        # Load data
+        quantity_hists = self._get_quantity_hists(archive_file)
+        minimum, maximum = self.hist_range
+
         # color map
         cmap = matplotlib.cm.get_cmap("gist_heat")
         norm = matplotlib.colors.Normalize(vmin=constants.MIN_SNAP, vmax=120)
@@ -260,13 +340,13 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         for method in ["mean", "median"]:
             # Step 1: stack histograms
             stacked_hist = statistics.stack_histograms(
-                hists, method, axis=0
+                quantity_hists, method, axis=0
             )[0]
 
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5, 4))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
-            if is_log:
+            if self.log:
                 q_label.replace("[", r"[$\log_{10}$")
             axes.set_xlabel(f"{method.capitalize()} {q_label}")
 
@@ -282,19 +362,25 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             axes.hlines(y_base, minimum, maximum, color="grey", linewidths=1)
 
             # Step 6: plot ridgelines
+            if log_height:
+                stacked_hist = np.log10(stacked_hist)
+                stacked_hist[stacked_hist == -np.inf] = 0
+                # shift up negative values
+                min_value = np.min(stacked_hist[stacked_hist != 0])
+                if min_value < 0:
+                    stacked_hist[stacked_hist != 0] -= min_value
+            m = 150 if log_height else 30
             for i in range(self.n_snaps):
-                ys = y_base[i] + stacked_hist[i] / np.sum(stacked_hist[i]) * 30
+                ys = y_base[i] + stacked_hist[i] / np.sum(stacked_hist[i]) * m
                 color = cmap(norm(i + constants.MIN_SNAP))
-                axes.plot(xs, ys, color=color)
+                axes.plot(xs, ys, color=color, zorder=120 - i)
 
             # Step 6: save figure
-            ident_flag = f"ridgeline_{method}"
+            ident_flag = f"ridgeline_{method}{suffix}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} ridgeline plot to file.")
 
-    def _plot_and_save_2dhistograms(
-        self, hists: NDArray, minimum: float, maximum: float, is_log: bool
-    ) -> None:
+    def _plot_and_save_2dhistograms(self, archive_file: h5py.File) -> None:
         """
         Plot a 2D histogram plot of the development of the quantity.
 
@@ -302,31 +388,39 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         redshifts using a 2D histogram. It plots the mean and median
         distribution over all clusters in every snapshot.
 
-        :param hists: Array of histograms, of shape (352, 92, N) where
-            N is the number of bins.
-        :param minimum: Leftmost edge of the histogram bins.
-        :param maximum: Rightmost edge of the histogram bins.
-        :param is_log: Whether the y-axis is in log scale.
+        :param archive_file: The opened cool gas history archive file.
         :return: None, figure saved to file.
         """
+        # Check plotting is possible
+        if self.hist_range is None or self.log is None:
+            logging.error("Cannot plot 2D histogram; missing plot config.")
+            return
+
+        # Load data and create a histogram
+        quantity_hists = self._get_quantity_hists(archive_file)
+
+        # Plot the histograms
         for method in ["mean", "median"]:
             # Step 1: stack histograms
             stacked_hist = statistics.stack_histograms(
-                hists, method, axis=0
+                quantity_hists, method, axis=0
             )[0]
 
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5.5, 4))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
-            if is_log:
+            if self.log:
                 q_label.replace("[", r"[$\log_{10}$")
 
             # Step 3: plot 2D histograms
+            ranges = [
+                constants.MIN_SNAP, 99, self.hist_range[0], self.hist_range[1]
+            ]
             plot_hists.plot_2d_radial_profile(
                 fig,
                 axes,
                 stacked_hist.transpose(),
-                ranges=[constants.MIN_SNAP, 99, minimum, maximum],
+                ranges=ranges,
                 xlabel="Snap num",
                 ylabel=f"{method.capitalize()} {q_label}",
                 colormap="inferno",

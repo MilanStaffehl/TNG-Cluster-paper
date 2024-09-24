@@ -538,11 +538,12 @@ def volume_normalized_radial_profile(
         lower and upper edge of the bin range. Optional, leave this
         unspecified to automatically infer range from data.  If the
         virial radius is given, this must be given in units of the
-        virial radius, otherwise in physical units. Must be a numpy
-        array.
+        virial radius, otherwise in physical units.
     :return: The tuple of the shell volume normalized histogram and the
         array of bin edges.
     """
+    if radial_range is not None and not isinstance(radial_range, np.ndarray):
+        radial_range = np.array(radial_range)
     # check if radial distances need to be unit adjusted
     if virial_radius is not None:
         # To avoid altering array in place, use a copy

@@ -17,6 +17,7 @@ from pipelines.tracer_history.generate.simple_particle_data import (
     TraceTemperaturePipeline,
 )
 from pipelines.tracer_history.traced_quantities import (
+    PLOT_TYPES,
     PlotSimpleQuantitiesForSingleClusters,
     PlotSimpleQuantityWithTimePipeline,
 )
@@ -78,10 +79,15 @@ def main(args: argparse.Namespace) -> None:
         }
     else:
         plotting_pipeline = PlotSimpleQuantityWithTimePipeline
+        try:
+            plot_types = args.plot_types.split(",")
+        except AttributeError:
+            plot_types = None
         additional_configs = {
             "quantity": pipeline_class.quantity,
             "quantity_label": quantity_label,
             "color": "dodgerblue",
+            "plot_types": plot_types,
         }
 
     # select and build pipeline
@@ -125,9 +131,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "what",
         help=(
-            "The quantity to plot. This is the gas quantity which will be "
-            "traced back in time for those cells that end up in cool "
-            "gas at redshift zero. Can only choose from the valid options."
+            "The quantity to generate, archive and/or plot. This is the gas "
+            "quantity which will be traced back in time for those cells that "
+            "end up in cool gas at redshift zero. Can only choose from the "
+            "valid options."
         ),
         choices=[
             "temperature",
@@ -136,6 +143,19 @@ if __name__ == "__main__":
             "mass",
             "parent-halo",
         ],
+    )
+    parser.add_argument(
+        "-pt",
+        "--plot-types",
+        help=(
+            f"Comma-separated list of plot types to create. When not set, all "
+            f"available plot types are plotted. Must be one of the following "
+            f"valid plot types: {', '.join(PLOT_TYPES)}."
+        ),
+        dest="plot_types",
+        metavar="LIST",
+        type=str,
+        default=None,
     )
     parser.add_argument(
         "-u",
