@@ -35,6 +35,10 @@ PLOT_TYPES = [
 ]
 
 
+class HistogramMixin:
+    """Mixin to provide useful common methods."""
+
+
 @dataclasses.dataclass
 class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
     """Load data from hdf5 archive and plot it in various ways"""
@@ -148,6 +152,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 )
                 self.hist_range = old_range  # reset to old value
 
+        f.close()
         logging.info("Done plotting! Saved all plots to file.")
         return 0
 
@@ -462,6 +467,12 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
     n_bins: ClassVar[int] = 50  # number of bins
 
+    def __post_init__(self):
+        super().__post_init__()
+        self.hist_range: tuple[float, float] | None = None
+        self.log: bool = False
+        self.individual_log: bool = False
+
     def run(self) -> int:
         """Load and plot data"""
         # Step 0: check archive exists, create paths
@@ -479,28 +490,30 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             stream = cfg_file.read()
         try:
             plot_config = yaml.full_load(stream)[self.quantity]
-            log = plot_config["individual-log"]
+            self.hist_range = plot_config["min"], plot_config["max"]
+            self.log = plot_config["log"]
+            self.individual_log = plot_config["individual-log"]
         except KeyError:
             logging.warning(
                 f"Found no plot config for quantity {self.quantity}, will set "
-                f"no scale to linear."
+                f"scale to linear."
             )
-            log = False
 
         # Step 2: open the archive
         f = h5py.File(self.config.cool_gas_history, "r")
 
         # Step 3: extract the data required
         particle_data = f[f"ZoomRegion_{self.zoom_in:03d}/{self.quantity}"][()]
+        uniqueness = f[f"ZoomRegion_{self.zoom_in:03d}/uniqueness_flags"][()]
 
         # Step 4: plot the data
-        self._plot_time_development(particle_data, log)
+        self._plot_time_development(particle_data)
+        self._plot_2dhistogram(particle_data, uniqueness)
 
+        f.close()
         return 0
 
-    def _plot_time_development(
-        self, particle_data: NDArray, log: bool
-    ) -> None:
+    def _plot_time_development(self, particle_data: NDArray) -> None:
         """
         Plot, for every gas cell, the development of the quantity.
 
@@ -517,8 +530,6 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             plot will have), and the first axis orders the data by snap
             number. The first axis must be ordered such that index i
             points to snap num i.
-        :param log: Whether to take the logarithm of the quantity before
-            plotting.
         :return: None, plots are saved to file.
         """
         logging.info(
@@ -533,7 +544,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             )
             particle_data = particle_data[:, :self.part_limit]
 
-        if log:
+        if self.individual_log:
             particle_data = np.log10(particle_data)
 
         # set up figure and axes
@@ -598,7 +609,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             cluster_cq = np.NaN
         axes.plot(
             xs,
-            cluster_cq if not log else np.log10(cluster_cq),
+            cluster_cq if not self.individual_log else np.log10(cluster_cq),
             ls="dashed",
             color="black",
             label=label,
@@ -618,3 +629,85 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         self._save_fig(
             fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
         )
+
+    def _plot_2dhistogram(
+        self, particle_data: NDArray, uniqueness_flags: NDArray
+    ) -> None:
+        """
+        Plot a 2D histogram plot of the development of the quantity.
+
+        Plot shows the 1D distribution of the quantity at different
+        redshifts using a 2D histogram.
+
+        :param particle_data: The array of the quantity to plot of shape
+            (S, N) where S is the number of snapshots and N the number of
+            particles.
+        :param uniqueness_flags: Uniqueness flags of the particles, must
+            be of shape (S, N).
+        :return: None, figure saved to file.
+        """
+        logging.info(f"Plotting 2D histogram of {self.quantity}.")
+        # Check plotting is possible
+        if self.hist_range is None or self.log is None:
+            logging.error("Cannot plot 2D histogram; missing plot config.")
+            return
+
+        # Calculate the histogram
+        quantity_hist = np.zeros((self.n_snaps, self.n_bins))
+        for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+            unique_q = particle_data[snap][uniqueness_flags[snap] == 1]
+            if self.log:
+                q = np.log10(unique_q)
+            else:
+                q = unique_q
+            # different normalizations
+            if self.quantity == "DistanceToMP":
+                hist = statistics.volume_normalized_radial_profile(
+                    q,
+                    np.ones_like(q),
+                    self.n_bins,
+                    radial_range=self.hist_range,
+                )[0]
+            else:
+                hist = np.histogram(q, self.n_bins, range=self.hist_range)[0]
+                hist = hist / np.sum(hist)  # normalize to unity
+            quantity_hist[i] = hist
+
+        # Step 2: set up figure
+        fig, axes = plt.subplots(figsize=(5.5, 4))
+        q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
+        if self.log:
+            q_label.replace("[", r"[$\log_{10}$")
+
+        # Step 3: plot 2D histograms
+        ranges = [
+            constants.MIN_SNAP, 99, self.hist_range[0], self.hist_range[1]
+        ]
+        plot_hists.plot_2d_radial_profile(
+            fig,
+            axes,
+            quantity_hist.transpose(),
+            ranges=ranges,
+            xlabel="Snap num",
+            ylabel=q_label,
+            colormap="inferno",
+            cbar_label="Normalized count [log]",
+            scale="log",
+            cbar_limits=(-4, None),
+        )
+
+        # Step 4: label x-axis appropriately
+        common.label_snapshots_with_redshift(
+            axes,
+            constants.MIN_SNAP,
+            99,
+            tick_positions_z=np.array([0, 0.1, 0.5, 1, 2, 5]),
+            tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
+        )
+
+        # Step 5: save figure
+        ident_flag = f"z{self.zoom_in:03d}_2dhist"
+        self._save_fig(
+            fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
+        )
+        logging.info("Saved 2D histogram plot to file.")
