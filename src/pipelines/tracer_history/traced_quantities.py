@@ -572,26 +572,28 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
 
         # add characteristic cluster property as line
         logging.info("Overplotting characteristic cluster property.")
+        primary_id = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            ["GroupFirstSub"],
+            cluster_restrict=True,
+        )["GroupFirstSub"][self.zoom_in]
         if self.quantity == "Temperature":
             label = "Virial temperature at z = 0"
-            cluster_data = halos_daq.get_halo_properties(
+            mpb_data = sublink_daq.get_mpb_properties(
                 self.config.base_path,
                 self.config.snap_num,
+                primary_id,
                 fields=[self.config.radius_field, self.config.mass_field],
-                cluster_restrict=True
+                start_snap=constants.MIN_SNAP,
+                log_warning=True,
             )
             cluster_cq = compute.get_virial_temperature(
-                cluster_data[self.config.mass_field][self.zoom_in],
-                cluster_data[self.config.radius_field][self.zoom_in],
+                mpb_data[self.config.mass_field],
+                mpb_data[self.config.radius_field],
             )
         elif self.quantity == "DistanceToMP":
             label = r"$2R_{200c}$"
-            primary_id = halos_daq.get_halo_properties(
-                self.config.base_path,
-                self.config.snap_num,
-                ["GroupFirstSub"],
-                cluster_restrict=True,
-            )["GroupFirstSub"][self.zoom_in]
             mpb_data = sublink_daq.get_mpb_properties(
                 self.config.base_path,
                 self.config.snap_num,
@@ -606,7 +608,8 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 f"No characteristic property to plot for {self.quantity}."
             )
             label = None
-            cluster_cq = np.NaN
+            cluster_cq = np.empty(self.n_snaps)
+            cluster_cq[:] = np.nan
         axes.plot(
             xs,
             cluster_cq if not self.individual_log else np.log10(cluster_cq),
