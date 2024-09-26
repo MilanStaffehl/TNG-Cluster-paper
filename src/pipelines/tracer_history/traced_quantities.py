@@ -506,14 +506,57 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         particle_data = f[f"ZoomRegion_{self.zoom_in:03d}/{self.quantity}"][()]
         uniqueness = f[f"ZoomRegion_{self.zoom_in:03d}/uniqueness_flags"][()]
 
+        # Step 5: get characteristic cluster property
+        logging.info("Loading characteristic cluster property.")
+        primary_id = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            ["GroupFirstSub"],
+            cluster_restrict=True,
+        )["GroupFirstSub"][self.zoom_in]
+        if self.quantity == "Temperature":
+            label = "Virial temperature"
+            mpb_data = sublink_daq.get_mpb_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                primary_id,
+                fields=[self.config.radius_field, self.config.mass_field],
+                start_snap=constants.MIN_SNAP,
+                log_warning=True,
+            )
+            cluster_cq = compute.get_virial_temperature(
+                mpb_data[self.config.mass_field],
+                mpb_data[self.config.radius_field],
+            )
+        elif self.quantity == "DistanceToMP":
+            label = r"$R_{200c}$"
+            mpb_data = sublink_daq.get_mpb_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                primary_id,
+                fields=[self.config.radius_field],
+                start_snap=constants.MIN_SNAP,
+                log_warning=True,
+            )
+            cluster_cq = mpb_data[self.config.radius_field]
+        else:
+            logging.info(
+                f"No characteristic property to plot for {self.quantity}."
+            )
+            label = None
+            cluster_cq = np.empty(self.n_snaps)
+            cluster_cq[:] = np.nan
+
         # Step 4: plot the data
-        self._plot_time_development(particle_data)
-        self._plot_2dhistogram(particle_data, uniqueness)
+        self._plot_time_development(particle_data, cluster_cq, label)
+        self._plot_2dhistogram(particle_data, uniqueness, cluster_cq, label)
 
         f.close()
         return 0
 
-    def _plot_time_development(self, particle_data: NDArray) -> None:
+    def _plot_time_development(
+        self, particle_data: NDArray, cluster_cq: NDArray, label: str | None
+    ) -> None:
         """
         Plot, for every gas cell, the development of the quantity.
 
@@ -526,10 +569,18 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         quantity.
 
         :param particle_data: Array of shape (100, N) where N is the
-            number oif cells (and therefore the number of lines the
+            number of cells (and therefore the number of lines the
             plot will have), and the first axis orders the data by snap
             number. The first axis must be ordered such that index i
             points to snap num i.
+        :param cluster_cq: Characteristic property of the cluster,
+            matching the current quantity to plot (e.g. virial temperature
+            for plotting particle temperature). Must be an array of shape
+            (S, ) where S is the number of snaps plotted. If no suitable
+            cluster property exists, pass an array of NaNs instead.
+        :param label: If a characteristic cluster quantity is provided,
+            then this is the label to place in the legend. If none is
+            provided or no legend shall be created, set this to None.
         :return: None, plots are saved to file.
         """
         logging.info(
@@ -571,53 +622,19 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         axes.set_rasterization_zorder(5)
 
         # add characteristic cluster property as line
-        logging.info("Overplotting characteristic cluster property.")
-        primary_id = halos_daq.get_halo_properties(
-            self.config.base_path,
-            self.config.snap_num,
-            ["GroupFirstSub"],
-            cluster_restrict=True,
-        )["GroupFirstSub"][self.zoom_in]
-        if self.quantity == "Temperature":
-            label = "Virial temperature at z = 0"
-            mpb_data = sublink_daq.get_mpb_properties(
-                self.config.base_path,
-                self.config.snap_num,
-                primary_id,
-                fields=[self.config.radius_field, self.config.mass_field],
-                start_snap=constants.MIN_SNAP,
-                log_warning=True,
-            )
-            cluster_cq = compute.get_virial_temperature(
-                mpb_data[self.config.mass_field],
-                mpb_data[self.config.radius_field],
-            )
-        elif self.quantity == "DistanceToMP":
-            label = r"$2R_{200c}$"
-            mpb_data = sublink_daq.get_mpb_properties(
-                self.config.base_path,
-                self.config.snap_num,
-                primary_id,
-                fields=[self.config.radius_field],
-                start_snap=constants.MIN_SNAP,
-                log_warning=True,
-            )
-            cluster_cq = mpb_data[self.config.radius_field]
-        else:
+        if np.all(~np.isnan(cluster_cq)):
             logging.info(
-                f"No characteristic property to plot for {self.quantity}."
+                "Overplotting characteristic cluster property onto line plot."
             )
-            label = None
-            cluster_cq = np.empty(self.n_snaps)
-            cluster_cq[:] = np.nan
-        axes.plot(
-            xs,
-            cluster_cq if not self.individual_log else np.log10(cluster_cq),
-            ls="dashed",
-            color="black",
-            label=label,
-            zorder=10,
-        )
+            axes.plot(
+                xs,
+                cluster_cq
+                if not self.individual_log else np.log10(cluster_cq),
+                ls="dashed",
+                color="black",
+                label=label,
+                zorder=10,
+            )
 
         # add labels
         if label:
@@ -634,7 +651,11 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         )
 
     def _plot_2dhistogram(
-        self, particle_data: NDArray, uniqueness_flags: NDArray
+        self,
+        particle_data: NDArray,
+        uniqueness_flags: NDArray,
+        cluster_cq: NDArray,
+        label: str | None,
     ) -> None:
         """
         Plot a 2D histogram plot of the development of the quantity.
@@ -647,15 +668,23 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             particles.
         :param uniqueness_flags: Uniqueness flags of the particles, must
             be of shape (S, N).
+        :param cluster_cq: Characteristic property of the cluster,
+            matching the current quantity to plot (e.g. virial temperature
+            for plotting particle temperature). Must be an array of shape
+            (S, ) where S is the number of snaps plotted. If no suitable
+            cluster property exists, pass an array of NaNs instead.
+        :param label: If a characteristic cluster quantity is provided,
+            then this is the label to place in the legend. If none is
+            provided or no legend shall be created, set this to None.
         :return: None, figure saved to file.
         """
         logging.info(f"Plotting 2D histogram of {self.quantity}.")
-        # Check plotting is possible
+        # Step 0: Check plotting is possible
         if self.hist_range is None or self.log is None:
             logging.error("Cannot plot 2D histogram; missing plot config.")
             return
 
-        # Calculate the histogram
+        # Step 1: Calculate the histogram
         quantity_hist = np.zeros((self.n_snaps, self.n_bins))
         for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
             unique_q = particle_data[snap][uniqueness_flags[snap] == 1]
@@ -700,7 +729,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         )
 
         # Step 4: label x-axis appropriately
-        common.label_snapshots_with_redshift(
+        xs = common.label_snapshots_with_redshift(
             axes,
             constants.MIN_SNAP,
             99,
@@ -708,7 +737,25 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
         )
 
-        # Step 5: save figure
+        # Step 5: plot characteristic property
+        if np.all(~np.isnan(cluster_cq)):
+            logging.info(
+                "Overplotting characteristic cluster property onto 2D "
+                "histogram."
+            )
+            plot_config = {
+                "linestyle": "dashed",
+                "color": "white",
+                "label": label,
+                "marker": "none",
+            }
+            if self.log:
+                cluster_cq = np.log10(cluster_cq)
+            axes.plot(xs, cluster_cq, **plot_config)
+        if label:
+            axes.legend()
+
+        # Step 6: save figure
         ident_flag = f"z{self.zoom_in:03d}_2dhist"
         self._save_fig(
             fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
