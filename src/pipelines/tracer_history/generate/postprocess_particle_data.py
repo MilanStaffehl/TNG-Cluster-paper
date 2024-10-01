@@ -67,6 +67,7 @@ class TimeOfCrossingPipeline(base.Pipeline):
             )
 
         archive_file.close()
+        logging.info("Done! Successfully found and archived crossing times!")
         return 0
 
     def _find_crossing_times(
@@ -118,9 +119,12 @@ class TimeOfCrossingPipeline(base.Pipeline):
         vr_broadcast = np.broadcast_to(virial_radii[:, None], shape)
         d = distances - self.distance_multiplier * vr_broadcast
         first_crossing, last_crossing = self._first_and_last_zero_crossing(d)
+        # Note: the indices returned here are NOT snapshot numbers, but
+        # start at MIN_SNAP as 0, i.e. 0 points to MIN_SNAP, not snapshot
+        # zero!
 
         # Step 4: interpolate time of crossing
-        redshifts = constants.REDSHIFTS
+        redshifts = constants.REDSHIFTS[constants.MIN_SNAP:]
         first_crossing_z = self._interpolate_crossing_redshift(
             redshifts, d, first_crossing
         )
@@ -201,7 +205,8 @@ class TimeOfCrossingPipeline(base.Pipeline):
         :return: The array of indices of the first change from positive
             to negative in ``distances`` along the S-axis of shape (N, )
             and one array of the indices of the last change from positive
-            to negative.
+            to negative. Note that the index points to the last entry of
+            ``differences`` that is positive before it changes sign.
         """
         if np.count_nonzero(differences) != differences.size:
             logging.warning(
