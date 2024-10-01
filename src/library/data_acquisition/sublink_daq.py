@@ -130,7 +130,7 @@ def get_mpb_properties(
 
         final_results[field] = final_value
 
-    if log_warning and warnings:
+    if log_warning and any(warnings):
         logging.warning(
             f"Interpolated missing main branch progenitor properties for "
             f"subhalo of ID {subhalo_id} (defined at snapshot {snap_num}) at "
