@@ -61,8 +61,7 @@ if __name__ == "__main__":
         help=(
             f"Comma-separated list of plot types to create. When not set, all "
             f"available plot types are plotted. Must be one of the following "
-            f"valid plot types: {', '.join(PLOT_TYPES)}. Has no effect when "
-            f"using `--zoom-in`."
+            f"valid plot types: {', '.join(PLOT_TYPES)}."
         ),
         dest="plot_types",
         metavar="LIST",

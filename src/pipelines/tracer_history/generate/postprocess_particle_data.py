@@ -132,7 +132,21 @@ class TimeOfCrossingPipeline(base.Pipeline):
             redshifts, d, last_crossing
         )
 
-        # Step 5: save crossing times to archive
+        # Step 5: warn ifg any particle never crosses (should not happen)
+        if np.any(np.isnan(first_crossing)):
+            logging.warning(
+                f"Encountered particles that never cross the virial radius "
+                f"sphere in zoom-in {zoom_id}! This should not be possible. "
+                f"Location: {np.argwhere(np.isnan(first_crossing))}."
+            )
+        if np.any(np.isnan(last_crossing)):
+            logging.warning(
+                f"Encountered particles that never cross the virial radius "
+                f"sphere in zoom-in {zoom_id}! This should not be possible. "
+                f"Location: {np.argwhere(np.isnan(last_crossing))}."
+            )
+
+        # Step 6: save crossing times to archive
         logging.info(f"Archiving crossing times for zoom-in {zoom_id}.")
         field_mapping = {
             "FirstCrossingRedshift": first_crossing_z,
@@ -277,5 +291,10 @@ class TimeOfCrossingPipeline(base.Pipeline):
         z_interp = z_2 - d_2 * (z_2 - z_1) / (d_2 - d_1)
         # set crossing time to NaN for particles that never crossed
         never_crossed_mask = crossing_indices == -1
+        if never_crossed_mask.size != 0:
+            logging.warning(
+                f"Encountered particles that never crossed while "
+                f"interpolating redshifts! Positions: {never_crossed_mask}."
+            )
         z_interp[never_crossed_mask] = np.nan
         return z_interp
