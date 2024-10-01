@@ -111,7 +111,10 @@ def plot_2d_radial_profile(
     .. attention:: The expected histogram array is ordered (y, x), as
         opposed to the order of the return value of many histogram-
         generating functions such as ``numpy.histogram2d``, which will
-        give an array of shape (x, y).
+        give an array of shape (x, y). If you simply feed the return
+        value of ``numpy.histogram2d`` into this function, the histogram
+        will appear rotated by 90 degrees. Use ``histogram.transpose()``
+        to transform the histogram to the expected order first!
 
     :param fig: The figure object onto whose axes the histogram will be
         plotted.

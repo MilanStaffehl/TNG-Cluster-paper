@@ -12,14 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from library import constants
+from library.plotting import plot_radial_profiles
 from pipelines import base
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-PLOT_TYPES = [
-    "distribution",
-]
+PLOT_TYPES = ["distribution", "distance"]
 
 
 @dataclasses.dataclass
@@ -60,6 +59,9 @@ class PlotCrossingTimesPlots(base.Pipeline):
         # Step 2: plot the different plot types
         if "distribution" in self.plot_types:
             self._plot_distribution(archive_file)
+
+        if "distance" in self.plot_types:
+            self._plot_distance_dependence(archive_file)
 
         archive_file.close()
         logging.info("Done! Successfully plotted all requested plots!")
@@ -202,3 +204,63 @@ class PlotCrossingTimesPlots(base.Pipeline):
             ident_flag=ident_flag,
             subdir=subdir,
         )
+
+    def _plot_distance_dependence(self, archive_file: h5py.File) -> None:
+        """
+        Plot distance at high redshift vs. crossing time for all particles.
+
+        :param archive_file: The opened cool gas history archive file.
+        :return: None, plots are saved to file.
+        """
+        logging.info(
+            "Plotting 2D histogram of distance at high z vs. crossing times."
+        )
+        # Step 1: allocate memory
+        n_part = archive_file["Header"].attrs["TotalPartNum"]
+        crossing_times = np.zeros(n_part)
+        high_z_distance = np.zeros(n_part)
+
+        # Step 2: load the data
+        i = 0
+        for zoom_in in range(self.n_clusters):
+            grp = f"ZoomRegion_{zoom_in:03d}"
+            ct = archive_file[grp]["FirstCrossingRedshift"][()]
+            n = ct.size
+            crossing_times[i:i + n] = ct
+            dist = archive_file[grp]["DistanceToMP"][constants.MIN_SNAP, :]
+            high_z_distance[i:i + n] = dist
+            i += n  # increment counter
+
+        # Step 3: adjust scales
+        crossing_times = np.log10(crossing_times)
+        high_z_distance = np.log10(high_z_distance)
+
+        # Step 4: create a 2D histogram of the two quantities
+        # x_min = np.min(high_z_distance)
+        x_max = np.max(high_z_distance)
+        y_min = np.nanmin(crossing_times)
+        y_max = np.nanmax(crossing_times)
+        ranges = np.array([[1.5, x_max], [y_min, y_max]])
+        logging.info(ranges)
+        hist, _, _ = np.histogram2d(
+            high_z_distance,
+            crossing_times,
+            bins=50,
+            range=ranges,
+        )
+
+        # Step 5: Plot the histogram
+        fig, axes = plt.subplots(figsize=(5, 4))
+        plot_radial_profiles.plot_2d_radial_profile(
+            fig,
+            axes,
+            hist.transpose(),
+            ranges.flatten(),
+            xlabel=r"Distance to cluster center at z = 8 [$\log_{10}$ ckpc]",
+            ylabel="Estimated crossing redshift [log z]",
+            scale="log",
+            cbar_label=r"Count [$\log_{10}$]",
+        )
+
+        # Step 6: save figure
+        self._save_fig(fig, ident_flag="distance_dependence")
