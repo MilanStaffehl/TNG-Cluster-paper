@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import h5py
 import matplotlib.pyplot as plt
@@ -13,6 +13,9 @@ import numpy as np
 
 from library import constants
 from pipelines import base
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 PLOT_TYPES = [
     "distribution",
@@ -84,67 +87,118 @@ class PlotCrossingTimesPlots(base.Pipeline):
             first_crossing = archive_file[grp]["FirstCrossingRedshift"][()]
             last_crossing = archive_file[grp]["LastCrossingRedshift"][()]
             total_part_num += last_crossing.size  # increment counter
-
-            # create and configure a figure
-            fig, axes = plt.subplots(figsize=(4, 4))
-            axes.set_xlabel("Estimated crossing redshift [z]")
-            axes.set_xscale("log")
-            axes.set_ylabel("Count")
-            axes.set_yscale("log")
-
-            # plot histograms
-            logbins = np.geomspace(
-                first_crossing.min(), first_crossing.max(), 21
-            )
-            axes.hist(
+            self._save_distribution_plot(
                 first_crossing,
-                bins=logbins,
-                histtype="step",
-                color="darkslategray",
-                label="First crossing",
-                zorder=10,
-            )
-            axes.hist(
                 last_crossing,
-                bins=logbins,
-                histtype="step",
-                color="purple",
-                label="Last crossing",
-                zorder=9,
-            )
-            axes.legend()
-
-            # plot mean and median
-            axes.axvline(
-                np.mean(first_crossing),
-                linestyle="solid",
-                color="darkslategrey",
-                zorder=12,
-            )
-            axes.axvline(
-                np.median(first_crossing),
-                linestyle="dashed",
-                color="darkslategrey",
-                zorder=12,
-            )
-            axes.axvline(
-                np.mean(last_crossing),
-                linestyle="solid",
-                color="purple",
-                zorder=11,
-            )
-            axes.axvline(
-                np.median(last_crossing),
-                linestyle="dashed",
-                color="purple",
-                zorder=11,
-            )
-
-            self._save_fig(
-                fig,
-                ident_flag=f"distribution_z{zoom_id:03d}",
-                subdir=f"individuals/zoom_in_{zoom_id}",
+                f"distribution_z{zoom_id:03d}",
+                f"individuals/zoom_in_{zoom_id}"
             )
             logging.debug(f"Saved distribution for zoom-in {zoom_id}.")
 
+        logging.info("Plotting distribution over all particles.")
         logging.debug(f"Total number of particles: {total_part_num}.")
+        # allocate memory for total particle number
+        all_first_crossings = np.zeros(total_part_num)
+        all_last_crossings = np.zeros(total_part_num)
+        i = 0
+        for zoom_id in range(self.n_clusters):
+            grp = f"ZoomRegion_{zoom_id:03d}"
+            first_crossing = archive_file[grp]["FirstCrossingRedshift"][()]
+            last_crossing = archive_file[grp]["LastCrossingRedshift"][()]
+            n = first_crossing.size
+            all_first_crossings[i:i + n] = first_crossing
+            all_last_crossings[i:i + n] = last_crossing
+            i += n
+
+        # plot distribution of all particles
+        self._save_distribution_plot(
+            all_first_crossings,
+            all_last_crossings,
+            "distribution_unweighted",
+            None,
+        )
+
+    def _save_distribution_plot(
+        self,
+        first_crossing: NDArray,
+        last_crossing: NDArray,
+        ident_flag: str,
+        subdir: str | None,
+    ) -> None:
+        """
+        Plot the distribution of first and last crossing time and save it.
+
+        :param first_crossing: Array of first crossing redshifts.
+        :param last_crossing: Array of last crossing redshifts.
+        :param ident_flag: Ident flag for the figure.
+        :param subdir: Subdir for the figure.
+        :return: None, figure is saved to file.
+        """
+        # create and configure a figure
+        fig, axes = plt.subplots(figsize=(4, 4))
+        axes.set_xlabel("Estimated crossing redshift [z]")
+        axes.set_xscale("log")
+        axes.set_ylabel("Count")
+        axes.set_yscale("log")
+
+        # plot histograms
+        min_ = np.nanmin([np.nanmin(first_crossing), np.nanmin(last_crossing)])
+        max_ = np.nanmax([np.nanmax(first_crossing), np.nanmax(last_crossing)])
+        logbins = np.geomspace(min_, max_, 21)
+        axes.hist(
+            first_crossing,
+            bins=logbins,
+            histtype="step",
+            color="teal",
+            label="First crossing",
+            zorder=10,
+        )
+        axes.hist(
+            last_crossing,
+            bins=logbins,
+            histtype="step",
+            color="purple",
+            label="Last crossing",
+            zorder=9,
+        )
+
+        # plot mean and median
+        axes.axvline(
+            np.nanmean(first_crossing),
+            linestyle="solid",
+            color="teal",
+            zorder=12,
+        )
+        axes.axvline(
+            np.nanmedian(first_crossing),
+            linestyle="dashed",
+            color="teal",
+            zorder=12,
+        )
+        axes.axvline(
+            np.nanmean(last_crossing),
+            linestyle="solid",
+            color="purple",
+            zorder=11,
+        )
+        axes.axvline(
+            np.nanmedian(last_crossing),
+            linestyle="dashed",
+            color="purple",
+            zorder=11,
+        )
+
+        # plot label showing how many particles cross more than once
+        diff = first_crossing - last_crossing
+        mc = np.count_nonzero(diff) / first_crossing.size
+        axes.legend(
+            title=f"Multiple crossings: {mc * 100:.2f}%",
+            title_fontsize="small",
+            alignment="left"
+        )
+
+        self._save_fig(
+            fig,
+            ident_flag=ident_flag,
+            subdir=subdir,
+        )
