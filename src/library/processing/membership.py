@@ -13,7 +13,7 @@ from numpy.typing import NDArray
 
 
 def particle_parents(
-    particle_ids: NDArray,
+    particle_indices: NDArray,
     particle_types: NDArray,
     snap_num: int,
     base_path: str | Path,
@@ -32,8 +32,8 @@ def particle_parents(
     If a particle is unbound, i.e. it does not belong to a (sub)halo,
     the corresponding parent ID is set to -1.
 
-    :param particle_ids: ID of a single particle or array of multiple
-        particle IDs.
+    :param particle_indices: indices of a single particle or array of
+        multiple particle IDs.
     :param particle_types: Array of particle type flag. Must be 0, 4, or
         5 for every particle. Must have same length as ``particle_ids``.
     :param snap_num: The snapshot at which to look for the particle
@@ -52,7 +52,7 @@ def particle_parents(
     subhalo_offsets, subhalo_lens = offsets_and_lens[2:]
 
     # allocate memory for the final results
-    parent_halos = np.empty_like(particle_ids, dtype=np.int64)
+    parent_halos = np.empty_like(particle_indices, dtype=np.int64)
     parent_halos[:] = -1  # initialize to -1
     parent_subhalos = np.empty_like(parent_halos, dtype=np.int64)
     parent_subhalos[:] = -1  # initialize to -1
@@ -61,14 +61,14 @@ def particle_parents(
     for part_type in [0, 4, 5]:
         # find parents for current type
         current_parent_halos = find_parent(
-            particle_ids[particle_types == part_type],
+            particle_indices[particle_types == part_type],
             group_offsets[:, part_type],
             group_lens[:, part_type],
         )
         parent_halos[particle_types == part_type] = current_parent_halos
         # same for subhalos
         current_parent_subhalos = find_parent(
-            particle_ids[particle_types == part_type],
+            particle_indices[particle_types == part_type],
             subhalo_offsets[:, part_type],
             subhalo_lens[:, part_type],
         )

@@ -816,19 +816,13 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
                 )
             return
 
-        # Step 1: get particle IDs
-        particle_ids = self._particle_ids(snap_num, zoom_id)
-
-        # Step 2: select only traced particles
-        traced_ids = particle_ids[particle_indices]
-
-        # Step 3: get the parent halo indices for every particle
-        parent_halo_indices = np.empty(traced_ids.shape, dtype=np.int64)
+        # Step 1: get the parent halo indices for every particle
+        parent_halo_indices = np.empty(particle_indices.shape, dtype=np.int64)
         parent_halo_indices[:] = -1  # fill with sentinel value
         for part_type in [0, 4, 5]:
             where = (particle_type_flags == part_type)
             parent_halo_indices[where] = membership.find_parent(
-                traced_ids[where],
+                particle_indices[where],
                 fof_offsets[:, part_type],
                 fof_lens[:, part_type],
             )
@@ -838,34 +832,4 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             np.save(file, parent_halo_indices)
 
         # Step 5: clean-up
-        del particle_ids, traced_ids, parent_halo_indices
-
-    def _particle_ids(self, snap_num: int, zoom_id: int) -> NDArray:
-        """
-        Load and return the array of particle indices.
-
-        The returned array is the array of particle indices of type 0,
-        4 and 5 in that order for the specified zoom-in at the specified
-        snapshot.
-
-        :param snap_num: Snapshot to load from.
-        :param zoom_id: The ID of the zoom-in for which to load particle
-            IDs.
-        :return: Array of contiguous particle IDs of particles of type
-            0, 4, and 5, in that order.
-        """
-        particle_ids_list = []
-        for part_type in [0, 4, 5]:
-            pids = particle_daq.get_particle_ids(
-                self.config.base_path,
-                snap_num,
-                part_type=part_type,
-                zoom_id=zoom_id,
-            )
-            if pids.size == 0:
-                continue  # no particles of this type exist
-            particle_ids_list.append(pids)
-
-        # concatenate particle positions
-        part_ids = np.concatenate(particle_ids_list, axis=0)
-        return part_ids
+        del parent_halo_indices
