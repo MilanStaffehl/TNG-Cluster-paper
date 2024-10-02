@@ -623,7 +623,7 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
     """
 
     quantity: ClassVar[str] = "ParentHaloIndex"
-    working_method: ClassVar[str] = "_save_parent_halo_index"
+    working_method: ClassVar[str] = "_save_parent_index"
     split_by_snap: ClassVar[bool] = True  # process on per-snap basis!
 
     def _sequential(self):
@@ -638,9 +638,7 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             logging.info(f"Processing snapshot {snap_num}.")
 
             # Step 1: get offsets and group lengths
-            fof_offsets, fof_lens, _, _ = membership.load_offsets_and_lens(
-                self.config.base_path, snap_num, group_only=True,
-            )
+            fof_offsets, fof_lens = self._get_offsets_and_lens(snap_num)
 
             # Step 2: loop over zoom-ins
             for zoom_id in range(constants.MIN_SNAP, 100):
@@ -652,7 +650,7 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
                 pind = archive_file[dataset]["particle_indices"][snap_num]
                 ptfs = archive_file[dataset]["particle_type_flags"][snap_num]
                 # Step 2.2: save parent halo index
-                self._save_parent_halo_index(
+                self._save_parent_index(
                     zoom_id, snap_num, fof_offsets, fof_lens, pind, ptfs
                 )
 
@@ -672,16 +670,14 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             logging.info(f"Processing snapshot {snap_num}.")
 
             # Step 1: get offsets and group lengths
-            fof_offsets, fof_lens, _, _ = membership.load_offsets_and_lens(
-                self.config.base_path, snap_num, group_only=True,
-            )
+            fof_offsets, fof_lens = self._get_offsets_and_lens(snap_num)
 
             # Step 2: find parent halo indices
             dataset = f"ZoomRegion_{self.zoom_id:03d}"
             pind = archive_file[dataset]["particle_indices"][snap_num]
             ptfs = archive_file[dataset]["particle_type_flags"][snap_num]
             # Step 2.2: save parent halo index
-            self._save_parent_halo_index(
+            self._save_parent_index(
                 self.zoom_id, snap_num, fof_offsets, fof_lens, pind, ptfs
             )
 
@@ -744,11 +740,9 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
 
         # FoF offsets and lengths
         logging.debug(f"Loading FoF offsets and lengths for snap {snap_num}.")
-        offsets, lengths, _, _ = membership.load_offsets_and_lens(
-            self.config.base_path, snap_num, group_only=True
-        )
-        fof_offsets = [offsets for _ in range(self.n_clusters)]
-        fof_lengths = [lengths for _ in range(self.n_clusters)]
+        offsets_, lengths_ = self._get_offsets_and_lens(snap_num)
+        offsets = [offsets_ for _ in range(self.n_clusters)]
+        lengths = [lengths_ for _ in range(self.n_clusters)]
 
         # particle indices and tpe flags
         particle_indices = []
@@ -766,8 +760,8 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             zip(
                 zoom_ids,
                 snap_nums,
-                fof_offsets,
-                fof_lengths,
+                offsets,
+                lengths,
                 particle_indices,
                 particle_type_flags
             )
@@ -777,12 +771,27 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
         )
         return args
 
-    def _save_parent_halo_index(
+    def _get_offsets_and_lens(self, snap_num: int) -> tuple[NDArray, NDArray]:
+        """
+        Load offsets and lengths for the FoF groups at t eh given snap.
+
+        :param snap_num: Snapshot number for which to load offsets and
+            lengths.
+        :return: Tuple of arrays of shape (N, 6) which are the offsets
+            and lengths of all FoF groups respectively, split by particle
+            type.
+        """
+        offsets, lengths, _, _ = membership.load_offsets_and_lens(
+            self.config.base_path, snap_num, group_only=True
+        )
+        return offsets, lengths
+
+    def _save_parent_index(
         self,
         zoom_id: int,
         snap_num: int,
-        fof_offsets: NDArray,
-        fof_lens: NDArray,
+        offsets: NDArray,
+        lengths: NDArray,
         particle_indices: NDArray,
         particle_type_flags: NDArray,
     ) -> None:
@@ -791,10 +800,10 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
 
         :param zoom_id: ID of the zoom-in region to process.
         :param snap_num: The snapshot to process.
-        :param fof_offsets: Array of FoF group offsets for this zoom-in
+        :param offsets: Array of FoF group offsets for this zoom-in
             and snapshot. Must be split by particle type and have shape
             (6, N).
-        :param fof_lens: Array of FoF group lengths for this zoom-in
+        :param lengths: Array of FoF group lengths for this zoom-in
             and snapshot. Must be split by particle type and have shape
             (6, N).
         :param particle_indices: The list of indices into the array of
@@ -823,8 +832,8 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             where = (particle_type_flags == part_type)
             parent_halo_indices[where] = membership.find_parent(
                 particle_indices[where],
-                fof_offsets[:, part_type],
-                fof_lens[:, part_type],
+                offsets[:, part_type],
+                lengths[:, part_type],
             )
 
         # Step 4: save to file, forcing immediate flushing of buffer
@@ -833,3 +842,30 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
 
         # Step 5: clean-up
         del parent_halo_indices
+
+
+class TraceParentSubhaloPipeline(TraceParentHaloPipeline):
+    """
+    Trace the parent subhalo index of every particle back in time.
+
+    Everything is effectively the same, except for the offsets and the
+    group lengths, which need to be replaced by the corresponding offsets
+    and lengths for the sublink subhalos.
+    """
+
+    quantity: ClassVar[str] = "ParentSubhaloIndex"
+
+    def _get_offsets_and_lens(self, snap_num: int) -> tuple[NDArray, NDArray]:
+        """
+        Only difference to parent class: load SUBHALO offsets and lens!
+
+        :param snap_num: Snapshot for which to load subhalo offsets and
+            lengths.
+        :return: Tuple of two arrays of shape (N, 6) containing the
+            offsets and lengths of subhalos respectively, split by
+            particle type.
+        """
+        _, _, offsets, lengths = membership.load_offsets_and_lens(
+            self.config.base_path, snap_num, subhalo_only=True
+        )
+        return offsets, lengths

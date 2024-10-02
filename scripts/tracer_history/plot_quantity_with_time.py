@@ -10,6 +10,7 @@ from library import scriptparse
 from pipelines.tracer_history.generate.complex_particle_data import (
     TraceDistancePipeline,
     TraceParentHaloPipeline,
+    TraceParentSubhaloPipeline,
 )
 from pipelines.tracer_history.generate.simple_particle_data import (
     TraceDensityPipeline,
@@ -56,8 +57,8 @@ def main(args: argparse.Namespace) -> None:
             pipeline_class = TraceMassPipeline
         case "parent-halo":
             pipeline_class = TraceParentHaloPipeline
-        # case "parent-subhalo":
-        #     pipeline_class = TraceParticleParentSubhaloPipeline
+        case "parent-subhalo":
+            pipeline_class = TraceParentSubhaloPipeline
         case _:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
@@ -135,6 +136,7 @@ if __name__ == "__main__":
             "density",
             "mass",
             "parent-halo",
+            "parent-subhalo",
         ],
     )
     parser.add_argument(
