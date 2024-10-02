@@ -44,8 +44,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
     """Load data from hdf5 archive and plot it in various ways"""
 
     quantity: str  # name of the dataset in the archive
-    quantity_label: str  # y-axis label for quantity
     color: str  # color for faint lines
+    normalize: bool = False  # whether to normalize to characteristic property
     plot_types: list[str] | None = None  # what to plot
 
     n_clusters: ClassVar[int] = 352
@@ -54,10 +54,36 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
 
     def __post_init__(self):
         super().__post_init__()
-        self.hist_range: tuple[float, float] | None = None
-        self.log: bool | None = None
-        if self.plot_types is None:
-            self.plot_types = PLOT_TYPES
+
+        # update config for plot
+        category = "normalized" if self.normalize else "standard"
+        cfg = Path(__file__).parent / "simple_quantities_plot_config.yaml"
+        with open(cfg, "r") as cfg_file:
+            stream = cfg_file.read()
+        try:
+            plot_config = yaml.full_load(stream)[self.quantity][category]
+            self.hist_range = plot_config["min"], plot_config["max"]
+            self.log = plot_config["log"]
+            self.quantity_label = rf"{plot_config['label']}"
+        except KeyError:
+            logging.warning(
+                f"Found no plot config for quantity {self.quantity}, or the"
+                f"config is incomplete. Will set no boundaries for histograms;"
+                f" 2D plot creation will be skipped."
+            )
+            self.hist_range = None
+            self.log = None
+            self.quantity_label = "no label"
+        try:
+            zoomed_config = yaml.full_load(stream)[self.quantity]["zoomed"]
+            self.zoomed_range = zoomed_config["min"], zoomed_config["max"]
+        except KeyError:
+            self.zoomed_range = None
+        logging.debug(
+            f"Set the following plot config:\nhist_range: {self.hist_range}"
+            f"\nlog: {self.log}\nquantity_label: {self.quantity_label}\n"
+            f"zoomed_range: {self.zoomed_range}"
+        )
 
     def run(self) -> int:
         """Load and plot data"""
@@ -74,22 +100,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             )
             return 1
 
-        # Step 1: Find plot config
-        cfg = Path(__file__).parent / "simple_quantities_plot_config.yaml"
-        with open(cfg, "r") as cfg_file:
-            stream = cfg_file.read()
-        try:
-            plot_config = yaml.full_load(stream)[self.quantity]
-            self.hist_range = plot_config["min"], plot_config["max"]
-            self.log = plot_config["log"]
-        except KeyError:
-            logging.warning(
-                f"Found no plot config for quantity {self.quantity}, will set "
-                f"no boundaries for histograms; 2D plot creation will be "
-                f"skipped."
-            )
-
-        # Step 2: open the archive, ensure quantity exists
+        # Step 1: open the archive, ensure quantity exists
         f = h5py.File(self.config.cool_gas_history, "r")
         logging.info("Checking archive for all required datasets.")
         quantity_archived = True
@@ -111,33 +122,29 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             return 2
         logging.info("Archive OK. Continuing with plotting.")
 
-        # Step 3: check for lineplots and plot
+        # Step 2: check for lineplots and plot
         if "lineplot" in self.plot_types:
             logging.info("Plotting line plots.")
             self._plot_and_save_lineplots(f)
             logging.info("Finished line plots, saved to file.")
 
-        # Step 4: plot 2D histograms
+        # Step 3: plot 2D histograms
         if "global2dhist" in self.plot_types:
             logging.info("Plotting global 2D histograms.")
             self._plot_and_save_2dhistograms(f)
             logging.info("Finished global 2D histograms, saved to file.")
 
-        # Step 5: plot global ridgeline plot
+        # Step 4: plot global ridgeline plot
         if "globalridgeline" in self.plot_types:
             logging.info("Plotting global ridgeline plots.")
             self._plot_and_save_ridgelineplots(f)
             logging.info("Finished global ridgeline plots, saved to file.")
 
-        # Step 6: plot zoomed-in ridgeline plot
+        # Step 5: plot zoomed-in ridgeline plot
         if "zoomedridgeline" in self.plot_types:
             logging.info("Plotting zoomed-in ridgeline plots.")
             # see if zoomed-in plot it supported
-            try:
-                plot_config = yaml.full_load(stream)[self.quantity]
-                zoomed_config = plot_config["zoomed"]
-                hist_range = zoomed_config["min"], zoomed_config["max"]
-            except KeyError:
+            if self.zoomed_range is None:
                 logging.warning(
                     "None or incomplete config for zoomed ridgeline plot. "
                     "Skipping."
@@ -145,7 +152,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             else:
                 # change ranges
                 old_range = copy.copy(self.hist_range)
-                self.hist_range = hist_range
+                self.hist_range = self.zoomed_range
                 self._plot_and_save_ridgelineplots(f, True, "_zoomed_in")
                 logging.info(
                     "Finished zoomed-in ridgeline plots, saved to file."
@@ -181,6 +188,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             normalized for the given quantity.
         """
         quantity_hists = np.zeros((self.n_clusters, self.n_snaps, self.n_bins))
+        normalization_factor = self._get_normalization()
         for zoom_id in range(self.n_clusters):
             logging.debug(f"Creating histogram for zoom-in {zoom_id}.")
             group = f"ZoomRegion_{zoom_id:03d}"
@@ -188,6 +196,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             uniqueness_flags = archive_file[group]["uniqueness_flags"]
             for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
                 unique_q = quantity[snap][uniqueness_flags[snap] == 1]
+                unique_q = unique_q / normalization_factor[zoom_id, i]
                 if self.log:
                     q = np.log10(unique_q)
                 else:
@@ -207,6 +216,56 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                     hist = hist / np.sum(hist)  # normalize to unity
                 quantity_hists[zoom_id, i] = hist
         return quantity_hists
+
+    def _get_normalization(self) -> NDArray:
+        """
+        Get a characteristic cluster property for the current cluster.
+
+        Examples for characteristic property are virial temperature for
+        the particle temperature plots or the virial radius for the
+        distance plots.
+
+        Method returns an array of shape (C, S) where C is the number of
+        zoom-ins and S is the number of snapshots analyzed. Each entry
+        is the characteristic property of that zoom-in at that snap for
+        the current quantity (e.g. virial radius for distance etc.).
+
+        :return: Array of characterstic property.
+        """
+        normalization = np.ones((self.n_clusters, self.n_snaps))
+        if not self.normalize:
+            return normalization  # no normalization
+
+        logging.info("Loading characteristic cluster property.")
+        primaries_ids = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            ["GroupFirstSub"],
+            cluster_restrict=True,
+        )["GroupFirstSub"]
+        for zoom_in in range(self.n_clusters):
+            mpb_data = sublink_daq.get_mpb_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                primaries_ids[zoom_in],
+                fields=[self.config.radius_field, self.config.mass_field],
+                start_snap=constants.MIN_SNAP,
+                log_warning=False,
+            )
+            if self.quantity == "Temperature":
+                normalization[zoom_in] = compute.get_virial_temperature(
+                    mpb_data[self.config.mass_field],
+                    mpb_data[self.config.radius_field],
+                )
+            elif self.quantity == "DistanceToMP":
+                normalization[zoom_in] = mpb_data[self.config.radius_field]
+            else:
+                logging.info(
+                    f"No characteristic property for normalization available "
+                    f"for {self.quantity}."
+                )
+                break
+        return normalization
 
     def _plot_and_save_lineplots(self, archive_file: h5py.File) -> None:
         """
@@ -381,7 +440,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 axes.plot(xs, ys, color=color, zorder=120 - i)
 
             # Step 6: save figure
-            ident_flag = f"ridgeline_{method}{suffix}"
+            norm_flag = "_normalized" if self.normalize else ""
+            ident_flag = f"ridgeline_{method}{norm_flag}{suffix}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} ridgeline plot to file.")
 
@@ -444,7 +504,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             )
 
             # Step 5: save figure
-            ident_flag = f"2dhist_{method}"
+            norm_flag = "_normalized" if self.normalize else ""
+            ident_flag = f"2dhist_{method}{norm_flag}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} 2D histogram plot to file.")
 

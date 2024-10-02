@@ -48,22 +48,16 @@ def main(args: argparse.Namespace) -> None:
     match args.what:
         case "temperature":
             pipeline_class = TraceTemperaturePipeline
-            quantity_label = "Gas temperature [K]"
         case "distance":
             pipeline_class = TraceDistancePipeline
-            quantity_label = r"Distance from cluster center [ckpc]"
         case "density":
             pipeline_class = TraceDensityPipeline
-            quantity_label = r"Gas density [$M_\odot / ckpc^3$]"
         case "mass":
             pipeline_class = TraceMassPipeline
-            quantity_label = r"Particle mass [$M_\odot$]"
         case "parent-halo":
             pipeline_class = TraceParentHaloPipeline
-            quantity_label = "Parent halo index"
         # case "parent-subhalo":
         #     pipeline_class = TraceParticleParentSubhaloPipeline
-        #     quantity_label = "Parent subhalo index"
         case _:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
@@ -73,7 +67,6 @@ def main(args: argparse.Namespace) -> None:
         plotting_pipeline = PlotSimpleQuantitiesForSingleClusters
         additional_configs = {
             "quantity": pipeline_class.quantity,
-            "quantity_label": quantity_label,
             "zoom_in": args.zoom,
             "part_limit": args.particle_limit,
         }
@@ -85,8 +78,8 @@ def main(args: argparse.Namespace) -> None:
             plot_types = None
         additional_configs = {
             "quantity": pipeline_class.quantity,
-            "quantity_label": quantity_label,
             "color": "dodgerblue",
+            "normalize": args.normalize,
             "plot_types": plot_types,
         }
 
@@ -145,18 +138,18 @@ if __name__ == "__main__":
         ],
     )
     parser.add_argument(
-        "-pt",
-        "--plot-types",
+        "-z",
+        "--zoom-in",
         help=(
-            f"Comma-separated list of plot types to create. When not set, all "
-            f"available plot types are plotted. Must be one of the following "
-            f"valid plot types: {', '.join(PLOT_TYPES)}. Has no effect when "
-            f"using `--zoom-in`."
+            "When given, must be a number between 0 and 351. This is then the "
+            "ID of the only zoom-in region for which the data will be "
+            "generated and plotted. If left unset, data and plots are created "
+            "for all zoom-in regions. Plots for individual clusters are "
+            "different from those for all clusters."
         ),
-        dest="plot_types",
-        metavar="LIST",
-        type=str,
-        default=None,
+        dest="zoom",
+        type=int,
+        metavar="ZOOM-IN ID",
     )
     parser.add_argument(
         "-u",
@@ -181,20 +174,6 @@ if __name__ == "__main__":
         action="store_true",
     )
     parser.add_argument(
-        "-z",
-        "--zoom-in",
-        help=(
-            "When given, must be a number between 0 and 351. This is then the "
-            "ID of the only zoom-in region for which the data will be "
-            "generated and plotted. If left unset, data and plots are created "
-            "for all zoom-in regions. Plots for individual clusters are "
-            "different from those for all clusters."
-        ),
-        dest="zoom",
-        type=int,
-        metavar="ZOOM-IN ID",
-    )
-    parser.add_argument(
         "--archive-single",
         help=(
             "Only has an effect when `--zoom-in` is set: when set, the data "
@@ -211,6 +190,20 @@ if __name__ == "__main__":
         dest="archive_single",
     )
     parser.add_argument(
+        "-pt",
+        "--plot-types",
+        help=(
+            f"Comma-separated list of plot types to create. When not set, all "
+            f"available plot types are plotted. Must be one of the following "
+            f"valid plot types: {', '.join(PLOT_TYPES)}. Has no effect when "
+            f"using `--zoom-in`."
+        ),
+        dest="plot_types",
+        metavar="LIST",
+        type=str,
+        default=None,
+    )
+    parser.add_argument(
         "--limit-particles",
         help=(
             "Only has an effect when `--zoom-in` is set: Limit the number of "
@@ -219,6 +212,19 @@ if __name__ == "__main__":
         type=int,
         dest="particle_limit",
         metavar="N",
+    )
+    parser.add_argument(
+        "-n",
+        "--normalize",
+        help=(
+            "Normalize the quantity to a related characteristic cluster "
+            "property before plotting, for example normalize distances to the "
+            "cluster virial radius or temperatures to its virial temperature. "
+            "Has no effect when using `--zoom-in`. Some quantities may not "
+            "support this option, in which case this flag has no effect. Only "
+            "works for plot types `global2dhist` and `globalridgeline`."
+        ),
+        action="store_true",
     )
 
     # parse arguments

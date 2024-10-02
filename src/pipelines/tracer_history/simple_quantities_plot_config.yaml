@@ -1,23 +1,40 @@
 Temperature:
-  min: 3  # log scale
-  max: 9  # log scale
-  log: true
+  standard:
+    min: 3  # log scale
+    max: 9  # log scale
+    label: "Gas temperature [K]"
+    log: true
+  normalized:
+    mmin: 0
+    max: 1.5
+    label: "Gas temperature [$T_{vir}$]"
+    log: false
   individual-log: true
 Density:
-  min: 0  # log scale
-  max: 12  # log scale
-  log: true
+  standard:
+    min: 0  # log scale
+    max: 12  # log scale
+    label:
+    log: true
   individual-log: true
 DistanceToMP:
-  min: 0  # log scale
-  max: 6  # log scale
-  log: true
+  standard:
+    min: 0  # log scale
+    max: 6  # log scale
+    label: "Distance from cluster center [ckpc]"
+    log: true
+  normalized:
+    min: 0
+    max: 2.5
+    label: "Distance from cluster center [$R_{vir}$]"
+    log: true
   individual-log: false
   zoomed:
     min: 3.2
     max: 4.8
 Mass:
-  min: 6  # log scale
-  max: 10  # log scale
-  log: true
-  individual-log: true
+  standard:
+    min: 6  # log scale
+    max: 10  # log scale
+    log: true
+    individual-log: true
