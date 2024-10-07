@@ -187,6 +187,9 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             at all snapshots analyzed for all clusters. Suitably
             normalized for the given quantity.
         """
+        logging.info(
+            "Creating histogram data for all clusters. This can take a while."
+        )
         quantity_hists = np.zeros((self.n_clusters, self.n_snaps, self.n_bins))
         normalization_factor = self._get_normalization()
         for zoom_id in range(self.n_clusters):
@@ -196,11 +199,11 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             uniqueness_flags = archive_file[group]["uniqueness_flags"]
             for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
                 unique_q = quantity[snap][uniqueness_flags[snap] == 1]
-                unique_q = unique_q / normalization_factor[zoom_id, i]
+                normed_q = unique_q / normalization_factor[zoom_id, i]
                 if self.log:
-                    q = np.log10(unique_q)
+                    q = np.log10(normed_q)
                 else:
-                    q = unique_q
+                    q = normed_q
                 # different normalizations
                 if self.quantity == "DistanceToMP":
                     hist = statistics.volume_normalized_radial_profile(
@@ -208,6 +211,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                         np.ones_like(q),
                         self.n_bins,
                         radial_range=self.hist_range,
+                        virial_radius=normalization_factor[zoom_id, i],
+                        distances_are_log=self.log,
                     )[0]
                 else:
                     hist = np.histogram(
@@ -230,7 +235,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         is the characteristic property of that zoom-in at that snap for
         the current quantity (e.g. virial radius for distance etc.).
 
-        :return: Array of characterstic property.
+        :return: Array of characteristic property.
         """
         normalization = np.ones((self.n_clusters, self.n_snaps))
         if not self.normalize:
@@ -402,6 +407,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
         norm = matplotlib.colors.Normalize(vmin=constants.MIN_SNAP, vmax=120)
 
         for method in ["mean", "median"]:
+            logging.info(f"Plotting {method} ridgeline plot.")
             # Step 1: stack histograms
             stacked_hist = statistics.stack_histograms(
                 quantity_hists, method, axis=0
@@ -411,7 +417,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             fig, axes = plt.subplots(figsize=(5, 4))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
             if self.log:
-                q_label.replace("[", r"[$\log_{10}$")
+                q_label = q_label.replace("[", r"[$\log_{10}$")
             axes.set_xlabel(f"{method.capitalize()} {q_label}")
 
             # Step 3: set up x-values
@@ -466,6 +472,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
 
         # Plot the histograms
         for method in ["mean", "median"]:
+            logging.info(f"Plotting {method} 2D histogram plot.")
             # Step 1: stack histograms
             stacked_hist = statistics.stack_histograms(
                 quantity_hists, method, axis=0
@@ -475,12 +482,16 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             fig, axes = plt.subplots(figsize=(5.5, 4))
             q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
             if self.log:
-                q_label.replace("[", r"[$\log_{10}$")
+                q_label = q_label.replace("[", r"[$\log_{10}$")
 
             # Step 3: plot 2D histograms
             ranges = [
                 constants.MIN_SNAP, 99, self.hist_range[0], self.hist_range[1]
             ]
+            if self.quantity == "DistanceToMP":
+                cbar_lims = (-14, None)
+            else:
+                cbar_lims = (-4, None)
             plot_hists.plot_2d_radial_profile(
                 fig,
                 axes,
@@ -491,7 +502,7 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 colormap="inferno",
                 cbar_label="Normalized count [log]",
                 scale="log",
-                cbar_limits=(-4, None),
+                cbar_limits=cbar_lims,
             )
 
             # Step 4: label x-axis appropriately
@@ -520,7 +531,6 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
     """
 
     quantity: str  # name of the dataset in the archive
-    quantity_label: str  # y-axis label for quantity
     zoom_in: int  # the zoom-in region to plot
     part_limit: int | None = None  # limit plots to this many particles
 
@@ -530,9 +540,21 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
 
     def __post_init__(self):
         super().__post_init__()
-        self.hist_range: tuple[float, float] | None = None
-        self.log: bool = False
-        self.individual_log: bool = False
+        cfg = Path(__file__).parent / "simple_quantities_plot_config.yaml"
+        with open(cfg, "r") as cfg_file:
+            stream = cfg_file.read()
+        try:
+            plot_config = yaml.full_load(stream)[self.quantity]
+            standard_config = plot_config["standard"]
+            self.hist_range = standard_config["min"], standard_config["max"]
+            self.log = standard_config["log"]
+            self.quantity_label = standard_config["label"]
+            self.individual_log = plot_config["individual-log"]
+        except KeyError as e:
+            logging.fatal(
+                f"Plot config for quantity {self.quantity} incomplete: {e}."
+            )
+            raise RuntimeError("Incomplete plot config.")
 
     def run(self) -> int:
         """Load and plot data"""
@@ -544,21 +566,6 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 f"{self.config.cool_gas_history}."
             )
             return 1
-
-        # Step 1: get plot config
-        cfg = Path(__file__).parent / "simple_quantities_plot_config.yaml"
-        with open(cfg, "r") as cfg_file:
-            stream = cfg_file.read()
-        try:
-            plot_config = yaml.full_load(stream)[self.quantity]
-            self.hist_range = plot_config["min"], plot_config["max"]
-            self.log = plot_config["log"]
-            self.individual_log = plot_config["individual-log"]
-        except KeyError:
-            logging.warning(
-                f"Found no plot config for quantity {self.quantity}, will set "
-                f"scale to linear."
-            )
 
         # Step 2: open the archive
         f = h5py.File(self.config.cool_gas_history, "r")
@@ -583,7 +590,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 primary_id,
                 fields=[self.config.radius_field, self.config.mass_field],
                 start_snap=constants.MIN_SNAP,
-                log_warning=True,
+                log_warning=False,
             )
             cluster_cq = compute.get_virial_temperature(
                 mpb_data[self.config.mass_field],
@@ -597,7 +604,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                 primary_id,
                 fields=[self.config.radius_field],
                 start_snap=constants.MIN_SNAP,
-                log_warning=True,
+                log_warning=False,
             )
             cluster_cq = mpb_data[self.config.radius_field]
         else:
@@ -760,6 +767,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
                     np.ones_like(q),
                     self.n_bins,
                     radial_range=self.hist_range,
+                    distances_are_log=self.log,
                 )[0]
             else:
                 hist = np.histogram(q, self.n_bins, range=self.hist_range)[0]
@@ -776,6 +784,10 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         ranges = [
             constants.MIN_SNAP, 99, self.hist_range[0], self.hist_range[1]
         ]
+        if self.quantity == "DistanceToMP":
+            cbar_lims = (-14, None)
+        else:
+            cbar_lims = (-4, None)
         plot_hists.plot_2d_radial_profile(
             fig,
             axes,
@@ -786,7 +798,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             colormap="inferno",
             cbar_label="Normalized count [log]",
             scale="log",
-            cbar_limits=(-4, None),
+            cbar_limits=cbar_lims,
         )
 
         # Step 4: label x-axis appropriately

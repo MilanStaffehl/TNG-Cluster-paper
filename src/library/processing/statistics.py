@@ -496,7 +496,8 @@ def volume_normalized_radial_profile(
     weight: NDArray,
     bins: int | NDArray,
     virial_radius: float | None = None,
-    radial_range: NDArray | None = None,
+    radial_range: tuple[float, float] | None = None,
+    distances_are_log: bool = False,
 ) -> tuple[NDArray, NDArray]:
     """
     Generate a radial profile, normalized by shell volume.
@@ -522,6 +523,10 @@ def volume_normalized_radial_profile(
     Function returns both the normalized histogram as well as the array
     of its bin edges.
 
+    .. atention:: When using logarithmically scaled distances, **do not**
+        pass the virial radius in log scale, but give it in physical
+        units!
+
     :param radial_distances: The array of radial distances, either in
         physical units or in units of virial radii.
     :param weight: The array of weights to sum per bin. Must have the
@@ -529,43 +534,51 @@ def volume_normalized_radial_profile(
     :param bins: The number of radial bins or the array of bin edges.
     :param virial_radius: If the radial distances are given in units of
         the virial radius, specifying the virial radius will return them
-        to physical units by multiplying the radial distances with it.
-        This is required to get correct measures in physical units, i.e.
-        the histogram values will only be in physical units (namely the
-        volume) if the distances are turned back into physical units
-        before creating the histogram.
+        to physical units by multiplying the radial distances with it
+        before calculating the shell volumes by which the histogram is
+        then normalized. This is required to get the histogram values in
+        physical units (namely weight over physical volume). Must always
+        be in physical units, even if distances are given in logarithmic
+        scaling!
     :param radial_range: A sequence of two floats which will be the
         lower and upper edge of the bin range. Optional, leave this
         unspecified to automatically infer range from data.  If the
         virial radius is given, this must be given in units of the
         virial radius, otherwise in physical units.
+    :param distances_are_log: If the distances given as ``radial_distances``
+        are in logarithmic scale (base 10), set this to True. This is
+        required in order to correctly calculate the shell volumes,
+        which need to take into account the logarithmic scale of the
+        bin edges that will be generated from logarithmic-scale distances.
+        If the virial radius is given, it must **not** be in log scale!
     :return: The tuple of the shell volume normalized histogram and the
-        array of bin edges.
+        array of bin edges. The edges will always be in the same units
+        and scale as the received ``radial_distances``, and the histogram
+        will be in units of the weights over volume, where the units of
+        the volume are determined by either the radial distances (if
+        given in physical units) or the virial radius (if distances were
+        given in units of virial radii).
     """
-    if radial_range is not None and not isinstance(radial_range, np.ndarray):
-        radial_range = np.array(radial_range)
-    # check if radial distances need to be unit adjusted
-    if virial_radius is not None:
-        # To avoid altering array in place, use a copy
-        radial_distances = radial_distances.copy() * virial_radius
-        if radial_range is not None:
-            # same here: avoid alteration through copying
-            radial_range = radial_range.copy() * virial_radius
-    # bin quantity into distance bins
+    # bin quantity into distance bins, no matter their units
     hist, edges = np.histogram(
         radial_distances,
         bins=bins,
         weights=weight,
         range=radial_range,
     )
-    # normalize every column by the shell volume
-    shell_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
 
-    # return x-axis to units of virial radii
+    # transform units to physical units for accurate volumes
+    if distances_are_log:
+        physical_edges = 10**edges.copy()
+    else:
+        physical_edges = edges.copy()
     if virial_radius is not None:
-        edges = edges / virial_radius
+        physical_edges *= virial_radius
+    # normalize every column by the shell volume
+    volumes = 4 / 3 * np.pi * (physical_edges[1:]**3 - physical_edges[:-1]**3)
 
-    return hist / shell_volumes, edges
+    # return x-axis (edges) in units of original distances
+    return hist / volumes, edges
 
 
 def find_deviation_from_median_per_bin(

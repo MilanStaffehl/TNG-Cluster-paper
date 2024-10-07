@@ -5,10 +5,10 @@ Temperature:
     label: "Gas temperature [K]"
     log: true
   normalized:
-    mmin: 0
-    max: 1.5
+    min: -6
+    max: 2
     label: "Gas temperature [$T_{vir}$]"
-    log: false
+    log: true
   individual-log: true
 Density:
   standard:
@@ -24,7 +24,7 @@ DistanceToMP:
     label: "Distance from cluster center [ckpc]"
     log: true
   normalized:
-    min: 0
+    min: -2.5
     max: 2.5
     label: "Distance from cluster center [$R_{vir}$]"
     log: true

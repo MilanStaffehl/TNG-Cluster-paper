@@ -195,6 +195,103 @@ def test_column_normalized_hist2d_existing_histogram():
     np.testing.assert_almost_equal(output[0], expected, decimal=2)
 
 
+def test_volume_normalized_radial_profile_basic():
+    """Test the function for volume-normalized profiles"""
+    rs = np.array([0, 1, 1, 1, 2, 2, 3, 4, 4, 4, 5, 5, 6, 8, 8, 8, 8, 9, 10])
+    # construct expected result
+    raw_hist = np.array([1, 3, 2, 1, 3, 2, 1, 0, 4, 2])
+    edges = np.arange(0, 11, step=1)
+    volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+    expected = raw_hist / volumes
+    # test result
+    output = statistics.volume_normalized_radial_profile(
+        rs, np.ones_like(rs), 10
+    )
+    np.testing.assert_almost_equal(edges, output[1])
+    np.testing.assert_almost_equal(expected, output[0])
+
+
+def test_volume_normalized_radial_profile_with_given_range():
+    """Test the function with a given radial range"""
+    rs = np.array([0, 1, 1, 1, 2, 2, 3, 4, 4, 4, 5, 5, 6, 8, 8, 8, 8, 9, 10])
+    # construct expected result
+    raw_hist = np.array([3, 2, 1, 3, 2, 1, 0, 5])
+    edges = np.arange(1, 10, step=1)
+    volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+    expected = raw_hist / volumes
+    # test result
+    output = statistics.volume_normalized_radial_profile(
+        rs, np.ones_like(rs), 8, radial_range=[1, 9]
+    )
+    np.testing.assert_almost_equal(edges, output[1])
+    np.testing.assert_almost_equal(expected, output[0])
+
+
+def test_volume_normalized_radial_profile_weighted():
+    """Test the function with given weights"""
+    rs = np.array([0, 1, 1, 1, 2, 2, 3, 4, 4, 4, 5, 5, 6, 8, 8, 8, 8, 9, 10])
+    ws = np.array([1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 1, 2, 1, 1, 1])
+    # construct expected result
+    raw_hist = np.array([1, 3, 4, 2, 6, 2, 2, 0, 6, 2])
+    edges = np.arange(0, 11, step=1)
+    volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+    expected = raw_hist / volumes
+    # test result
+    output = statistics.volume_normalized_radial_profile(rs, ws, 10)
+    np.testing.assert_almost_equal(edges, output[1])
+    np.testing.assert_almost_equal(expected, output[0])
+
+
+def test_volume_normalized_radial_profile_with_virial_radius():
+    """Test the function with a given virial radius"""
+    rs = np.array([0, 1, 1, 1, 2, 2, 3, 4, 4, 4, 5, 5, 6, 8, 8, 8, 8, 9, 10])
+    # construct expected result
+    raw_hist = np.array([1, 3, 2, 1, 3, 2, 1, 0, 4, 2])
+    # edges are in units of physical units to get accurate volumes
+    edges = np.arange(0, 11, step=1) * 100
+    volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+    expected = raw_hist / volumes
+    # test result
+    output = statistics.volume_normalized_radial_profile(
+        rs, np.ones_like(rs), 10, virial_radius=100
+    )
+    # edges returned are in units of virial radii again
+    np.testing.assert_almost_equal(edges / 100, output[1])
+    np.testing.assert_almost_equal(expected, output[0])
+
+
+def test_volume_normalized_radial_profile_log_scale():
+    """Test the function for profiles with log scale distances"""
+    rs = np.array([0, 1, 1, 1, 2, 2, 3, 4, 4, 5])
+    # construct expected result
+    raw_hist = np.array([1, 3, 2, 1, 3])
+    edges = 10**np.arange(0, 6, step=1)
+    volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+    expected = raw_hist / volumes
+    # test result
+    output = statistics.volume_normalized_radial_profile(
+        rs, np.ones_like(rs), 5, distances_are_log=True
+    )
+    np.testing.assert_almost_equal(np.log10(edges), output[1])
+    np.testing.assert_almost_equal(expected, output[0])
+
+
+def test_volume_normalized_radial_profile_log_scale_with_virial_radius():
+    """Test the function with log scale distances and virial radius"""
+    rs = np.array([0, 1, 1, 1, 2, 2, 3, 4, 4, 5])
+    # construct expected result
+    raw_hist = np.array([1, 3, 2, 1, 3])
+    edges = 10**np.arange(0, 6, step=1) * 100
+    volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+    expected = raw_hist / volumes
+    # test result
+    output = statistics.volume_normalized_radial_profile(
+        rs, np.ones_like(rs), 5, distances_are_log=True, virial_radius=100
+    )
+    np.testing.assert_almost_equal(np.log10(edges / 100), output[1])
+    np.testing.assert_almost_equal(expected, output[0])
+
+
 def test_pearson_corrcoeff_per_bin():
     """Test the function for Pearson correlation coefficients"""
     xs = np.array([0, 1, 2, 3, 4, 0, 1, 2, 3, 4])
