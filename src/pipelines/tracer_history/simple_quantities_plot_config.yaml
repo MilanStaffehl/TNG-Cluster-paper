@@ -14,7 +14,7 @@ Density:
   standard:
     min: 0  # log scale
     max: 12  # log scale
-    label:
+    label: "Gas density [$M_\\odot / ckpc^3$]"
     log: true
   individual-log: true
 DistanceToMP:
