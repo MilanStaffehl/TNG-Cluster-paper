@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from library import constants
-from library.plotting import plot_radial_profiles
+from library.plotting import common, plot_radial_profiles
 from pipelines import base
 
 if TYPE_CHECKING:
@@ -81,6 +81,9 @@ class PlotCrossingTimesPlots(base.Pipeline):
         :param archive_file: Opened cool gas history archive file.
         :return: None, plots are saved to file.
         """
+        logging.info(
+            "Plotting distributions of crossing times for all clusters."
+        )
         # Loop over all clusters and count number of total particles
         total_part_num = 0
         for zoom_id in range(self.n_clusters):
@@ -138,15 +141,19 @@ class PlotCrossingTimesPlots(base.Pipeline):
         """
         # create and configure a figure
         fig, axes = plt.subplots(figsize=(4, 4))
+        zs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
         axes.set_xlabel("Estimated crossing redshift [z]")
-        axes.set_xscale("log")
         axes.set_ylabel("Count")
         axes.set_yscale("log")
 
+        # set all crossing times close to zero to a sentinel value (as
+        # the range will be limited to 1e-3 to 8 later, and we need the
+        # outliers to still fall into the last bin)
+        first_crossing[first_crossing <= zs[-1]] = 1.01 * zs[-1]
+        last_crossing[last_crossing <= zs[-1]] = 1.01 * zs[-1]
+
         # plot histograms
-        min_ = np.nanmin([np.nanmin(first_crossing), np.nanmin(last_crossing)])
-        max_ = np.nanmax([np.nanmax(first_crossing), np.nanmax(last_crossing)])
-        logbins = np.geomspace(min_, max_, 21)
+        logbins = np.geomspace(zs[-1], zs[0], 21)
         axes.hist(
             first_crossing,
             bins=logbins,
@@ -193,11 +200,13 @@ class PlotCrossingTimesPlots(base.Pipeline):
         # plot label showing how many particles cross more than once
         diff = first_crossing - last_crossing
         mc = np.count_nonzero(diff) / first_crossing.size
-        axes.legend(
+        legend = axes.legend(
             title=f"Multiple crossings: {mc * 100:.2f}%",
             title_fontsize="small",
-            alignment="left"
+            alignment="left",
+            loc="best",
         )
+        legend.set_zorder(20)
 
         self._save_fig(
             fig,

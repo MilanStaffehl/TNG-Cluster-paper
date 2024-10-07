@@ -35,10 +35,6 @@ PLOT_TYPES = [
 ]
 
 
-class HistogramMixin:
-    """Mixin to provide useful common methods."""
-
-
 @dataclasses.dataclass
 class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
     """Load data from hdf5 archive and plot it in various ways"""
@@ -776,9 +772,9 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
 
         # Step 2: set up figure
         fig, axes = plt.subplots(figsize=(5.5, 4))
-        q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
+        q_label = self.quantity_label
         if self.log:
-            q_label.replace("[", r"[$\log_{10}$")
+            q_label = q_label.replace("[", r"[$\log_{10}$")
 
         # Step 3: plot 2D histograms
         ranges = [
