@@ -23,6 +23,7 @@ def get_mpb_properties(
     fields: list[str],
     start_snap: int | None = None,
     log_warning: bool = False,
+    interpolate: bool = True,
 ) -> dict[str, NDArray | int]:
     """
     Load specified fields along main progenitor branch of the given subhalo.
@@ -54,6 +55,12 @@ def get_mpb_properties(
     :param log_warning: Whether to emit a warning when values need to
         be interpolated. This can be useful especially for fields where
         interpolation is not sensible (such as IDs or particle numbers).
+        Has no effect when ``interpolate`` is set to False.
+    :param interpolate: Whether to interpolate values when snapshot info
+        is missing. If this is set to False, all interpolation will be
+        skipped for all fields and all missing snapshots. Instead, an
+        appropriate sentinel value will fill the corresponding entry
+        (-1 for integers, NaN for floats).
     :return: Mapping of field names to the corresponding sublink values
         for all snapshots in the MPB history, optionally limited to start
         only at ``start_snap``.
@@ -114,8 +121,8 @@ def get_mpb_properties(
         else:
             where_empty = np.argwhere(np.isnan(final_value))
 
-        # skip if there is no hole to fill
-        if where_empty.size == 0:
+        # skip if there is no hole to fill or no interpolation is required
+        if where_empty.size == 0 or not interpolate:
             final_results[field] = final_value
             continue
 
