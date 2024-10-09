@@ -30,7 +30,7 @@ def main(args: argparse.Namespace) -> None:
     )
 
     # update pipeline config here
-    pipeline_config.update({"zoom_id": args.zoom})
+    pipeline_config.update({"zoom_in": args.zoom})
 
     # select and build pipeline
     if args.what == "crossing-times":

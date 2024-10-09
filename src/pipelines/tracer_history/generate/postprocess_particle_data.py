@@ -25,7 +25,7 @@ class TimeOfCrossingPipeline(base.Pipeline):
     """
 
     distance_multiplier: int = 2  # multiple of R_200c
-    zoom_id: int | None = None
+    zoom_in: int | None = None
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -48,7 +48,7 @@ class TimeOfCrossingPipeline(base.Pipeline):
         )["GroupFirstSub"]
 
         # Step 2: loop over the zoom-ins
-        if self.zoom_id is None:
+        if self.zoom_in is None:
             logging.info(
                 "Finding time of first and last crossing for all particles "
                 "in all zoom-ins."
@@ -60,10 +60,10 @@ class TimeOfCrossingPipeline(base.Pipeline):
         else:
             logging.info(
                 f"Finding the time of first and last crossing for all "
-                f"particles of zoom-in {self.zoom_id}."
+                f"particles of zoom-in {self.zoom_in}."
             )
             self._find_crossing_times(
-                self.zoom_id, group_primaries[self.zoom_id], archive_file
+                self.zoom_in, group_primaries[self.zoom_in], archive_file
             )
 
         archive_file.close()
