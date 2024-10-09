@@ -81,6 +81,12 @@ class UnitConverter:
                 "ParticleIDs",
                 "ParentID",
                 "TracerID",
+                "SubhaloID",
+                "SubhaloIDRaw",
+                "SubfindID",
+                "SubhaloGrNr",
+                "FirstSubhaloInFOFGroupID",
+                "NextSubhaloInFOFGroupID",
             ],  # noqa: E123
     }
 

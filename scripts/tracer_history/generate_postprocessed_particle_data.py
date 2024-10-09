@@ -1,4 +1,5 @@
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -7,6 +8,7 @@ sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
 from pipelines.tracer_history.generate.postprocess_particle_data import (
+    ParentCategoryPipeline,
     TimeOfCrossingPipeline,
 )
 
@@ -31,7 +33,13 @@ def main(args: argparse.Namespace) -> None:
     pipeline_config.update({"zoom_id": args.zoom})
 
     # select and build pipeline
-    pipeline = TimeOfCrossingPipeline(**pipeline_config)
+    if args.what == "crossing-times":
+        pipeline = TimeOfCrossingPipeline(**pipeline_config)
+    elif args.what == "parent-category":
+        pipeline = ParentCategoryPipeline(**pipeline_config)
+    else:
+        logging.fatal(f"Unrecognized data type {args.what}.")
+        sys.exit(1)
     sys.exit(pipeline.run())
 
 
@@ -60,7 +68,7 @@ if __name__ == "__main__":
             "traced back in time for those cells that end up in cool "
             "gas at redshift zero. Can only choose from the valid options."
         ),
-        choices=["crossing-times"],
+        choices=["crossing-times", "parent-category"],
     )
     parser.add_argument(
         "-z",
@@ -68,9 +76,8 @@ if __name__ == "__main__":
         help=(
             "When given, must be a number between 0 and 351. This is then the "
             "ID of the only zoom-in region for which the data will be "
-            "generated and plotted. If left unset, data and plots are created "
-            "for all zoom-in regions. Plots for individual clusters are "
-            "different from those for all clusters."
+            "generated. If left unset, data are created for all zoom-in "
+            "regions."
         ),
         dest="zoom",
         type=int,

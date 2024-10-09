@@ -298,3 +298,160 @@ class TimeOfCrossingPipeline(base.Pipeline):
             )
         z_interp[never_crossed_mask] = np.nan
         return z_interp
+
+
+@dataclasses.dataclass
+class ParentCategoryPipeline(base.Pipeline):
+    """
+    Pipeline to sort particles into categories, based on their parent.
+
+    The following categories exist:
+    0 - unbound, no parent ("unbound")
+    1 - bound to halo that is not the primary halo ("other halo")
+    2 - bound to the primary halo, but not any subhalo ("inner fuzz")
+    3 - bound to the primary halo and its primary subhalo ("central galaxy")
+    4 - bound to the primary halo and any other subhalo ("satellite")
+    255 - faulty entry, cannot assign category (caused by missing entry
+          for the corresponding snap in the SUBLINK merger tree)
+    """
+
+    zoom_in: int | None = None
+
+    n_clusters: ClassVar[int] = 352
+
+    def run(self) -> int:
+        """
+        Assign every particle a parent category and archive it.
+
+        :return: Exit code.
+        """
+        logging.info("Starting pipeline to archive parent category.")
+
+        # Step 1: load primaries at redshift zero
+        primaries = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=["GroupFirstSub"],
+            cluster_restrict=True,
+        )["GroupFirstSub"]
+
+        # Step 2: open archive
+        archive_file = h5py.File(self.config.cool_gas_history, "r+")
+
+        # Step 3: loop over zoom-ins or process single zoom-in
+        if self.zoom_in is None:
+            for zoom_in in range(self.n_clusters):
+                logging.info(
+                    "Starting loop over zoom-ins for parent category."
+                )
+                self._archive_parent_category(zoom_in, primaries, archive_file)
+        else:
+            logging.info(
+                f"Finding parent categories for zoom-in {self.zoom_in} only."
+            )
+            self._archive_parent_category(
+                self.zoom_in, primaries, archive_file
+            )
+
+        logging.info("Done! Archived parent category for all zoom-ins!")
+        return 0
+
+    def _archive_parent_category(
+        self, zoom_in: int, primaries: NDArray, archive_file: h5py.File
+    ) -> None:
+        """
+        Find and archive the parent categories for a single zoom-in.
+
+        The following categories exist:
+        0 - unbound, no parent ("unbound")
+        1 - bound to halo that is not the primary halo ("other halo")
+        2 - bound to the primary halo, but not any subhalo ("inner fuzz")
+        3 - bound to the primary halo and its primary subhalo ("central galaxy")
+        4 - bound to the primary halo and any other subhalo ("satellite")
+        255 - faulty entry, cannot assign category (caused by missing entry
+              for the corresponding snap in the SUBLINK merger tree)
+
+        :param zoom_in: The ID/index of the zoom-in.
+        :param primaries: The array of primary subhalo IDs at redshift
+            zero for all zoom-ins. ``primaries[zoom_in]`` must therefore
+            be the primary subhalo of the current cluster at redshift
+            zero.
+        :param archive_file: The opened archive file in "r+" mode.
+        :return: None, data is archived to the opened archive file.
+        """
+        logging.debug(f"Finding parent categories for zoom-in {zoom_in}.")
+        # Step 0: load MPB info
+        mpb = sublink_daq.get_mpb_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            primaries[zoom_in],
+            start_snap=constants.MIN_SNAP,
+            fields=["SubfindID", "SubhaloGrNr"],
+            interpolate=False,  # cannot interpolate IDs
+        )
+        # find snapshots without data
+        skip_snaps = mpb["SnapNum"][mpb["SubhaloID"] == -1]
+
+        # Step 1: load the parent IDs
+        grp = f"ZoomRegion_{zoom_in:03d}"
+        parent_halos = archive_file[grp]["ParentHaloIndex"][()]
+        parent_subhalos = archive_file[grp]["ParentSubhaloIndex"][()]
+
+        # Step 2: allocate memory for the parent category
+        categories = np.zeros_like(parent_halos, dtype=np.uint8)
+        categories[:constants.MIN_SNAP, :] = 255  # invalid before min snap
+
+        # Step 3: assign 255 to all snaps that are missing sublink data
+        if skip_snaps.size > 0:
+            logging.warning(
+                f"Zoom-in {zoom_in}: cannot determine primary subhalo ID "
+                f"for snapshots {', '.join(skip_snaps)} due to snaps "
+                f"missing from SUBLINK. All particles in these snaps will "
+                f"be assigned category 255 (\"faulty category\")."
+            )
+        categories[skip_snaps, :] = 255
+
+        # Step 4: assign category 1 to all in any halo
+        categories[parent_halos != -1] = 1
+
+        # Step 5: assign category 2 to all in current cluster
+        for snap_num in range(constants.MIN_SNAP, 100):
+            if snap_num in skip_snaps:
+                continue
+            idx = snap_num - constants.MIN_SNAP
+            current_halo_id = mpb["SubhaloGrNr"][idx]
+            categories[snap_num][parent_halos == current_halo_id] = 2
+
+        # Step 6: assign category 3 to all in primary subhalo, 4 to all
+        # others in subhalos (satellites)
+        for snap_num in range(constants.MIN_SNAP, 100):
+            if snap_num in skip_snaps:
+                continue
+            idx = snap_num - constants.MIN_SNAP
+            cur_primary_id = mpb["SubfindID"][idx]
+            # assign category 3 (in primary)
+            categories[snap_num][parent_subhalos == cur_primary_id] = 3
+            # assign category 4 (satellite)
+            not_unbound = parent_subhalos[snap_num] != -1
+            not_in_primary = parent_subhalos[snap_num] != cur_primary_id
+            in_satellite = np.logical_and(not_unbound, not_in_primary)
+            categories[in_satellite] = 4
+
+        # Step 7: archive categories
+        grp = f"ZoomRegion_{zoom_in:03d}"
+        if "ParentCategory" not in archive_file[grp].keys():
+            logging.debug(
+                f"Creating missing dataset ParentCategory for zoom-in "
+                f"{zoom_in}."
+            )
+            archive_file[grp].create_dataset(
+                "ParentCategory",
+                categories.shape,
+                categories.dtype,
+                data=categories,
+            )
+        else:
+            archive_file[grp]["ParentCategory"][:] = categories
+        logging.debug(
+            f"Finished archiving parent category of zoom-in {zoom_in}."
+        )
