@@ -390,7 +390,7 @@ class ParentCategoryPipeline(base.Pipeline):
             interpolate=False,  # cannot interpolate IDs
         )
         # find snapshots without data
-        skip_snaps = mpb["SnapNum"][mpb["SubhaloID"] == -1]
+        skip_snaps = mpb["SnapNum"][mpb["SubfindID"] == -1]
 
         # Step 1: load the parent IDs
         grp = f"ZoomRegion_{zoom_in:03d}"
@@ -405,14 +405,17 @@ class ParentCategoryPipeline(base.Pipeline):
         if skip_snaps.size > 0:
             logging.warning(
                 f"Zoom-in {zoom_in}: cannot determine primary subhalo ID "
-                f"for snapshots {', '.join(skip_snaps)} due to snaps "
-                f"missing from SUBLINK. All particles in these snaps will "
-                f"be assigned category 255 (\"faulty category\")."
+                f"for snapshots {', '.join(skip_snaps.astype(str))} due to "
+                f"snaps missing from SUBLINK. All particles in these snaps "
+                f"will be assigned category 255 (\"faulty category\")."
             )
         categories[skip_snaps, :] = 255
 
         # Step 4: assign category 1 to all in any halo
-        categories[parent_halos != -1] = 1
+        not_unbound = parent_halos != -1
+        not_invalid = categories != 255
+        in_any_halo = np.logical_and(not_unbound, not_invalid)
+        categories[in_any_halo] = 1
 
         # Step 5: assign category 2 to all in current cluster
         for snap_num in range(constants.MIN_SNAP, 100):
@@ -420,7 +423,8 @@ class ParentCategoryPipeline(base.Pipeline):
                 continue
             idx = snap_num - constants.MIN_SNAP
             current_halo_id = mpb["SubhaloGrNr"][idx]
-            categories[snap_num][parent_halos == current_halo_id] = 2
+            in_current_halo = parent_halos[snap_num] == current_halo_id
+            categories[snap_num][in_current_halo] = 2
 
         # Step 6: assign category 3 to all in primary subhalo, 4 to all
         # others in subhalos (satellites)
@@ -430,12 +434,15 @@ class ParentCategoryPipeline(base.Pipeline):
             idx = snap_num - constants.MIN_SNAP
             cur_primary_id = mpb["SubfindID"][idx]
             # assign category 3 (in primary)
-            categories[snap_num][parent_subhalos == cur_primary_id] = 3
+            in_primary = parent_subhalos[snap_num] == cur_primary_id
+            categories[snap_num][in_primary] = 3
             # assign category 4 (satellite)
             not_unbound = parent_subhalos[snap_num] != -1
-            not_in_primary = parent_subhalos[snap_num] != cur_primary_id
-            in_satellite = np.logical_and(not_unbound, not_in_primary)
-            categories[in_satellite] = 4
+            # all possible remaining particles are now flagged with 2,
+            # since all in the primary have been assigned 3 already:
+            in_current_cluster = categories[snap_num] == 2
+            in_satellite = np.logical_and(not_unbound, in_current_cluster)
+            categories[snap_num][in_satellite] = 4
 
         # Step 7: archive categories
         grp = f"ZoomRegion_{zoom_in:03d}"

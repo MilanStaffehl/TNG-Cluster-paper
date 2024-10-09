@@ -5,14 +5,20 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import h5py
+import numpy
 import numpy as np
 import pytest
 
 from library import constants
+from library.config import config
 from library.data_acquisition import halos_daq, sublink_daq
 from pipelines.tracer_history.generate import postprocess_particle_data
+
+if TYPE_CHECKING:
+    from pytest_mock import MockFixture
 
 ARCHIVE_FILE = Path(
     "/vera/ptmp/gc/mista/thesisProject/data/tracer_history/TNG_Cluster/"
@@ -176,3 +182,109 @@ def test_archived_crossing_times(zoom_id: int) -> None:
         [particle_distances[last_crossing[i] + 1, i] for i in range(n)]
     )
     assert np.all(dist_after_last_crossing < 2 * radius_after_last_crossing)
+
+
+@pytest.fixture
+def parent_category_pipeline():
+    """Build a mock pipeline for testing."""
+    cfg = config.Config(
+        "TNG-Cluster",
+        "base/path/of/tng/cluster",
+        99,
+        "Group_M_Crit200",
+        "Group_R_Crit200",
+        Path("data/"),
+        Path("figures/"),
+        None,
+    )
+    paths = {
+        "data_dir": Path("data/dir"),
+        "figures_dir": Path("figures/dir"),
+        "data_file_stem": "data_file_stem",
+        "figures_file_stem": "figures_file_stem",
+    }
+    pipe = postprocess_particle_data.ParentCategoryPipeline(
+        config=cfg,
+        paths=paths,
+        processes=1,
+        to_file=False,
+        no_plots=True,
+        fig_ext="pdf",
+        zoom_in=0,
+    )
+    yield pipe
+
+
+@pytest.fixture
+def mock_archive_file():
+    """Create a mock archive file"""
+    mock_halo_ids = np.array([-1, -1, -1, 300, 100, 100, 100, 200])
+    mock_halo_ids = np.broadcast_to(mock_halo_ids[None, :], (100, 8))
+    mock_subhalo_ids = np.array([-1, -1, -1, -1, -1, 10, 20, 25])
+    mock_subhalo_ids = np.broadcast_to(mock_subhalo_ids[None, :], (100, 8))
+    mock_file = {
+        "ZoomRegion_000":
+            {
+                "ParentHaloIndex": mock_halo_ids,
+                "ParentSubhaloIndex": mock_subhalo_ids,
+                "ParentCategory": np.zeros_like(mock_halo_ids),
+            }
+    }
+    yield mock_file
+
+
+@pytest.fixture
+def patch_sublink_daq(mocker: MockFixture):
+    """Patch sublink DAQ to return mock data"""
+    mock_subfind_id = np.ones(92) * 10
+    mock_subhalo_grnr = np.ones(100) * 100
+    # add a few "problems" to the subfind data (we shift index by the
+    # value of MIN_SNAP)
+    ms = constants.MIN_SNAP
+    mock_subfind_id[50 - ms] = -1
+    mock_subhalo_grnr[50 - ms] = -1
+    mock_subfind_id[67 - ms] = -1
+    mock_subhalo_grnr[67 - ms] = -1
+    mock_return_data = {
+        "SubfindID": mock_subfind_id,
+        "SubhaloGrNr": mock_subhalo_grnr,
+        "SnapNum": np.arange(8, 100, step=1),
+    }
+    m = mocker.patch("library.data_acquisition.sublink_daq.get_mpb_properties")
+    m.return_value = mock_return_data
+
+
+def test_parent_category_assignment_method(
+    parent_category_pipeline, mock_archive_file, patch_sublink_daq, caplog
+) -> None:
+    """Test the method that assign parent category to particles"""
+    # set caplog to level WARNING
+    caplog.set_level(logging.WARNING)
+
+    pipe = parent_category_pipeline
+    mock_file = mock_archive_file
+    pipe._archive_parent_category(
+        zoom_in=0, primaries=[234], archive_file=mock_file
+    )
+    expected_categories = np.zeros((100, 8), dtype=np.uint8)
+    # everything before MIN_SNAP is invalid
+    expected_categories[:8, :] = 255
+    # expected categories are the same everywhere else...
+    expected_categories[8:, :] = np.array([0, 0, 0, 1, 2, 3, 4, 1])
+    # ...except for the two "broken" snaps:
+    expected_categories[50, :] = 255
+    expected_categories[67, :] = 255
+
+    # check generated output
+    numpy.testing.assert_array_equal(
+        expected_categories, mock_file["ZoomRegion_000"]["ParentCategory"]
+    )
+
+    # check logged warnings about missing snaps
+    assert len(caplog.records) == 1
+    expected_msg = (
+        "Zoom-in 0: cannot determine primary subhalo ID for snapshots 50, "
+        "67 due to snaps missing from SUBLINK. All particles in these snaps "
+        "will be assigned category 255 (\"faulty category\")."
+    )
+    assert expected_msg in caplog.text
