@@ -16,6 +16,8 @@ BOX_SIZES = {
     "TNG-Cluster": 680000.0 / HUBBLE,
 }
 """Size of simulation box in ckpc"""
+TRACER_MASS = .0007714972250575949 * 1e10 / HUBBLE
+"""Mass that a single tracer particle represents in solar masses"""
 
 # physical constants (copied to minimize lookup time)
 G = copy.copy(astropy.constants.G.cgs.value)

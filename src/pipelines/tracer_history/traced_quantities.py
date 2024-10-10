@@ -7,7 +7,7 @@ import copy
 import dataclasses
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Protocol
 
 import h5py
 import matplotlib.cm
@@ -25,6 +25,8 @@ from library.processing import statistics
 from pipelines import base
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
 PLOT_TYPES = [
@@ -35,12 +37,102 @@ PLOT_TYPES = [
 ]
 
 
+class PlotPipelineProtocol(Protocol):
+    """Dummy protocol to make mixin work."""
+
+    @property
+    def log(self) -> bool:
+        ...
+
+    @property
+    def hist_range(self) -> tuple[float, float]:
+        ...
+
+    @property
+    def quantity(self) -> str:
+        ...
+
+    @property
+    def volume_normalize(self) -> bool:
+        ...
+
+
+class HistogramMixin:
+    """Mixin to provide common plotting utils."""
+
+    def _plot_histogram(
+        self: PlotPipelineProtocol,
+        q_label: str,
+        fig: Figure,
+        axes: Axes,
+        quantity_hist: NDArray
+    ) -> NDArray:
+        """
+        Plot the given ``quantity_hist`` onto the given axes.
+
+        Method plots the given histogram, assuming it is a physical
+        quantity plotted vs snapshot numbers from ``MIN_SNAP`` to
+        snapshot 99. The snapshots are automatically labeled with
+        redshift and lookback time.
+
+        :param q_label: The label for the y-axis, describing the
+            quantity plotted vs. redshift. Must **not** contain any
+            mention of log scaling, this is added automatically.
+        :param fig: The figure object to plot on.
+        :param axes: The axes object to plot on.
+        :param quantity_hist: The histogram as an array of shape
+            (S, N), i.e. the way it is returned from numpy's
+            ``histogram2d`` as-is. Transformation for plotting is done
+            by the method.
+        :return: The x-values needed for overplotting other data,
+            corresponding to redshifts of the 92 snapshots plotted.
+        """
+        if self.log:
+            q_label = q_label.replace("[", r"[$\log_{10}$")
+
+        # colorbar label
+        if self.volume_normalize:
+            cbar_lims = (-5, None)
+            cbar_label = r"Tracer density [$\log_{10}(M_\odot / ckpc^3)$]"
+        else:
+            cbar_lims = (-4, None)
+            cbar_label = "Normalized count [log]"
+
+        # plot 2D histograms
+        ranges = [
+            constants.MIN_SNAP, 99, self.hist_range[0], self.hist_range[1]
+        ]
+        plot_hists.plot_2d_radial_profile(
+            fig,
+            axes,
+            quantity_hist.transpose(),
+            ranges=ranges,
+            xlabel="Snap num",
+            ylabel=q_label,
+            colormap="inferno",
+            cbar_label=cbar_label,
+            scale="log",
+            cbar_limits=cbar_lims,
+        )
+
+        # label x-axis appropriately
+        xs = common.label_snapshots_with_redshift(
+            axes,
+            constants.MIN_SNAP,
+            99,
+            tick_positions_z=np.array([0, 0.1, 0.5, 1, 2, 5]),
+            tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
+        )
+        return xs
+
+
 @dataclasses.dataclass
-class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
+class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
     """Load data from hdf5 archive and plot it in various ways"""
 
     quantity: str  # name of the dataset in the archive
     color: str  # color for faint lines
+    volume_normalize: bool = False  # normalize by volume?
     normalize: bool = False  # whether to normalize to characteristic property
     plot_types: list[str] | None = None  # what to plot
 
@@ -50,6 +142,14 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
 
     def __post_init__(self):
         super().__post_init__()
+
+        # plot types
+        if self.plot_types is None:
+            self.plot_types = PLOT_TYPES
+
+        # turn off volume normalization if it is not a distance plot
+        if self.quantity != "DistanceToMP":
+            self.volume_normalize = False
 
         # update config for plot
         category = "normalized" if self.normalize else "standard"
@@ -87,6 +187,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
             f"Starting pipeline to plot {', '.join(self.plot_types)} for "
             f"{self.quantity}."
         )
+        if self.volume_normalize:
+            logging.info("Will normalize 2D histograms by shell volume.")
 
         # Step 0: check archive exists
         if not self.config.cool_gas_history.exists():
@@ -201,10 +303,11 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
                 else:
                     q = normed_q
                 # different normalizations
-                if self.quantity == "DistanceToMP":
+                if self.volume_normalize:
+                    weights = np.ones_like(q) * constants.TRACER_MASS
                     hist = statistics.volume_normalized_radial_profile(
                         q,
-                        np.ones_like(q),
+                        weights,
                         self.n_bins,
                         radial_range=self.hist_range,
                         virial_radius=normalization_factor[zoom_id, i],
@@ -443,7 +546,8 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
 
             # Step 6: save figure
             norm_flag = "_normalized" if self.normalize else ""
-            ident_flag = f"ridgeline_{method}{norm_flag}{suffix}"
+            volnorm_flag = "_volumenormalized" if self.volume_normalize else ""
+            ident_flag = f"ridgeline_{method}{norm_flag}{volnorm_flag}{suffix}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} ridgeline plot to file.")
 
@@ -476,49 +580,22 @@ class PlotSimpleQuantityWithTimePipeline(base.Pipeline):
 
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5.5, 4))
-            q_label = self.quantity_label[0].lower() + self.quantity_label[1:]
-            if self.log:
-                q_label = q_label.replace("[", r"[$\log_{10}$")
-
-            # Step 3: plot 2D histograms
-            ranges = [
-                constants.MIN_SNAP, 99, self.hist_range[0], self.hist_range[1]
-            ]
-            if self.quantity == "DistanceToMP":
-                cbar_lims = (-14, None)
-            else:
-                cbar_lims = (-4, None)
-            plot_hists.plot_2d_radial_profile(
-                fig,
-                axes,
-                stacked_hist.transpose(),
-                ranges=ranges,
-                xlabel="Snap num",
-                ylabel=f"{method.capitalize()} {q_label}",
-                colormap="inferno",
-                cbar_label="Normalized count [log]",
-                scale="log",
-                cbar_limits=cbar_lims,
+            q_label = (
+                f"{method.capitalize()} "
+                f"{self.quantity_label[0].lower() + self.quantity_label[1:]}"
             )
-
-            # Step 4: label x-axis appropriately
-            common.label_snapshots_with_redshift(
-                axes,
-                constants.MIN_SNAP,
-                99,
-                tick_positions_z=np.array([0, 0.1, 0.5, 1, 2, 5]),
-                tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
-            )
+            self._plot_histogram(q_label, fig, axes, stacked_hist)
 
             # Step 5: save figure
             norm_flag = "_normalized" if self.normalize else ""
-            ident_flag = f"2dhist_{method}{norm_flag}"
+            volnorm_flag = "_volumenormalized" if self.volume_normalize else ""
+            ident_flag = f"2dhist_{method}{volnorm_flag}{norm_flag}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} 2D histogram plot to file.")
 
 
 @dataclasses.dataclass
-class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
+class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
     """
     Plot simple particle quantities, but for individual clusters.
 
@@ -529,6 +606,7 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
     quantity: str  # name of the dataset in the archive
     zoom_in: int  # the zoom-in region to plot
     part_limit: int | None = None  # limit plots to this many particles
+    volume_normalize: bool = False
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -536,6 +614,10 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
 
     def __post_init__(self):
         super().__post_init__()
+
+        if self.quantity != "DistanceToMP":
+            self.volume_normalize = False
+
         cfg = Path(__file__).parent / "simple_quantities_plot_config.yaml"
         with open(cfg, "r") as cfg_file:
             stream = cfg_file.read()
@@ -563,14 +645,14 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             )
             return 1
 
-        # Step 2: open the archive
+        # Step 1: open the archive
         f = h5py.File(self.config.cool_gas_history, "r")
 
-        # Step 3: extract the data required
+        # Step 2: extract the data required
         particle_data = f[f"ZoomRegion_{self.zoom_in:03d}/{self.quantity}"][()]
         uniqueness = f[f"ZoomRegion_{self.zoom_in:03d}/uniqueness_flags"][()]
 
-        # Step 5: get characteristic cluster property
+        # Step 3: get characteristic cluster property
         logging.info("Loading characteristic cluster property.")
         primary_id = halos_daq.get_halo_properties(
             self.config.base_path,
@@ -747,6 +829,8 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
         if self.hist_range is None or self.log is None:
             logging.error("Cannot plot 2D histogram; missing plot config.")
             return
+        if self.volume_normalize:
+            logging.info("2D histogram will be volume-normalized.")
 
         # Step 1: Calculate the histogram
         quantity_hist = np.zeros((self.n_snaps, self.n_bins))
@@ -757,10 +841,11 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             else:
                 q = unique_q
             # different normalizations
-            if self.quantity == "DistanceToMP":
+            if self.volume_normalize:
+                weights = np.ones_like(q) * constants.TRACER_MASS
                 hist = statistics.volume_normalized_radial_profile(
                     q,
-                    np.ones_like(q),
+                    weights,
                     self.n_bins,
                     radial_range=self.hist_range,
                     distances_are_log=self.log,
@@ -772,41 +857,13 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
 
         # Step 2: set up figure
         fig, axes = plt.subplots(figsize=(5.5, 4))
-        q_label = self.quantity_label
-        if self.log:
-            q_label = q_label.replace("[", r"[$\log_{10}$")
 
-        # Step 3: plot 2D histograms
-        ranges = [
-            constants.MIN_SNAP, 99, self.hist_range[0], self.hist_range[1]
-        ]
-        if self.quantity == "DistanceToMP":
-            cbar_lims = (-14, None)
-        else:
-            cbar_lims = (-4, None)
-        plot_hists.plot_2d_radial_profile(
-            fig,
-            axes,
-            quantity_hist.transpose(),
-            ranges=ranges,
-            xlabel="Snap num",
-            ylabel=q_label,
-            colormap="inferno",
-            cbar_label="Normalized count [log]",
-            scale="log",
-            cbar_limits=cbar_lims,
+        # Step 3: overplot histogram
+        xs = self._plot_histogram(
+            self.quantity_label, fig, axes, quantity_hist
         )
 
-        # Step 4: label x-axis appropriately
-        xs = common.label_snapshots_with_redshift(
-            axes,
-            constants.MIN_SNAP,
-            99,
-            tick_positions_z=np.array([0, 0.1, 0.5, 1, 2, 5]),
-            tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
-        )
-
-        # Step 5: plot characteristic property
+        # Step 4: plot characteristic property
         if np.all(~np.isnan(cluster_cq)):
             logging.info(
                 "Overplotting characteristic cluster property onto 2D "
@@ -821,11 +878,29 @@ class PlotSimpleQuantitiesForSingleClusters(base.Pipeline):
             if self.log:
                 cluster_cq = np.log10(cluster_cq)
             axes.plot(xs, cluster_cq, **plot_config)
+
+        # Step 5: overplot example tracer tracks
+        track_config = {
+            "linestyle": "solid",
+            "color": "white",
+            "marker": "none",
+            "alpha": 0.5,
+        }
+        rand_index = [0, 100, 1000, 10000]
+        for idx in rand_index:
+            if self.log:
+                track = np.log10(particle_data[constants.MIN_SNAP:, idx])
+            else:
+                track = particle_data[constants.MIN_SNAP:, idx]
+            axes.plot(xs, track, **track_config)
+
+        # Step 6: legend
         if label:
             axes.legend()
 
-        # Step 6: save figure
-        ident_flag = f"z{self.zoom_in:03d}_2dhist"
+        # Step 7: save figure
+        volnorm_flag = "_volumenormalized" if self.volume_normalize else ""
+        ident_flag = f"z{self.zoom_in:03d}_2dhist{volnorm_flag}"
         self._save_fig(
             fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
         )

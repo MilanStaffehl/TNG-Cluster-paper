@@ -70,6 +70,7 @@ def main(args: argparse.Namespace) -> None:
             "quantity": pipeline_class.quantity,
             "zoom_in": args.zoom,
             "part_limit": args.particle_limit,
+            "volume_normalize": args.volume_normalize,
         }
     else:
         plotting_pipeline = PlotSimpleQuantityWithTimePipeline
@@ -81,6 +82,7 @@ def main(args: argparse.Namespace) -> None:
             "quantity": pipeline_class.quantity,
             "color": "dodgerblue",
             "normalize": args.normalize,
+            "volume_normalize": args.volume_normalize,
             "plot_types": plot_types,
         }
 
@@ -226,6 +228,17 @@ if __name__ == "__main__":
             "support this option, in which case this flag has no effect. Only "
             "works for plot types `global2dhist` and `globalridgeline`."
         ),
+        action="store_true",
+    )
+    parser.add_argument(
+        "-vn",
+        "--volume-normalize",
+        help=(
+            "Normalize distance 2D histogram by shell volume instead of "
+            "normalizing to sum to one. Only works for distances, and is "
+            "automatically disabled for other quantities."
+        ),
+        dest="volume_normalize",
         action="store_true",
     )
 
