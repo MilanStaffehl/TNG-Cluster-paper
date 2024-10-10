@@ -129,7 +129,7 @@ def find_parent(
         - Sorted into the end points ``array([8, 18])`` we get index 1,
           seemingly indicating membership in the second group. But:
         - Sorted into the starting points ``array([0, 10])``, the particle
-          is sorted into position 1 as well, which is not shifte by 1
+          is sorted into position 1 as well, which is not shifted by 1
           with respec tto the previous result.
 
         The particle is thus correctly characterized as unbound fuzz.

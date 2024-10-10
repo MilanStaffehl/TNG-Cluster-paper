@@ -340,10 +340,8 @@ class ParentCategoryPipeline(base.Pipeline):
 
         # Step 3: loop over zoom-ins or process single zoom-in
         if self.zoom_in is None:
+            logging.info("Starting loop over zoom-ins for parent category.")
             for zoom_in in range(self.n_clusters):
-                logging.info(
-                    "Starting loop over zoom-ins for parent category."
-                )
                 self._archive_parent_category(zoom_in, primaries, archive_file)
         else:
             logging.info(

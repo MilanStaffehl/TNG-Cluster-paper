@@ -836,11 +836,11 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
                 lengths[:, part_type],
             )
 
-        # Step 4: save to file, forcing immediate flushing of buffer
+        # Step 2: save to file, forcing immediate flushing of buffer
         with open(self.tmp_dir / filename, "wb") as file:
             np.save(file, parent_halo_indices)
 
-        # Step 5: clean-up
+        # Step 3: clean-up
         del parent_halo_indices
 
 
