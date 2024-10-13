@@ -12,6 +12,7 @@ import numpy as np
 import pytest
 
 from library import cgh_archive as cgh
+from library import constants
 from library.config import config
 from library.data_acquisition import particle_daq
 
@@ -44,7 +45,7 @@ def _load_cluster_pids(zoom_in: int, snap_num: int) -> NDArray:
     return particle_ids
 
 
-def _load_all_pids(snap_num: int) -> NDArray:
+def _load_all_pids(snap_num: int) -> list[NDArray]:
     """Helper to load PIDs of all particles in simulation"""
     particle_ids_list = []
     # load data and append it to lists
@@ -96,7 +97,7 @@ def test_index_to_global() -> None:
     not ARCHIVE_FILE.exists(),
     reason="Can only be executed if archived data exists."
 )
-@pytest.mark.parametrize("snap_num", list(range(100)))
+@pytest.mark.parametrize("snap_num", list(range(constants.MIN_SNAP, 100)))
 def test_index_to_global_with_real_data(
     snap_num: int, subtests: SubTests
 ) -> None:
