@@ -6,13 +6,14 @@ from __future__ import annotations
 import abc
 import dataclasses
 import logging
+from pathlib import Path
 from typing import TYPE_CHECKING, ClassVar
 
 import h5py
 import multiprocess as mp
 import numpy as np
 
-from library import compute, constants
+from library import cgh_archive, compute, constants
 from library.data_acquisition import halos_daq, particle_daq, sublink_daq
 from library.processing import membership
 from pipelines import base
@@ -637,8 +638,11 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
         for snap_num in range(self.n_snaps):
             logging.info(f"Processing snapshot {snap_num}.")
 
-            # Step 1: get offsets and group lengths
+            # Step 1: get group offsets and group lengths
             fof_offsets, fof_lens = self._get_offsets_and_lens(snap_num)
+
+            # Step 2: get file offsets
+            file_offsets = self._get_file_offsets(snap_num)
 
             # Step 2: loop over zoom-ins
             for zoom_id in range(constants.MIN_SNAP, 100):
@@ -649,13 +653,21 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
                 dataset = f"ZoomRegion_{zoom_id:03d}"
                 pind = archive_file[dataset]["particle_indices"][snap_num]
                 ptfs = archive_file[dataset]["particle_type_flags"][snap_num]
+                tpnm = archive_file[dataset]["total_particle_num"][snap_num]
                 # Step 2.2: save parent halo index
                 self._save_parent_index(
-                    zoom_id, snap_num, fof_offsets, fof_lens, pind, ptfs
+                    zoom_id,
+                    snap_num,
+                    fof_offsets,
+                    fof_lens,
+                    file_offsets,
+                    pind,
+                    ptfs,
+                    tpnm,
                 )
 
             # Step 3: clean-up
-            del fof_offsets, fof_lens
+            del fof_offsets, fof_lens, file_offsets
         archive_file.close()
 
     def _sequential_single(self) -> None:
@@ -672,17 +684,29 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             # Step 1: get offsets and group lengths
             fof_offsets, fof_lens = self._get_offsets_and_lens(snap_num)
 
-            # Step 2: find parent halo indices
+            # Step 2: Load file offsets
+            file_offsets = self._get_file_offsets(snap_num)
+
+            # Step 3: find parent halo indices
             dataset = f"ZoomRegion_{self.zoom_id:03d}"
             pind = archive_file[dataset]["particle_indices"][snap_num]
             ptfs = archive_file[dataset]["particle_type_flags"][snap_num]
-            # Step 2.2: save parent halo index
+            tpnm = archive_file[dataset]["total_particle_num"][snap_num]
+
+            # Step 4: save parent halo index
             self._save_parent_index(
-                self.zoom_id, snap_num, fof_offsets, fof_lens, pind, ptfs
+                self.zoom_id,
+                snap_num,
+                fof_offsets,
+                fof_lens,
+                file_offsets,
+                pind,
+                ptfs,
+                tpnm,
             )
 
-            # Step 3: clean-up
-            del fof_offsets, fof_lens
+            # Step 4: clean-up
+            del fof_offsets, fof_lens, file_offsets
         archive_file.close()
 
     def _prepare_multiproc_args(self) -> list[tuple[NDArray | int]]:
@@ -740,19 +764,26 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
 
         # FoF offsets and lengths
         logging.debug(f"Loading FoF offsets and lengths for snap {snap_num}.")
-        offsets_, lengths_ = self._get_offsets_and_lens(snap_num)
-        offsets = [offsets_ for _ in range(self.n_clusters)]
-        lengths = [lengths_ for _ in range(self.n_clusters)]
+        group_offsets_, group_lengths_ = self._get_offsets_and_lens(snap_num)
+        group_offsets = [group_offsets_ for _ in range(self.n_clusters)]
+        group_lengths = [group_lengths_ for _ in range(self.n_clusters)]
 
-        # particle indices and tpe flags
+        # file offsets
+        file_offsets_ = self._get_file_offsets(snap_num)
+        file_offsets = [file_offsets_ for _ in range(self.n_clusters)]
+
+        # particle indices, type flags, and total particle number
         particle_indices = []
         particle_type_flags = []
+        total_particle_num = []
         archive_file = h5py.File(self.config.cool_gas_history, "r")
         for zoom_id in zoom_ids:
             ds_indices = f"ZoomRegion_{zoom_id:03d}/particle_indices"
             particle_indices.append(archive_file[ds_indices][snap_num])
             ds_flags = f"ZoomRegion_{zoom_id:03d}/particle_type_flags"
             particle_type_flags.append(archive_file[ds_flags][snap_num])
+            ds_total_num = f"ZoomRegion_{zoom_id:03d}/total_particle_num"
+            total_particle_num.append(archive_file[ds_total_num][snap_num])
         archive_file.close()
 
         # combine lists/arrays into list of argument tuples
@@ -760,10 +791,12 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
             zip(
                 zoom_ids,
                 snap_nums,
-                offsets,
-                lengths,
+                group_offsets,
+                group_lengths,
+                file_offsets,
                 particle_indices,
-                particle_type_flags
+                particle_type_flags,
+                total_particle_num,
             )
         )
         logging.info(
@@ -786,26 +819,47 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
         )
         return offsets, lengths
 
+    def _get_file_offsets(self, snap_num: int) -> NDArray:
+        """
+        Load and return the file offsets for the given snapshot.
+
+        :param snap_num: Snapshot for which to load file offsets.
+        :return: The array of shape (N, 6) of file offsets, i.e. the
+            index of the first particle of every snapshot file for all
+            particle types.
+        """
+        base_path = Path(self.config.base_path)
+        offset_directory = base_path.parent / "postprocessing/offsets"
+        offset_file = offset_directory / f"offsets_{snap_num:03d}.hdf5"
+        with h5py.File(offset_file, "r") as file:
+            file_offsets = file["FileOffsets/SnapByType"][()]
+        return file_offsets
+
     def _save_parent_index(
         self,
         zoom_id: int,
         snap_num: int,
-        offsets: NDArray,
-        lengths: NDArray,
+        group_offsets: NDArray,
+        group_lengths: NDArray,
+        file_offsets: NDArray,
         particle_indices: NDArray,
         particle_type_flags: NDArray,
+        total_part_num: NDArray,
     ) -> None:
         """
         Find parent halo index for every particle and save them to file.
 
         :param zoom_id: ID of the zoom-in region to process.
         :param snap_num: The snapshot to process.
-        :param offsets: Array of FoF group offsets for this zoom-in
+        :param group_offsets: Array of FoF group offsets for this zoom-in
             and snapshot. Must be split by particle type and have shape
             (6, N).
-        :param lengths: Array of FoF group lengths for this zoom-in
+        :param group_lengths: Array of FoF group lengths for this zoom-in
             and snapshot. Must be split by particle type and have shape
             (6, N).
+        :param file_offsets: The array of file offsets for each type,
+            i.e. the index of the first particle in every file. Required
+            for transformation of indices from archive to global indices.
         :param particle_indices: The list of indices into the array of
             all particles for the traced particles. This should be only
             the indices for the current snapshot, i.e. it must be a 1D
@@ -813,6 +867,9 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
         :param particle_type_flags: The list of particle type flags
             assigning a particle type (0, 4, or 5) to every particle.
             This must have the same shape as ``particle_indices``.
+        :param total_part_num: The array of shape (3, ) containing the
+            total number of particles of type 0, 4, and 5 in the current
+            zoom-in.
         :return: None, parent halo indices are saved to file.
         """
         # Step 0: skip if not required
@@ -825,22 +882,31 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
                 )
             return
 
-        # Step 1: get the parent halo indices for every particle
-        parent_halo_indices = np.empty(particle_indices.shape, dtype=np.int64)
+        # Step 1: transform indices into global indices
+        global_indices = cgh_archive.index_to_global(
+            zoom_id,
+            particle_indices,
+            particle_type_flags,
+            total_part_num,
+            file_offsets,
+        )
+
+        # Step 2: get the parent halo indices for every particle
+        parent_halo_indices = np.empty(global_indices.shape, dtype=np.int64)
         parent_halo_indices[:] = -1  # fill with sentinel value
         for part_type in [0, 4, 5]:
             where = (particle_type_flags == part_type)
             parent_halo_indices[where] = membership.find_parent(
-                particle_indices[where],
-                offsets[:, part_type],
-                lengths[:, part_type],
+                global_indices[where],
+                group_offsets[:, part_type],
+                group_lengths[:, part_type],
             )
 
-        # Step 2: save to file, forcing immediate flushing of buffer
+        # Step 3: save to file, forcing immediate flushing of buffer
         with open(self.tmp_dir / filename, "wb") as file:
             np.save(file, parent_halo_indices)
 
-        # Step 3: clean-up
+        # Step 4: clean-up
         del parent_halo_indices
 
 
