@@ -102,8 +102,8 @@ def index_to_global(
             file_offsets = file["FileOffsets/SnapByType"][()]
 
     # convert type 4 and 5 indices to zero-base
-    indices[type_flags == 4] -= total_part_num[0]
-    indices[type_flags == 5] -= (total_part_num[0] + total_part_num[1])
+    indices[type_flags == 4] -= int(total_part_num[0])
+    indices[type_flags == 5] -= int(total_part_num[0] + total_part_num[1])
 
     # find the global index of all FoF particles
     for part_type in [0, 4, 5]:
@@ -116,6 +116,9 @@ def index_to_global(
         is_in_fuzz_file = (type_flags == part_type) & (
             indices >= n_part_in_fof
         )
+        # ...turn fuzz file indices to zero base by subtracting the
+        # total length of the FoF file particles from it...
+        indices[is_in_fuzz_file] -= n_part_in_fof
         # ...and add their respective offset to the particles:
         indices[is_in_fof_file] += file_offsets[zoom_in][part_type]
         indices[is_in_fuzz_file] += file_offsets[zoom_in + 352][part_type]
