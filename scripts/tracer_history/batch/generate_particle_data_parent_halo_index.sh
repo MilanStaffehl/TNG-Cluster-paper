@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=PHI                        # Main job name for tracking
-#SBATCH --time=40:00:00                       # Total time limit per job (6 hours)
-#SBATCH --partition=p.large                   # Specify your cluster partition (adjust as needed)
+#SBATCH --time=30:00:00                       # Total time limit per job
+#SBATCH --partition=p.large
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=72
 #SBATCH -D ./
