@@ -884,7 +884,7 @@ class TraceParentHaloPipeline(TraceComplexQuantityPipeline):
 
         # Step 1: transform indices into global indices
         global_indices = cgh_archive.index_to_global(
-            zoom_id,
+            int(zoom_id),
             particle_indices,
             particle_type_flags,
             total_part_num,
