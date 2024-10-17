@@ -8,13 +8,14 @@ from typing import TYPE_CHECKING, Any, Literal, Sequence
 
 import astropy.cosmology
 import astropy.units
+import matplotlib.cm
+import matplotlib.colors
 import numpy as np
 
 from library import constants
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
-    from matplotlib.colors import Colormap, Normalize
     from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
@@ -144,12 +145,12 @@ def plot_scatterplot(
     y_values: NDArray,
     color_quantity: NDArray | None = None,
     color: str = "black",
-    cmap: str | Colormap = "viridis",
+    cmap: str | matplotlib.colors.Colormap = "viridis",
     marker_style: str = "o",
     marker_size: int | NDArray = 8,
     legend_label: str | None = None,
     alpha: float = 1.0,
-    norm: Normalize | None = None,
+    norm: matplotlib.colors.Normalize | None = None,
     cbar_label: str = "Color",
     cbar_range: Sequence[float, float] | None = None,
     cbar_caps: str = "neither",
@@ -402,3 +403,72 @@ def label_snapshots_with_redshift(
         getattr(ax, f"set_{which_axis}lim")(axis_limits)
 
     return np.arange(start, stop + 1, step=1)
+
+
+def plot_cluster_line_plot(
+    figure: Figure,
+    axes: Axes,
+    xs: NDArray,
+    quantity: NDArray,
+    cluster_masses: NDArray,
+    cmap: str | matplotlib.colors.Colormap = "plasma",
+) -> tuple[Figure, Axes]:
+    """
+    Plot a line for every cluster, colored by their mass.
+
+    Function takes a quantity in the form of an array of shape (N, X)
+    where N is the number of clusters and X is the number of x-values as
+    well as an array of masses of shape (N, ) and plots the values for
+    every cluster as a line, which is colored according to the cluster
+    mass in the specified colormap.
+
+    .. attention:: Masses must be in units of log10 of solar masses!
+
+    :param figure: The figure object onto which the colorbar is added.
+    :param axes: The axes object onto which the lines are drawn.
+    :param xs: The array of x-values of shape (X, ).
+    :param quantity: The array of y-values for every cluster, of shape
+        (N, X).
+    :param cluster_masses: The array of cluster masses of shape (N, ).
+        The masses must be supplied in log(M_sol)!
+    :param cmap: The name of the colormap to use or the colormap object
+        itself.
+    :return: Returns the figure and axes objects as tuple for convenience;
+        both are however altered in place and do not need to be updated.
+    """
+    n_clusters = cluster_masses.shape[0]
+
+    # create colormap
+    if isinstance(cmap, str):
+        cmap = matplotlib.cm.get_cmap(cmap)
+    norm = matplotlib.colors.Normalize(vmin=14.0, vmax=15.4)
+    colors = [cmap(norm(mass)) for mass in cluster_masses]
+
+    # plot mean, median, etc.
+    plot_config = {
+        "marker": "none",
+        "linestyle": "solid",
+        "alpha": 0.1,
+    }
+    for i in range(n_clusters):
+        axes.plot(
+            xs,
+            quantity[i],
+            color=colors[i],
+            **plot_config,
+        )
+    figure.colorbar(
+        matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap),
+        ax=axes,
+        location="right",
+        label="$log_{10} M_{200c}$ at z = 0",
+    )
+
+    # plot mean and median
+    m_config = {"marker": "none", "color": "black"}
+    mean = np.nanmean(quantity, axis=0)
+    axes.plot(xs, mean, ls="solid", **m_config)
+    median = np.nanmedian(quantity, axis=0)
+    axes.plot(xs, median, ls="dashed", **m_config)
+
+    return figure, axes

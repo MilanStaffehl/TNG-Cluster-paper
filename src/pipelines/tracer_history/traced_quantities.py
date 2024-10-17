@@ -416,9 +416,6 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             "Minimum": quantity_min,
             "Maximum": quantity_max,
         }
-        # create a colormap for the current mass range
-        cmap = matplotlib.cm.get_cmap("plasma")
-        norm = matplotlib.colors.Normalize(vmin=14.0, vmax=15.4)
         # load masses to color plots by them
         cluster_data = halos_daq.get_halo_properties(
             self.config.base_path,
@@ -427,7 +424,6 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             cluster_restrict=True,
         )
         masses = np.log10(cluster_data[self.config.mass_field])
-        colors = [cmap(norm(mass)) for mass in masses]
 
         for label_prefix, plot_quantity in plot_types.items():
             logging.info(
@@ -441,31 +437,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             axes.set_yscale("log")
 
             # plot mean, median, etc.
-            plot_config = {
-                "marker": "none",
-                "linestyle": "solid",
-                "alpha": 0.1,
-            }
-            for i in range(self.n_clusters):
-                axes.plot(
-                    xs,
-                    plot_quantity[i],
-                    color=colors[i],
-                    **plot_config,
-                )
-            fig.colorbar(
-                matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap),
-                ax=axes,
-                location="right",
-                label="$log_{10} M_{200c}$ at z = 0",
-            )
-
-            # plot mean and median
-            m_config = {"marker": "none", "color": "black"}
-            mean = np.mean(plot_quantity, axis=0)
-            axes.plot(xs, mean, ls="solid", **m_config)
-            median = np.median(plot_quantity, axis=0)
-            axes.plot(xs, median, ls="dashed", **m_config)
+            common.plot_cluster_line_plot(fig, axes, xs, plot_quantity, masses)
 
             # save figure
             self._save_fig(
