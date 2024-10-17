@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import h5py
 import matplotlib.cm
@@ -17,6 +17,9 @@ from library import constants
 from library.data_acquisition import halos_daq
 from library.plotting import common
 from pipelines import base
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 @dataclasses.dataclass
@@ -42,16 +45,46 @@ class PlotParentCategoryPlots(base.Pipeline):
         # Step 1: open archive file
         archive_file = h5py.File(self.config.cool_gas_history, "r")
 
+        # Step 2: Load cluster data
+        cluster_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            [self.config.mass_field],
+            cluster_restrict=True,
+        )
+        masses = np.log10(cluster_data[self.config.mass_field])
+
         # Step 2: plot fraction of tracers in satellites
         logging.info("Plotting fraction of tracers in satellites.")
-        self._plot_satellite_fraction(archive_file)
+        self._plot_category_fractions(4, "satellites", masses, archive_file)
+
+        # Step 3: plot fraction of tracers in primaries
+        logging.info("Plotting fraction of tracers in primaries.")
+        self._plot_category_fractions(3, "primaries", masses, archive_file)
+
+        # Step 4: plot fraction of tracers in other halos
+        logging.info("Plotting fraction of tracers in other halos.")
+        self._plot_category_fractions(1, "other halos", masses, archive_file)
+
+        # Step 4: plot fraction of tracers in other halos
+        logging.info("Plotting fraction of unbound tracers.")
+        self._plot_category_fractions(0, "no host", masses, archive_file)
 
         return 0
 
-    def _plot_satellite_fraction(self, archive_file: h5py.File) -> None:
+    def _plot_category_fractions(
+        self,
+        category: int,
+        category_name: str,
+        masses: NDArray,
+        archive_file: h5py.File
+    ) -> None:
         """
-        Plot the time development of the numer of tracers in satellites.
+        Plot the time development of the fraction in the given category.
 
+        :param category: The index of the category. Can be 0, 1, 2, 3, 4.
+        :param category_name: The name of the category as it should appear
+            in the axes labels and file ident flag.
         :param archive_file: The opened archive file.
         :return: None, plot saved to file.
         """
@@ -62,7 +95,7 @@ class PlotParentCategoryPlots(base.Pipeline):
         for zoom_id in range(self.n_clusters):
             grp = f"ZoomRegion_{zoom_id:03d}"
             parent_categories = archive_file[grp]["ParentCategory"][()]
-            fractions = np.count_nonzero(parent_categories == 4, axis=1)
+            fractions = np.count_nonzero(parent_categories == category, axis=1)
             fractions = fractions / parent_categories.shape[1]
             # exclude incorrect snaps
             where_faulty = np.any(parent_categories == 255, axis=1)
@@ -71,20 +104,12 @@ class PlotParentCategoryPlots(base.Pipeline):
 
         # Step 3: figure and axis setup
         fig, axes = plt.subplots(figsize=(5, 4))
-        axes.set_ylabel("Fraction of tracers in satellites")
+        axes.set_ylabel(f"Fraction of tracers in {category_name}")
         xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
 
         # Step 4: create colorscale for lines
         cmap = matplotlib.cm.get_cmap("plasma")
         norm = matplotlib.colors.Normalize(vmin=14.0, vmax=15.4)
-        # load masses to color plots by them
-        cluster_data = halos_daq.get_halo_properties(
-            self.config.base_path,
-            self.config.snap_num,
-            [self.config.mass_field],
-            cluster_restrict=True,
-        )
-        masses = np.log10(cluster_data[self.config.mass_field])
         colors = [cmap(norm(mass)) for mass in masses]
 
         # Step 5: plot the datapoints
@@ -109,11 +134,14 @@ class PlotParentCategoryPlots(base.Pipeline):
 
         # Step 6: plot mean and median
         m_config = {"marker": "none", "color": "black"}
-        mean = np.mean(current_fraction, axis=0)
+        mean = np.nanmean(current_fraction, axis=0)
         axes.plot(xs, mean, ls="solid", **m_config)
-        median = np.median(current_fraction, axis=0)
+        median = np.nanmedian(current_fraction, axis=0)
         axes.plot(xs, median, ls="dashed", **m_config)
 
         # Step 7: save figure
-        self._save_fig(fig, ident_flag="current_fraction")
-        logging.info("Finished saving plot for satellite fraction to file.")
+        category_file = category_name.replace(" ", "_")
+        self._save_fig(fig, ident_flag=f"current_{category_file}_fraction")
+        logging.info(
+            f"Finished saving plot for {category_name} fraction to file."
+        )
