@@ -4,14 +4,18 @@ Pipeline to plot crossing time plots.
 from __future__ import annotations
 
 import dataclasses
+import enum
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
+import cmasher  # noqa: F401
 import h5py
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 import numpy as np
 
 from library import constants
+from library.data_acquisition import halos_daq
 from library.plotting import common, plot_radial_profiles
 from library.processing import statistics
 from pipelines import base
@@ -21,14 +25,15 @@ if TYPE_CHECKING:
 
     from numpy.typing import NDArray
 
-PLOT_TYPES = [
-    "distribution",
-    "high-z-distance",
-    "z-zero-distance",
-    "distance-stack-high-z",
-    "distance-stack-z-zero",
-    "mean-crossing-time",
-]
+
+class PlotType(enum.IntEnum):
+    """Enum for different plot types"""
+    DISTRIBUTION = 0
+    HIGH_Z_DISTANCE = 1
+    CURRENT_DISTANCE = 2
+    HIGH_Z_DISTANCE_STACKED = 3
+    CURRENT_DISTANCE_STACKED = 4
+    MEAN_CROSSING_TIME = 5
 
 
 @dataclasses.dataclass
@@ -38,7 +43,7 @@ class PlotCrossingTimesPlots(base.Pipeline):
     time of particles that eventually end up in cool gas.
     """
 
-    plot_types: list[str] | None = None  # what to plot
+    plot_types: list[int] | None = None  # what to plot
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -46,7 +51,7 @@ class PlotCrossingTimesPlots(base.Pipeline):
     def __post_init__(self):
         super().__post_init__()
         if self.plot_types is None:
-            self.plot_types = PLOT_TYPES
+            self.plot_types = [e.value for e in PlotType]
 
     def run(self) -> int:
         """
@@ -67,26 +72,26 @@ class PlotCrossingTimesPlots(base.Pipeline):
         archive_file = h5py.File(self.config.cool_gas_history, "r")
 
         # Step 2: plot the different plot types
-        if "distribution" in self.plot_types:
+        if PlotType.DISTRIBUTION in self.plot_types:
             self._plot_distribution(archive_file)
 
-        if "high-z-distance" in self.plot_types:
+        if PlotType.HIGH_Z_DISTANCE in self.plot_types:
             self._plot_distance_dependence_overall(
                 constants.MIN_SNAP, archive_file
             )
 
-        if "z-zero-distance" in self.plot_types:
+        if PlotType.CURRENT_DISTANCE in self.plot_types:
             self._plot_distance_dependence_overall(99, archive_file)
 
-        if "distance-stack-high-z" in self.plot_types:
+        if PlotType.HIGH_Z_DISTANCE_STACKED in self.plot_types:
             self._plot_distance_dependence_stacked_per_zoom(
                 constants.MIN_SNAP, archive_file
             )
 
-        if "distance-stack-z-zero" in self.plot_types:
+        if PlotType.CURRENT_DISTANCE_STACKED in self.plot_types:
             self._plot_distance_dependence_stacked_per_zoom(99, archive_file)
 
-        if "mean-crossing-time" in self.plot_types:
+        if PlotType.MEAN_CROSSING_TIME in self.plot_types:
             self._plot_mean_crossing_time(archive_file)
 
         archive_file.close()
@@ -251,7 +256,8 @@ class PlotCrossingTimesPlots(base.Pipeline):
         :return: None, plots are saved to file.
         """
         logging.info(
-            "Plotting 2D histogram of distance at high z vs. crossing times."
+            f"Plotting 2D histogram of distance at snap {snap} vs. crossing "
+            f"times."
         )
 
         # Step 1: allocate memory
@@ -286,6 +292,7 @@ class PlotCrossingTimesPlots(base.Pipeline):
         hist, _, _ = np.histogram2d(
             distances,
             crossing_times,
+            weights=np.ones_like(distances) * constants.TRACER_MASS,
             bins=50,
             range=ranges,
         )
@@ -324,8 +331,8 @@ class PlotCrossingTimesPlots(base.Pipeline):
         :return: None, plots are saved to file.
         """
         logging.info(
-            "Plotting 2D histogram of distance at high z vs. crossing times,"
-            "stacked for clusters."
+            f"Plotting 2D histogram of distance at snap {snap} vs. crossing "
+            f"times, stacked for clusters."
         )
         # Step 1: set plot config
         n_bins = 50
@@ -405,20 +412,21 @@ class PlotCrossingTimesPlots(base.Pipeline):
             gridspec_kw={"height_ratios": [1, 4], "hspace": 0},
             constrained_layout=True,
         )
-        plot_radial_profiles.plot_2d_radial_profile(
-            fig,
-            axes[1],
-            hist.transpose(),
-            ranges.flatten(),
-            xlabel=xlabel,
-            ylabel="Estimated crossing redshift [log z]",
-            scale="log",
-            cbar_label=r"Tracer mass [$\log_{10} M_\odot$]",
-        )
+        with np.errstate(divide="ignore"):
+            plot_radial_profiles.plot_2d_radial_profile(
+                fig,
+                axes[1],
+                hist.transpose(),
+                ranges.flatten(),
+                xlabel=xlabel,
+                ylabel="Estimated crossing redshift [log z]",
+                scale="log",
+                cbar_label=r"Tracer mass [$\log_{10} M_\odot$]",
+            )
 
         # choose appropriate redshift labels
         z_ticks = np.array([-3, -2, -1, 0, np.log10(5)])
-        z_labels = ["0.001", "0.01", "0.1", "1", "5"]
+        z_labels = ["0", "0.01", "0.1", "1", "5"]
         axes[1].set_yticks(z_ticks, labels=z_labels)
         minor_ticks = np.concatenate(
             [
@@ -433,25 +441,106 @@ class PlotCrossingTimesPlots(base.Pipeline):
 
         # add mean line
         xs = np.linspace(ranges[0, 0], ranges[0, 1], num=50)
-        running_mean = statistics.get_2d_histogram_running_average(
-            hist.transpose(), ranges[1]
-        )
+        with np.errstate(invalid="ignore"):
+            running_mean = statistics.get_2d_histogram_running_average(
+                hist.transpose(), ranges[1]
+            )
         axes[1].plot(xs, running_mean, color="white", linestyle="dashed")
 
         # add 1D distribution at top
-        hist_1d = np.sum(hist, axis=1)
+        with np.errstate(divide="ignore"):
+            hist_1d_log = np.log10(np.sum(hist, axis=1))
         axes[0].step(
             xs,
-            np.log10(hist_1d),
+            hist_1d_log,
             where="post",
             color="blue",
         )
 
         # adjust secondary axes
         axes[0].set_ylabel("Count [log]")
+        axes[0].set_yticks(np.arange(5, 12.5, step=2.5))
 
         # save figure
         self._save_fig(fig, subdir=subdir, ident_flag=ident_flag)
 
     def _plot_mean_crossing_time(self, archive_file: h5py.File) -> None:
-        pass
+        """
+        Plot the mean crossing time of each cluster vs. its mass at z = 0.
+
+        :param archive_file: The opened archive file.
+        :return: None, figure is saved to file.
+        """
+        logging.info("Plotting mean crossing time vs. cluster mass.")
+        # allocate memory
+        mean_crossing_times = np.zeros(self.n_clusters)
+
+        # find mean crossing times
+        for zoom_in in range(self.n_clusters):
+            ds = f"ZoomRegion_{zoom_in:03d}/FirstCrossingRedshift"
+            mean_crossing_times[zoom_in] = np.nanmean(archive_file[ds][()])
+
+        # load cluster masses
+        cluster_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            [self.config.mass_field],
+            cluster_restrict=True,
+        )
+        cluster_masses = np.log10(cluster_data[self.config.mass_field])
+
+        # load cool gas fraction as color value
+        base_file = (
+            self.config.data_home / "mass_trends"
+            / "mass_trends_clusters_base_data.npz"
+        )
+        with np.load(base_file) as base_data:
+            cool_gas_fractions = base_data["cool_gas_fracs"][-self.n_clusters:]
+
+        # find median crossing time in 7 mass bins
+        left_bin_edges = np.array([14.2, 14.4, 14.6, 14.8, 15.0, 15.2])
+        logging.info(left_bin_edges)
+        medians = np.zeros_like(left_bin_edges, dtype=np.float64)
+        for i, left_bin_edge in enumerate(left_bin_edges):
+            right_bin_edge = left_bin_edge + 0.2
+            if i == len(left_bin_edges):
+                right_bin_edge += 0.01  # catch the once cluster to right
+            where = np.logical_and(
+                cluster_masses >= left_bin_edge,
+                cluster_masses < right_bin_edge
+            )
+            medians[i] = np.nanmedian(mean_crossing_times[where])
+
+        # create and configure fig and axes
+        fig, axes = plt.subplots(figsize=(5, 4))
+        axes.set_xlabel(r"Cluster mass at $z = 0$ [$\log_{10} M_\odot$]")
+        axes.set_ylabel("Mean crossing redshift")
+        axes.set_yscale("log")
+        axes.set_yticks([1, 0.5, 0.2, 0.1], labels=["1", "0.5", "0.2", "0.1"])
+        axes.get_xaxis().set_major_formatter(
+            matplotlib.ticker.ScalarFormatter()
+        )
+
+        # plot scatterplot and median line
+        common.plot_scatterplot(
+            fig,
+            axes,
+            cluster_masses,
+            mean_crossing_times,
+            marker_style="D",
+            color_quantity=np.log10(cool_gas_fractions),
+            cmap="cmr.cosmic",
+            cbar_label=r"Cool gas fraction at $z = 0$ [$\log_{10}$]",
+        )
+        axes.plot(
+            left_bin_edges + 0.1,
+            medians,
+            linestyle="dashed",
+            color="black",
+            zorder=20,
+            label="Median",
+        )
+        axes.legend()
+
+        # save figure
+        self._save_fig(fig, ident_flag="mean_vs_mass")

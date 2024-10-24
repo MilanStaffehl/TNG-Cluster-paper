@@ -185,6 +185,8 @@ def plot_scatterplot(
         sizes. Defaults to 4.
     :param legend_label: A label for the plot legend. Note that no legend
         will be created, the label is merely added to the paths collection.
+        To create a legend, use ``axes.legend()`` after calling this
+        function.
     :param alpha: The opacity of the data points. Defaults to 1.
     :param norm: A norm object to use to define range and norm of the
         colors in the scatter plot. When given, the ``cbar_range``

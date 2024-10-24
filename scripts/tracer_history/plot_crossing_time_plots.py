@@ -6,7 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.crossing_times import PLOT_TYPES, PlotCrossingTimesPlots
+from pipelines.tracer_history.crossing_times import PlotCrossingTimesPlots, PlotType
 
 
 def main(args: argparse.Namespace) -> None:
@@ -30,7 +30,8 @@ def main(args: argparse.Namespace) -> None:
 
     # select pipeline and config
     try:
-        plot_types = args.plot_types.split(",")
+        plot_types_str = args.plot_types.split(",")
+        plot_types = [int(e) for e in plot_types_str]
     except AttributeError:
         plot_types = None
     pipeline_config.update({"plot_types": plot_types})
@@ -59,9 +60,10 @@ if __name__ == "__main__":
         "-pt",
         "--plot-types",
         help=(
-            f"Comma-separated list of plot types to create. When not set, all "
-            f"available plot types are plotted. Must be one of the following "
-            f"valid plot types: {', '.join(PLOT_TYPES)}."
+            f"Comma-separated list of plot types to create. Plot types must be "
+            f"given as integers. When not set, all available plot types are "
+            f"plotted. Must be one of the following valid plot types: "
+            f"{', '.join([f'{p.value}: {p.name.lower()}' for p in PlotType])}."
         ),
         dest="plot_types",
         metavar="LIST",
