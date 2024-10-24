@@ -29,3 +29,11 @@ do
   printf "\n\nRunning: density plots (individual, zoom-in $i)\n"
   python ./plot_quantity_with_time.py density -l -z "$i"
 done
+
+# CROSSING TIME PLOTS
+printf "\n\nRunning: crossing time plots (all plot types)"
+python ./plot_crossing_time_plots.py
+
+# PARENT CATEGORY PLOTS
+printf "\n\nRunning: parent category plots (all plot types)"
+python ./plot_parent_category_plots.py
