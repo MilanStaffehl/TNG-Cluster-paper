@@ -756,10 +756,11 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
 
         # save fig
         logging.info("Saving plot to file, may take a while...")
+        ident_flag = f"z{self.zoom_in:03d}_tracks_"
         if self.part_limit is None:
-            ident_flag = "all_particles"
+            ident_flag += "all_particles"
         else:
-            ident_flag = f"first_{self.part_limit:d}_particles"
+            ident_flag += f"first_{self.part_limit:d}_particles"
         self._save_fig(
             fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
         )
