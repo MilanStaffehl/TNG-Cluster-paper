@@ -296,6 +296,8 @@ class PlotCrossingTimesPlots(base.Pipeline):
             bins=50,
             range=ranges,
         )
+        # normalize to tracer mass PER CLUSTER
+        hist = hist / self.n_clusters
 
         # Step 5: Plot the histogram
         if snap == constants.MIN_SNAP:
@@ -458,7 +460,7 @@ class PlotCrossingTimesPlots(base.Pipeline):
         )
 
         # adjust secondary axes
-        axes[0].set_ylabel("Count [log]")
+        axes[0].set_ylabel(r"M [$\log_{10} M_\odot$]")
         axes[0].set_yticks(np.arange(5, 12.5, step=2.5))
 
         # save figure
