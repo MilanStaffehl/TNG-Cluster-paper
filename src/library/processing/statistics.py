@@ -67,7 +67,7 @@ def stack_histograms(
         resulting is an array of stacked histograms. For example, a set
         of N histograms existing X times might be passed to the function
         as an array of shape (X, T, B) and one wants to get X stacks
-        back, i.e. an array of shape (X, B). This can be acgieved by
+        back, i.e. an array of shape (X, B). This can be achieved by
         setting ``axes`` to ``1``. Defaults to 0 which is the default for
         ``histograms`` being a simple sequence of histograms.
     :return: Tuple of three arrays. First is the stack of the histograms,

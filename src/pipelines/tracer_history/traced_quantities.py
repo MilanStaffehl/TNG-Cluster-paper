@@ -552,11 +552,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5.5, 4))
-            q_label = (
-                f"{method.capitalize()} "
-                f"{self.quantity_label[0].lower() + self.quantity_label[1:]}"
-            )
-            self._plot_histogram(q_label, fig, axes, stacked_hist)
+            self._plot_histogram(self.quantity_label, fig, axes, stacked_hist)
 
             # Step 5: save figure
             norm_flag = "_normalized" if self.normalize else ""
