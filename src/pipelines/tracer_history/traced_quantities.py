@@ -625,6 +625,7 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         # Step 2: extract the data required
         particle_data = f[f"ZoomRegion_{self.zoom_in:03d}/{self.quantity}"][()]
         uniqueness = f[f"ZoomRegion_{self.zoom_in:03d}/uniqueness_flags"][()]
+        cts = f[f"ZoomRegion_{self.zoom_in:03d}/FirstCrossingRedshift"][()]
 
         # Step 3: get characteristic cluster property
         logging.info("Loading characteristic cluster property.")
@@ -682,7 +683,12 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
                 f"of zoom-in {self.zoom_in}."
             )
             self._plot_time_development(
-                particle_data, cluster_cq, colors, label
+                particle_data,
+                cluster_cq,
+                colors,
+                np.nanmean(cts),
+                np.nanmedian(cts),
+                label,
             )
         if PlotType.GLOBAL_2DHIST in self.plot_types:
             logging.info(
@@ -700,6 +706,8 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         particle_data: NDArray,
         cluster_cq: NDArray,
         color_quantity: NDArray | None,
+        mean_crossing_time: float,
+        median_crossing_time: float,
         label: str | None,
     ) -> None:
         """
@@ -726,6 +734,9 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         :param color_quantity: Either an array of data by which to color
             the individual tracer tracks, or None to color them by
             uniformly sampling a cyclic colormap.
+        :param mean_crossing_time: Mean crossing redshift of this cluster.
+        :param median_crossing_time: Median crossing redshift of this
+            cluster.
         :param label: If a characteristic cluster quantity is provided,
             then this is the label to place in the legend. If none is
             provided or no legend shall be created, set this to None.
@@ -756,26 +767,44 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
             )
 
         # add characteristic cluster property as line
+        handles = []
         if np.all(~np.isnan(cluster_cq)):
             logging.info(
                 "Overplotting characteristic cluster property onto line plot."
             )
-            handle_ccq, = axes.plot(
-                xs,
-                cluster_cq
-                if not self.individual_log else np.log10(cluster_cq),
-                ls="dashed",
-                color="black",
-                label=label,
-                zorder=10,
+            handles.append(
+                axes.plot(
+                    xs,
+                    cluster_cq
+                    if not self.individual_log else np.log10(cluster_cq),
+                    ls="dashed",
+                    color="black",
+                    label=label,
+                    zorder=10,
+                )[0]
             )
-        else:
-            handle_ccq = None
+
+        # add mean and median crossing time
+        handles.append(
+            axes.axvline(
+                mean_crossing_time,
+                color="grey",
+                linestyle="solid",
+                zorder=20,
+                label="Mean crossing redshift",
+            )
+        )
+        handles.append(
+            axes.axvline(
+                median_crossing_time,
+                color="grey",
+                linestyle="dashed",
+                zorder=20,
+                label="Median crossing redshift"
+            )
+        )
 
         # construct and add legend
-        handles = []
-        if handle_ccq is not None:
-            handles.append(handle_ccq)
         if self.color_by is not None:
             self._add_additional_handles(handles)
         if label:
@@ -875,8 +904,13 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
             end_points = np.stack((xs[1:], ys[1:]), axis=1)
             lines = np.stack((start_points, end_points), axis=1)
             lc = matplotlib.collections.LineCollection(
-                lines, array=colors, alpha=0.2, cmap=cmap, norm=norm
+                lines,
+                array=colors,
+                alpha=0.2,
+                cmap=cmap,
+                norm=norm,
             )
+            lc.set_rasterized(True)
             axes.add_collection(lc)
 
         axes.autoscale_view()
