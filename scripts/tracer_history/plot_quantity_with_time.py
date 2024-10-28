@@ -18,9 +18,9 @@ from pipelines.tracer_history.generate.simple_particle_data import (
     TraceTemperaturePipeline,
 )
 from pipelines.tracer_history.traced_quantities import (
-    PLOT_TYPES,
     PlotSimpleQuantitiesForSingleClusters,
     PlotSimpleQuantityWithTimePipeline,
+    PlotType,
 )
 
 
@@ -63,6 +63,13 @@ def main(args: argparse.Namespace) -> None:
             logging.fatal(f"Unsupported quantity {args.what}.")
             sys.exit(1)
 
+    # unpack plot types
+    try:
+        plot_types_str = args.plot_types.split(",")
+        plot_types = [int(e) for e in plot_types_str]
+    except AttributeError:
+        plot_types = None
+
     # select plotting pipeline
     if args.zoom is not None:
         plotting_pipeline = PlotSimpleQuantitiesForSingleClusters
@@ -71,13 +78,11 @@ def main(args: argparse.Namespace) -> None:
             "zoom_in": args.zoom,
             "part_limit": args.particle_limit,
             "volume_normalize": args.volume_normalize,
+            "plot_types": plot_types,
+            "color_by": args.split_by,
         }
     else:
         plotting_pipeline = PlotSimpleQuantityWithTimePipeline
-        try:
-            plot_types = args.plot_types.split(",")
-        except AttributeError:
-            plot_types = None
         additional_configs = {
             "quantity": pipeline_class.quantity,
             "color": "dodgerblue",
@@ -199,8 +204,8 @@ if __name__ == "__main__":
         help=(
             f"Comma-separated list of plot types to create. When not set, all "
             f"available plot types are plotted. Must be one of the following "
-            f"valid plot types: {', '.join(PLOT_TYPES)}. Has no effect when "
-            f"using `--zoom-in`."
+            f"valid plot types: "
+            f"{', '.join([f'{p.value}: {p.name.lower()}' for p in PlotType])}."
         ),
         dest="plot_types",
         metavar="LIST",
@@ -236,10 +241,21 @@ if __name__ == "__main__":
         help=(
             "Normalize distance 2D histogram by shell volume instead of "
             "normalizing to sum to one. Only works for distances, and is "
-            "automatically disabled for other quantities."
+            "automatically disabled for other quantities. Has no effect when "
+            "using `--zoom-in`."
         ),
         dest="volume_normalize",
         action="store_true",
+    )
+    parser.add_argument(
+        "--split-by",
+        help=(
+            "Split the plots of quantity vs. distance by the specified "
+            "category. When using `--zoom-in`, this also colors the lines of "
+            "the individual tracer track plot by that category."
+        ),
+        dest="split_by",
+        choices=["parent-category"],
     )
 
     # parse arguments

@@ -5,9 +5,10 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import enum
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, ClassVar, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 
 import h5py
 import matplotlib.cm
@@ -29,12 +30,12 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
-PLOT_TYPES = [
-    "lineplot",
-    "global2dhist",
-    "globalridgeline",
-    "zoomedridgeline",
-]
+
+class PlotType(enum.IntEnum):
+    LINEPLOT = 0
+    GLOBAL_2DHIST = 1
+    GLOBAL_RIDGELINE = 2
+    ZOOMED_RIDGELINE = 3
 
 
 class PlotPipelineProtocol(Protocol):
@@ -134,7 +135,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
     color: str  # color for faint lines
     volume_normalize: bool = False  # normalize by volume?
     normalize: bool = False  # whether to normalize to characteristic property
-    plot_types: list[str] | None = None  # what to plot
+    plot_types: list[int] | None = None  # what to plot
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -145,7 +146,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
         # plot types
         if self.plot_types is None:
-            self.plot_types = PLOT_TYPES
+            self.plot_types = [e.value for e in PlotType]
 
         # turn off volume normalization if it is not a distance plot
         if self.quantity != "DistanceToMP":
@@ -221,25 +222,25 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
         logging.info("Archive OK. Continuing with plotting.")
 
         # Step 2: check for lineplots and plot
-        if "lineplot" in self.plot_types:
+        if PlotType.LINEPLOT in self.plot_types:
             logging.info("Plotting line plots.")
             self._plot_and_save_lineplots(f)
             logging.info("Finished line plots, saved to file.")
 
         # Step 3: plot 2D histograms
-        if "global2dhist" in self.plot_types:
+        if PlotType.GLOBAL_2DHIST in self.plot_types:
             logging.info("Plotting global 2D histograms.")
             self._plot_and_save_2dhistograms(f)
             logging.info("Finished global 2D histograms, saved to file.")
 
         # Step 4: plot global ridgeline plot
-        if "globalridgeline" in self.plot_types:
+        if PlotType.GLOBAL_RIDGELINE in self.plot_types:
             logging.info("Plotting global ridgeline plots.")
             self._plot_and_save_ridgelineplots(f)
             logging.info("Finished global ridgeline plots, saved to file.")
 
         # Step 5: plot zoomed-in ridgeline plot
-        if "zoomedridgeline" in self.plot_types:
+        if PlotType.ZOOMED_RIDGELINE in self.plot_types:
             logging.info("Plotting zoomed-in ridgeline plots.")
             # see if zoomed-in plot it supported
             if self.zoomed_range is None:
@@ -575,6 +576,8 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
     zoom_in: int  # the zoom-in region to plot
     part_limit: int | None = None  # limit plots to this many particles
     volume_normalize: bool = False
+    plot_types: list[int] | None = None  # what to plot
+    color_by: str | None = None  # what to color lines by
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -582,6 +585,9 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
 
     def __post_init__(self):
         super().__post_init__()
+
+        if self.plot_types is None:
+            self.plot_types = [e.value for e in PlotType]
 
         if self.quantity != "DistanceToMP":
             self.volume_normalize = False
@@ -661,15 +667,40 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
             cluster_cq = np.empty(self.n_snaps)
             cluster_cq[:] = np.nan
 
-        # Step 4: plot the data
-        self._plot_time_development(particle_data, cluster_cq, label)
-        self._plot_2dhistogram(particle_data, uniqueness, cluster_cq, label)
+        # Step 4: load color quantity if set
+        if self.color_by == "parent-category":
+            colors = f[f"ZoomRegion_{self.zoom_in:03d}/ParentCategory"][()]
+        else:
+            colors = None
 
         f.close()
+
+        # Step 5: plot the data
+        if PlotType.LINEPLOT in self.plot_types:
+            logging.info(
+                f"Plotting development of {self.quantity} for all particles "
+                f"of zoom-in {self.zoom_in}."
+            )
+            self._plot_time_development(
+                particle_data, cluster_cq, colors, label
+            )
+        if PlotType.GLOBAL_2DHIST in self.plot_types:
+            logging.info(
+                f"Plotting 2D histogram of {self.quantity} of zoom-in "
+                f"{self.zoom_in}."
+            )
+            self._plot_2dhistogram(
+                particle_data, uniqueness, cluster_cq, label
+            )
+
         return 0
 
     def _plot_time_development(
-        self, particle_data: NDArray, cluster_cq: NDArray, label: str | None
+        self,
+        particle_data: NDArray,
+        cluster_cq: NDArray,
+        color_quantity: NDArray | None,
+        label: str | None,
     ) -> None:
         """
         Plot, for every gas cell, the development of the quantity.
@@ -692,16 +723,14 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
             for plotting particle temperature). Must be an array of shape
             (S, ) where S is the number of snaps plotted. If no suitable
             cluster property exists, pass an array of NaNs instead.
+        :param color_quantity: Either an array of data by which to color
+            the individual tracer tracks, or None to color them by
+            uniformly sampling a cyclic colormap.
         :param label: If a characteristic cluster quantity is provided,
             then this is the label to place in the legend. If none is
             provided or no legend shall be created, set this to None.
         :return: None, plots are saved to file.
         """
-        logging.info(
-            f"Plotting development of {self.quantity} for all particles of "
-            f"zoom-in {self.zoom_in}."
-        )
-
         if self.part_limit is not None:
             logging.info(
                 f"Limiting particle data to only the first {self.part_limit} "
@@ -719,6 +748,72 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
 
         # plot data
         logging.info("Plotting a line for every tracer. May take a while...")
+        if color_quantity is None:
+            self._plot_rainbow_line_collection(axes, particle_data, xs)
+        else:
+            self._plot_categorized_line_collection(
+                axes, particle_data, xs, color_quantity
+            )
+
+        # add characteristic cluster property as line
+        if np.all(~np.isnan(cluster_cq)):
+            logging.info(
+                "Overplotting characteristic cluster property onto line plot."
+            )
+            handle_ccq, = axes.plot(
+                xs,
+                cluster_cq
+                if not self.individual_log else np.log10(cluster_cq),
+                ls="dashed",
+                color="black",
+                label=label,
+                zorder=10,
+            )
+        else:
+            handle_ccq = None
+
+        # construct and add legend
+        handles = []
+        if handle_ccq is not None:
+            handles.append(handle_ccq)
+        if self.color_by is not None:
+            self._add_additional_handles(handles)
+        if label:
+            axes.legend(handles=handles)
+
+        # save fig
+        logging.info("Saving plot to file, may take a while...")
+        ident_flag = f"z{self.zoom_in:03d}_tracks_"
+        if self.color_by is not None:
+            split_by = self.color_by.replace("-", "_")
+            ident_flag += f"{split_by}_"
+        if self.part_limit is None:
+            ident_flag += "all_particles"
+        else:
+            ident_flag += f"first_{self.part_limit:d}_particles"
+        self._save_fig(
+            fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
+        )
+        logging.info("Done! Saved individual line plot to file!")
+
+    def _plot_rainbow_line_collection(
+        self, axes: Axes, particle_data: NDArray, xs: NDArray
+    ) -> None:
+        """
+        Plot a line collection, with each line colored a different color.
+
+        The lines are the tracer tracks given by ``particle_data``, and
+        they are colored by sampling a cyclic colormap so that every
+        line has its own color. Lines are directly added to the given
+        axes, which is then auto-scaled to display all lines correctly.
+
+        :param axes: The axes onto which to plot the line collection.
+        :param particle_data: The array of particle properties. Must be
+            of shape (100, N).
+        :param xs: The array of x-values of shape (S, ) where S is the
+            number of snaps from ``constants.MIN_SNAP`` to z = 0.
+        :return: None
+        """
         n_part = particle_data.shape[1]
         cmap = matplotlib.cm.get_cmap("hsv")
         norm = matplotlib.colors.Normalize(vmin=0, vmax=n_part)
@@ -731,39 +826,90 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         lc = matplotlib.collections.LineCollection(
             lines, colors=colors, alpha=0.2
         )
+
         axes.add_collection(lc)
         axes.autoscale_view()
         axes.set_rasterization_zorder(5)
 
-        # add characteristic cluster property as line
-        if np.all(~np.isnan(cluster_cq)):
-            logging.info(
-                "Overplotting characteristic cluster property onto line plot."
-            )
-            axes.plot(
-                xs,
-                cluster_cq
-                if not self.individual_log else np.log10(cluster_cq),
-                ls="dashed",
-                color="black",
-                label=label,
-                zorder=10,
-            )
+    def _plot_categorized_line_collection(
+        self,
+        axes: Axes,
+        particle_data: NDArray,
+        xs: NDArray,
+        color_quantity: NDArray,
+    ) -> None:
+        """
+        Plot a line collection, colored by the given quantity.
 
-        # add labels
-        if label:
-            axes.legend()
+        The lines are the tracer tracks given by ``particle_data``, and
+        each segment is colored according to the data given as the
+        ``color_quantity`` array, by sampling a colormap from the max
+        value range. The lines are directly added to the given axes,
+        which is then auto-scaled.
 
-        # save fig
-        logging.info("Saving plot to file, may take a while...")
-        ident_flag = f"z{self.zoom_in:03d}_tracks_"
-        if self.part_limit is None:
-            ident_flag += "all_particles"
+        :param axes: The axes onto which to plot the line collection.
+        :param particle_data: The array of particle properties. Must be
+            of shape (100, N).
+        :param xs: The array of x-values of shape (S, ) where S is the
+            number of snaps from ``constants.MIN_SNAP`` to z = 0.
+        :param color_quantity: The quantity which determines the color
+            of each line segment. Must be of shape (100, N).
+        :return: None
+        """
+        # setup
+        n_part = particle_data.shape[1]
+        cmap, norm = self._get_norm_and_cmap(color_quantity)
+
+        # Oh, you thought that stuff up there was bad? HA! HAHAHAHA!
+        # Yeah, try plotting multiple lines with colored segments.
+        # Impossible to do with LineCollection - except with the slowest
+        # for-loop the world has ever seen. Enjoy...
+        log_level = logging.getLogger("root").level
+        for i in range(n_part):
+            if log_level <= 15:
+                perc = i / n_part * 100
+                print(f"Plotting line {i}/{n_part} ({perc:.1f}%)", end="\r")
+            colors = color_quantity[constants.MIN_SNAP + 1:, i]
+            ys = particle_data[constants.MIN_SNAP:, i]
+            start_points = np.stack((xs[:-1], ys[:-1]), axis=1)
+            end_points = np.stack((xs[1:], ys[1:]), axis=1)
+            lines = np.stack((start_points, end_points), axis=1)
+            lc = matplotlib.collections.LineCollection(
+                lines, array=colors, alpha=0.2, cmap=cmap, norm=norm
+            )
+            axes.add_collection(lc)
+
+        axes.autoscale_view()
+        axes.set_rasterization_zorder(5)
+
+    def _get_norm_and_cmap(
+        self, color_quantity: NDArray
+    ) -> tuple[matplotlib.colors.Colormap, matplotlib.colors.Normalize]:
+        """
+        Return a cmap and norm for the current color quantity.
+
+        :return: Tuple of appropriate cmap and norm objects.
+        """
+        if self.color_by == "parent-category":
+            logging.info("Setting cmap and norm for parent category.")
+            cmap = matplotlib.cm.get_cmap("turbo")
+            norm = matplotlib.colors.Normalize(vmin=0, vmax=4)
         else:
-            ident_flag += f"first_{self.part_limit:d}_particles"
-        self._save_fig(
-            fig, ident_flag=ident_flag, subdir=f"zoom_in_{self.zoom_in}"
-        )
+            cmap = matplotlib.cm.get_cmap("hsv")
+            vmin = np.nanmin(color_quantity[constants.MIN_SNAP:, :])
+            vmax = np.nanmax(color_quantity[constants.MIN_SNAP:, :])
+            norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
+        return cmap, norm
+
+    def _add_additional_handles(self, handles: list[Any]) -> None:
+        """
+        Add handles to the list of handles for plot legend creation.
+
+        :param handles: A list of handles for the legend. Will be appended
+            by new, appropriate handles.
+        :return: None, list is altered in place.
+        """
+        pass
 
     def _plot_2dhistogram(
         self,
@@ -793,7 +939,6 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
             provided or no legend shall be created, set this to None.
         :return: None, figure saved to file.
         """
-        logging.info(f"Plotting 2D histogram of {self.quantity}.")
         # Step 0: Check plotting is possible
         if self.hist_range is None or self.log is None:
             logging.error("Cannot plot 2D histogram; missing plot config.")
