@@ -57,6 +57,10 @@ class PlotPipelineProtocol(Protocol):
     def volume_normalize(self) -> bool:
         ...
 
+    @property
+    def split_by(self) -> str | None:
+        ...
+
 
 class HistogramMixin:
     """Mixin to provide common plotting utils."""
@@ -95,6 +99,9 @@ class HistogramMixin:
         if self.volume_normalize:
             cbar_lims = (-5, None)
             cbar_label = r"Tracer density [$\log_{10}(M_\odot / ckpc^3)$]"
+        elif self.split_by is not None:
+            cbar_lims = (7, 11)
+            cbar_label = r"Tracer mass [$\log_{10}M_\odot$]"
         else:
             cbar_lims = (-4, None)
             cbar_label = "Normalized count [log]"
@@ -114,6 +121,7 @@ class HistogramMixin:
             cbar_label=cbar_label,
             scale="log",
             cbar_limits=cbar_lims,
+            value_range=cbar_lims,
         )
 
         # label x-axis appropriately
@@ -136,6 +144,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
     volume_normalize: bool = False  # normalize by volume?
     normalize: bool = False  # whether to normalize to characteristic property
     plot_types: list[int] | None = None  # what to plot
+    split_by: str | None = None
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -185,7 +194,8 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
     def run(self) -> int:
         """Load and plot data"""
         logging.info(
-            f"Starting pipeline to plot {', '.join(self.plot_types)} for "
+            f"Starting pipeline to plot "
+            f"{', '.join([PlotType(e).name for e in self.plot_types])} for "
             f"{self.quantity}."
         )
         if self.volume_normalize:
@@ -230,7 +240,10 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
         # Step 3: plot 2D histograms
         if PlotType.GLOBAL_2DHIST in self.plot_types:
             logging.info("Plotting global 2D histograms.")
-            self._plot_and_save_2dhistograms(f)
+            if self.split_by is None:
+                self._plot_and_save_2dhistograms(f)
+            else:
+                self._plot_and_save_2dhists_split(f)
             logging.info("Finished global 2D histograms, saved to file.")
 
         # Step 4: plot global ridgeline plot
@@ -321,6 +334,72 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                     hist = hist / np.sum(hist)  # normalize to unity
                 quantity_hists[zoom_id, i] = hist
         return quantity_hists
+
+    def _get_hists_split_by_parent(
+        self, archive_file: h5py.File
+    ) -> tuple[NDArray, list[str]]:
+        """
+        Create and return 2D histograms, split by parent category.
+
+        Function is equivalent to ``_get_quantity_hist`` except it
+        returns 5 histograms, where each only represents a histogram of
+        particles that belong to a specific parent category.
+
+        :param archive_file: Opened cool gas history archive file.
+        :return: Tuple of an array and a list of strings. The arrray is
+            that of histograms of the distribution of the quantity at
+            all snapshots analyzed for all clusters, split by category.
+            Suitably normalized for the given quantity. The list is a
+            list of suitable names for each category, in the same order
+            as in the array.
+        """
+        logging.info(
+            "Creating histogram data for all clusters. This can take a while."
+        )
+        quantity_hists = np.zeros(
+            (5, self.n_clusters, self.n_snaps, self.n_bins)
+        )
+        normalization_factor = self._get_normalization()
+        categories = [
+            "unbound", "other_halo", "inner_fuzz", "primary", "satellite"
+        ]
+        for category_idx in range(5):
+            for zoom_id in range(self.n_clusters):
+                logging.debug(
+                    f"Creating histogram for zoom-in {zoom_id}, category "
+                    f"{category_idx} ({categories[category_idx]}) only."
+                )
+                group = f"ZoomRegion_{zoom_id:03d}"
+                quantity = archive_file[group][self.quantity][()]
+                parent_category = archive_file[group]["ParentCategory"][()]
+                for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+                    where = parent_category[snap] == category_idx
+                    current_q = quantity[snap][where]
+                    normed_q = current_q / normalization_factor[zoom_id, i]
+                    if self.log:
+                        q = np.log10(normed_q)
+                    else:
+                        q = normed_q
+                    # different normalizations
+                    weights = np.ones_like(q) * constants.TRACER_MASS
+                    if self.volume_normalize:
+                        hist = statistics.volume_normalized_radial_profile(
+                            q,
+                            weights,
+                            self.n_bins,
+                            radial_range=self.hist_range,
+                            virial_radius=normalization_factor[zoom_id, i],
+                            distances_are_log=self.log,
+                        )[0]
+                    else:
+                        hist = np.histogram(
+                            q,
+                            self.n_bins,
+                            weights=weights,
+                            range=self.hist_range
+                        )[0]
+                    quantity_hists[category_idx, zoom_id, i] = hist
+        return quantity_hists, categories
 
     def _get_normalization(self) -> NDArray:
         """
@@ -561,6 +640,57 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             ident_flag = f"2dhist_{method}{volnorm_flag}{norm_flag}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} 2D histogram plot to file.")
+
+    def _plot_and_save_2dhists_split(self, archive_file: h5py.File) -> None:
+        """
+        Plot a 2D histogram split by a given category.
+
+        Plot shows the 1D distribution of the quantity at different
+        redshifts using a 2D histogram. At every snapshot, it splits the
+        set of particles into categories, and then plots one 2D histogram
+        for every category.
+
+        :param archive_file: The opened cool gas history archive file.
+        :return: None, figure saved to file.
+        """
+        # Check plotting is possible
+        if self.hist_range is None or self.log is None:
+            logging.error("Cannot plot 2D histogram; missing plot config.")
+            return
+
+        # Load data and create a histogram
+        if self.split_by == "parent-category":
+            quantity_hists, category_list = self._get_hists_split_by_parent(archive_file)
+        else:
+            logging.error(
+                f"Unknown split category: {self.split_by}. Will continue with "
+                f"unsplit histogram instead."
+            )
+            self._plot_and_save_2dhistograms(archive_file)
+            return
+
+        # Plot the histograms
+        for i, category in enumerate(category_list):
+            for method in ["mean", "median"]:
+                # Step 1: stack histograms
+                stacked_hist = statistics.stack_histograms(
+                    quantity_hists[i], method, axis=0
+                )[0]
+
+                # Step 2: set up figure
+                fig, axes = plt.subplots(figsize=(5.5, 4))
+                self._plot_histogram(
+                    self.quantity_label, fig, axes, stacked_hist
+                )
+
+                # Step 5: save figure
+                norm_flag = "_normalized" if self.normalize else ""
+                vnf = "_volumenormalized" if self.volume_normalize else ""
+                ident_flag = f"2dhist_{category}_{method}{vnf}{norm_flag}"
+                subsubdir = f"split_by_{self.split_by.replace('-', '_')}"
+                self._save_fig(
+                    fig, ident_flag=ident_flag, subdir=f"2d_plots/{subsubdir}"
+                )
 
 
 @dataclasses.dataclass

@@ -89,6 +89,7 @@ def main(args: argparse.Namespace) -> None:
             "normalize": args.normalize,
             "volume_normalize": args.volume_normalize,
             "plot_types": plot_types,
+            "split_by": args.split_by,
         }
 
     # select and build pipeline

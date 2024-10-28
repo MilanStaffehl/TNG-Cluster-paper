@@ -17,6 +17,16 @@ python ./plot_quantity_with_time.py distance -l -vn -n
 printf "Running: temperature plots (normalized stacks, all plot types)"
 python ./plot_quantity_with_time.py temperature -l -n
 
+# STACKS SPLIT BY PARENT
+printf "Running: distance plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py distance -l -pt 1 --split-by parent-category
+printf "Running: volume normalized distance plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py distance -l -vn -pt 1 --split-by parent-category
+printf "Running: temperature plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py temperature -l -pt 1 --split-by parent-category
+printf "Running: density plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py density -l -pt 1 --split-by parent-category
+
 # INDIVIDUAL PLOTS
 for i in $(seq 0 351)
 do
@@ -30,16 +40,16 @@ do
   python ./plot_quantity_with_time.py density -l -z "$i"
 done
 
-# INDIVIDUAL LINE PLOTS, SPLIT BY CATEGORY
-for i in $(seq 0 351)
-do
-  printf "\n\nRunning: distance line plots (individual, zoom-in $i, split by parent category)\n"
-  python ./plot_quantity_with_time.py distance -l -z "$i" -pt 0 --split-by parent-category
-  printf "\n\nRunning: temperature line plots (individual, zoom-in $i, split by parent category)\n"
-  python ./plot_quantity_with_time.py temperature -l -z "$i" -pt 0 --split-by parent-category
-  printf "\n\nRunning: density line plots (individual, zoom-in $i, split by parent category)\n"
-  python ./plot_quantity_with_time.py density -l -z "$i" -pt 0 --split-by parent-category
-done
+# INDIVIDUAL LINE PLOTS, SPLIT BY CATEGORY (currently not possible)
+#for i in $(seq 0 351)
+#do
+#  printf "\n\nRunning: distance line plots (individual, zoom-in $i, split by parent category)\n"
+#  python ./plot_quantity_with_time.py distance -l -z "$i" -pt 0 --split-by parent-category
+#  printf "\n\nRunning: temperature line plots (individual, zoom-in $i, split by parent category)\n"
+#  python ./plot_quantity_with_time.py temperature -l -z "$i" -pt 0 --split-by parent-category
+#  printf "\n\nRunning: density line plots (individual, zoom-in $i, split by parent category)\n"
+#  python ./plot_quantity_with_time.py density -l -z "$i" -pt 0 --split-by parent-category
+#done
 
 # CROSSING TIME PLOTS
 printf "\n\nRunning: crossing time plots (all plot types)"
