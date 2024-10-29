@@ -1056,8 +1056,8 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         """
         if self.color_by == "parent-category":
             logging.info("Setting cmap and norm for parent category.")
-            cmap = matplotlib.cm.get_cmap("turbo")
-            norm = matplotlib.colors.Normalize(vmin=0, vmax=4)
+            cmap = matplotlib.cm.get_cmap("turbo_r")
+            norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)
         else:
             cmap = matplotlib.cm.get_cmap("hsv")
             vmin = np.nanmin(color_quantity[constants.MIN_SNAP:, :])

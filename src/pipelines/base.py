@@ -198,7 +198,7 @@ class Pipeline:
         if subdir:
             filepath = filepath / Path(subdir)
         if not filepath.exists():
-            logging.info("Creating missing figures directory.")
+            logging.info(f"Creating missing figures directory {filepath}.")
             filepath.mkdir(parents=True)
 
         if tight_layout:

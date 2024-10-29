@@ -34,7 +34,7 @@ BlackSeismic = cl.LinearSegmentedColormap("BlackSeismic", _color_dict)
 def sample_cmap(
     colormap: str,
     samples: int,
-    index: int | None = None,
+    index: int | Sequence[int] | None = None,
 ) -> RGBAColor | Sequence[RGBAColor]:
     """
     Return a color sample from the given color map.
@@ -51,7 +51,8 @@ def sample_cmap(
     :param samples: The number of evenly-spaced samples.
     :param index: The index of the sample for which to return the color.
         If set to None, function returns all samples as an array of
-        colors.
+        colors. If set to a valid array slice, only that slice of colors
+        is returned.
     :return: An RGBA color as a tuple of floats.
     """
     if samples > 1001:

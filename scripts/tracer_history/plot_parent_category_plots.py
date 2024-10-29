@@ -6,7 +6,7 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.parent_categories import PlotParentCategoryPlots
+from pipelines.tracer_history.parent_categories import PlotParentCategoryPlots, PlotType
 
 
 def main(args: argparse.Namespace) -> None:
@@ -26,6 +26,13 @@ def main(args: argparse.Namespace) -> None:
     )
 
     # update pipeline config here
+    # select pipeline and config
+    try:
+        plot_types_str = args.plot_types.split(",")
+        plot_types = [int(e) for e in plot_types_str]
+    except AttributeError:
+        plot_types = None
+    pipeline_config.update({"plot_types": plot_types})
 
     # select and build pipeline
     pipeline = PlotParentCategoryPlots(**pipeline_config)
@@ -48,6 +55,16 @@ if __name__ == "__main__":
     parser.remove_argument("from_file")
 
     # add new args
+    parser.add_argument(
+        "-pt",
+        "--plot-types",
+        help=(
+            "Comma-separated list of plot types, given as integers. Only the "
+            "specified plots will be created. Options are: "
+            f"{', '.join([f'{p.value}: {p.name.lower()}' for p in PlotType])}"
+        ),
+        dest="plot_types",
+    )
 
     # parse arguments
     try:

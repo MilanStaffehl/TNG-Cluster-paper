@@ -4,10 +4,12 @@ Plot plots for the parent categories of clusters.
 from __future__ import annotations
 
 import dataclasses
+import enum
 import logging
 from typing import TYPE_CHECKING, ClassVar
 
 import h5py
+import matplotlib.cm
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -18,6 +20,12 @@ from pipelines import base
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+
+class PlotType(enum.IntEnum):
+    FRACTION_PLOT = 0
+    CUMULATIVE_FRACTION_PLOT = 1
+    INDIVIDUAL_FRACTION_PLOT = 2
 
 
 @dataclasses.dataclass
@@ -31,8 +39,15 @@ class PlotParentCategoryPlots(base.Pipeline):
     - Remember to exclude snaps with category 255!
     """
 
+    plot_types: list[int] | None = None
+
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.plot_types is None:
+            self.plot_types = [e.value for e in PlotType]
 
     def run(self) -> int:
         """
@@ -52,25 +67,43 @@ class PlotParentCategoryPlots(base.Pipeline):
         )
         masses = np.log10(cluster_data[self.config.mass_field])
 
-        # Step 2: plot fraction of tracers in satellites
-        logging.info("Plotting fraction of tracers in satellites.")
-        self._plot_category_fractions(4, "satellites", masses, archive_file)
+        # Step 3: plot fraction of tracers at current redshift
+        if PlotType.FRACTION_PLOT in self.plot_types:
+            logging.info("Plotting fraction of tracers in satellites.")
+            self._plot_category_fractions(
+                4, "satellites", masses, archive_file
+            )
 
-        # Step 3: plot fraction of tracers in primaries
-        logging.info("Plotting fraction of tracers in primaries.")
-        self._plot_category_fractions(3, "primaries", masses, archive_file)
+            logging.info("Plotting fraction of tracers in primaries.")
+            self._plot_category_fractions(3, "primaries", masses, archive_file)
 
-        # Step 4: plot fraction of tracers in other halos
-        logging.info("Plotting fraction of tracers in other halos.")
-        self._plot_category_fractions(1, "other halos", masses, archive_file)
+            logging.info("Plotting fraction of tracers in primaries.")
+            self._plot_category_fractions(
+                2, "inner fuzz", masses, archive_file
+            )
 
-        # Step 5: plot fraction of tracers in other halos
-        logging.info("Plotting fraction of unbound tracers.")
-        self._plot_category_fractions(0, "no host", masses, archive_file)
+            logging.info("Plotting fraction of tracers in other halos.")
+            self._plot_category_fractions(
+                1, "other halos", masses, archive_file
+            )
 
-        # Step 6: plot cumulative fraction of tracers in satellites
-        logging.info("Plotting cumulative fraction of tracers in satellites.")
-        self._plot_cumulative_satellite_fraction(masses, archive_file)
+            logging.info("Plotting fraction of unbound tracers.")
+            self._plot_category_fractions(0, "no host", masses, archive_file)
+
+        # Step 4: plot cumulative fraction of tracers in satellites
+        if PlotType.CUMULATIVE_FRACTION_PLOT in self.plot_types:
+            logging.info(
+                "Plotting cumulative fraction of tracers in satellites."
+            )
+            self._plot_cumulative_satellite_fraction(masses, archive_file)
+
+        # Step 5: plot fractions for individual clusters
+        if PlotType.INDIVIDUAL_FRACTION_PLOT in self.plot_types:
+            logging.info(
+                "Plotting fraction of tracers by parent category for all "
+                "clusters individually."
+            )
+            self._plot_individual_fractions(archive_file)
 
         return 0
 
@@ -167,4 +200,66 @@ class PlotParentCategoryPlots(base.Pipeline):
         self._save_fig(fig, ident_flag="cumulative_satellite_frac")
         logging.info(
             "Finished saving plot for cumulative satellite fraction to file."
+        )
+
+    def _plot_individual_fractions(self, archive_file: h5py.File) -> None:
+        """
+        Plot the fraction of every category vs redshift per cluster.
+
+        Method creates a plot for every cluster, showing five lines
+        where each line shows the fraction of tracers belonging to a
+        parent category. Plot is saved to file.
+
+        :param archive_file: The opened cool gas archive file.
+        :return: None, figure is saved to file.
+        """
+        # color setup
+        cmap = matplotlib.cm.get_cmap("turbo_r")
+        norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)
+        colors = cmap(norm(np.arange(0, 5, step=1)))
+        for zoom_in in range(self.n_clusters):
+            logging.debug(
+                f"Plotting parent fraction plot for zoom-in {zoom_in}."
+            )
+            # create figure
+            fig, axes = plt.subplots(figsize=(4, 4))
+            axes.set_ylim([-0.1, 1.1])
+            axes.set_ylabel("Fraction of tracers")
+            xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
+
+            # load parent categories
+            dataset = f"ZoomRegion_{zoom_in:03d}/ParentCategory"
+            parent_categories = archive_file[dataset][constants.MIN_SNAP:, :]
+            n_particles = parent_categories.shape[1]
+
+            # plot lines for categories
+            categories = [
+                "unbound",
+                "other halo",
+                "inner fuzz",
+                "central",
+                "satellite",
+            ]
+            for i, category in enumerate(categories):
+                n_current = np.count_nonzero(parent_categories == i, axis=1)
+                fraction = n_current / n_particles
+                plot_config = {
+                    "color": colors[i],
+                    "linestyle": "solid",
+                    "marker": "none",
+                    "label": category,
+                }
+                axes.plot(xs, fraction, **plot_config)
+
+            axes.legend(fontsize="small")
+
+            # save figure to file
+            self._save_fig(
+                fig,
+                ident_flag=f"parent_category_fractions_z{zoom_in:03d}",
+                subdir=f"individuals/zoom_in_{zoom_in:03d}",
+            )
+        logging.info(
+            "Finished saving plot for parent fractions for individual "
+            "clusters to file."
         )
