@@ -346,7 +346,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
         particles that belong to a specific parent category.
 
         :param archive_file: Opened cool gas history archive file.
-        :return: Tuple of an array and a list of strings. The arrray is
+        :return: Tuple of an array and a list of strings. The array is
             that of histograms of the distribution of the quantity at
             all snapshots analyzed for all clusters, split by category.
             Suitably normalized for the given quantity. The list is a
@@ -354,7 +354,8 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             as in the array.
         """
         logging.info(
-            "Creating histogram data for all clusters. This can take a while."
+            f"Creating histogram data for all clusters, split by "
+            f"{self.split_by.replace('-', ' ')}. This can take a while."
         )
         quantity_hists = np.zeros(
             (5, self.n_clusters, self.n_snaps, self.n_bins)
@@ -373,7 +374,11 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                 quantity = archive_file[group][self.quantity][()]
                 parent_category = archive_file[group]["ParentCategory"][()]
                 for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-                    where = parent_category[snap] == category_idx
+                    if self.split_by == "parent-category-at-zero":
+                        s = 99
+                    else:
+                        s = snap
+                    where = parent_category[s] == category_idx
                     current_q = quantity[snap][where]
                     normed_q = current_q / normalization_factor[zoom_id, i]
                     if self.log:
@@ -399,6 +404,76 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                             range=self.hist_range
                         )[0]
                     quantity_hists[category_idx, zoom_id, i] = hist
+        return quantity_hists, categories
+
+    def _get_hists_split_by_bound_state(
+        self, archive_file: h5py.File
+    ) -> tuple[NDArray, list[str]]:
+        """
+        Create and return 2D histograms, split by parenthood of particles.
+
+        Function is equivalent to ``_get_quantity_hist`` except it
+        returns 3 histograms, where the first only shows particles that
+        are bound to both a halo and a subhalo (regardless of which),
+        the second only particles bound to a halo but no subhalo, and
+        the third only unbound particles.
+
+        :param archive_file: Opened cool gas history archive file.
+        :return: Tuple of an array and a list of strings. The array is
+            that of histograms of the distribution of the quantity at
+            all snapshots analyzed for all clusters, split by category.
+            Suitably normalized for the given quantity. The list is a
+            list of suitable names for each category, in the same order
+            as in the array.
+        """
+        logging.info(
+            f"Creating histogram data for all clusters, split by "
+            f"{self.split_by.replace('-', ' ')}. This can take a while."
+        )
+        quantity_hists = np.zeros(
+            (3, self.n_clusters, self.n_snaps, self.n_bins)
+        )
+        normalization_factor = self._get_normalization()
+        categories = ["in_subhalo", "in_halo", "unbound"]
+        for zoom_id in range(self.n_clusters):
+            logging.debug(f"Creating histogram for zoom-in {zoom_id}.")
+            group = f"ZoomRegion_{zoom_id:03d}"
+            quantity = archive_file[group][self.quantity][()]
+            parent_halo = archive_file[group]["ParentHaloIndex"][()]
+            parent_subhalo = archive_file[group]["ParentSubhaloIndex"][()]
+            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+                if self.split_by == "bound-category-at-zero":
+                    s = 99
+                else:
+                    s = snap
+                where_s = (parent_halo[s] != -1) & (parent_subhalo[s] != -1)
+                where_h = (parent_halo[s] != -1) & (parent_subhalo[s] == -1)
+                where_u = (parent_halo[s] == -1) & (parent_subhalo[s] == -1)
+
+                for j, where in enumerate([where_s, where_h, where_u]):
+                    current_q = quantity[snap][where]
+                    q = current_q / normalization_factor[zoom_id, i]
+                    if self.log:
+                        q = np.log10(q)
+                    # different normalizations
+                    weights = np.ones_like(q) * constants.TRACER_MASS
+                    if self.volume_normalize:
+                        hist = statistics.volume_normalized_radial_profile(
+                            q,
+                            weights,
+                            self.n_bins,
+                            radial_range=self.hist_range,
+                            virial_radius=normalization_factor[zoom_id, i],
+                            distances_are_log=self.log,
+                        )[0]
+                    else:
+                        hist = np.histogram(
+                            q,
+                            self.n_bins,
+                            weights=weights,
+                            range=self.hist_range
+                        )[0]
+                    quantity_hists[j, zoom_id, i] = hist
         return quantity_hists, categories
 
     def _get_normalization(self) -> NDArray:
@@ -659,8 +734,14 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             return
 
         # Load data and create a histogram
-        if self.split_by == "parent-category":
-            quantity_hists, category_list = self._get_hists_split_by_parent(archive_file)
+        if self.split_by.startswith("parent-category"):
+            quantity_hists, category_list = self._get_hists_split_by_parent(
+                archive_file
+            )
+        elif self.split_by.startswith("bound-state"):
+            quantity_hists, category_list = self._get_hists_split_by_bound_state(
+                archive_file
+            )
         else:
             logging.error(
                 f"Unknown split category: {self.split_by}. Will continue with "

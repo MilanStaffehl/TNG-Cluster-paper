@@ -256,7 +256,13 @@ if __name__ == "__main__":
             "the individual tracer track plot by that category."
         ),
         dest="split_by",
-        choices=["parent-category", "parent-category-at-zero", "bound-state"],
+        choices=[
+            "parent-category",
+            "parent-category-at-zero",
+            "bound-state",
+            "bound-state-at-zero",
+            "distance-at-zero",
+        ],
     )
 
     # parse arguments
