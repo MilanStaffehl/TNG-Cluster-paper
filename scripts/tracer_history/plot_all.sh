@@ -27,6 +27,36 @@ python ./plot_quantity_with_time.py temperature -l -pt 1 --split-by parent-categ
 printf "Running: density plots (stacks, split by parent, all plot types)"
 python ./plot_quantity_with_time.py density -l -pt 1 --split-by parent-category
 
+# STACKS SPLIT BY PARENT AT Z = 0
+printf "Running: distance plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py distance -l -pt 1 --split-by parent-category-at-zero
+printf "Running: volume normalized distance plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py distance -l -vn -pt 1 --split-by parent-category-at-zero
+printf "Running: temperature plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py temperature -l -pt 1 --split-by parent-category-at-zero
+printf "Running: density plots (stacks, split by parent, all plot types)"
+python ./plot_quantity_with_time.py density -l -pt 1 --split-by parent-category-at-zero
+
+# STACKS SPLIT BY BOUND STATE
+printf "Running: distance plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py distance -l -pt 1 --split-by bound-state
+printf "Running: volume normalized distance plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py distance -l -vn -pt 1 --split-by bound-state
+printf "Running: temperature plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py temperature -l -pt 1 --split-by bound-state
+printf "Running: density plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py density -l -pt 1 --split-by bound-state
+
+# STACKS SPLIT BY BOUND STATE AT Z = 0
+printf "Running: distance plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py distance -l -pt 1 --split-by bound-state-at-zero
+printf "Running: volume normalized distance plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py distance -l -vn -pt 1 --split-by bound-state-at-zero
+printf "Running: temperature plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py temperature -l -pt 1 --split-by bound-state-at-zero
+printf "Running: density plots (stacks, split by bound state, all plot types)"
+python ./plot_quantity_with_time.py density -l -pt 1 --split-by bound-state-at-zero
+
 # INDIVIDUAL PLOTS
 for i in $(seq 0 351)
 do
