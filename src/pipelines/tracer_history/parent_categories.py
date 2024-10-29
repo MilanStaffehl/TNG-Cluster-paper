@@ -26,6 +26,7 @@ class PlotType(enum.IntEnum):
     FRACTION_PLOT = 0
     CUMULATIVE_FRACTION_PLOT = 1
     INDIVIDUAL_FRACTION_PLOT = 2
+    OTHER_HALO_FRACTION_PLOT = 3
 
 
 @dataclasses.dataclass
@@ -104,6 +105,14 @@ class PlotParentCategoryPlots(base.Pipeline):
                 "clusters individually."
             )
             self._plot_individual_fractions(archive_file)
+
+        # Step 6: plot about how the "other halo" category is comprised
+        if PlotType.OTHER_HALO_FRACTION_PLOT in self.plot_types:
+            logging.info(
+                "Plotting fraction of \"other halo\" tracers bound to a "
+                "subhalo."
+            )
+            self._plot_other_halo_fraction(masses, archive_file)
 
         return 0
 
@@ -243,6 +252,10 @@ class PlotParentCategoryPlots(base.Pipeline):
             for i, category in enumerate(categories):
                 n_current = np.count_nonzero(parent_categories == i, axis=1)
                 fraction = n_current / n_particles
+                # exclude incorrect snaps
+                where_faulty = np.any(parent_categories == 255, axis=1)
+                fraction[where_faulty] = np.nan
+                # plot
                 plot_config = {
                     "color": colors[i],
                     "linestyle": "solid",
@@ -262,4 +275,53 @@ class PlotParentCategoryPlots(base.Pipeline):
         logging.info(
             "Finished saving plot for parent fractions for individual "
             "clusters to file."
+        )
+
+    def _plot_other_halo_fraction(
+        self, masses: NDArray, archive_file: h5py.File
+    ) -> None:
+        """
+        Plot the fraction of tracer in other halos that are in a subhalo.
+
+        Method plots for every cluster a line that shows the fraction of
+        particles that are in category 2 "other halos", and simultaneously
+        also are bound to a subhalo, i.e. are NOT part of the inner fuzz
+        of other halos.
+
+        :param masses: Array of cluster masses.
+        :param archive_file: Opened cool gas archive file.
+        :return: None, figure is saved to file.
+        """
+        # Step 1: allocate memory
+        bound_fraction = np.zeros((self.n_clusters, self.n_snaps))
+
+        # Step 2: find fractions
+        for zoom_id in range(self.n_clusters):
+            grp = f"ZoomRegion_{zoom_id:03d}"
+            parent_categories = archive_file[grp]["ParentCategory"][()]
+            parent_subhalos = archive_file[grp]["ParentSubhaloIndex"][()]
+            in_other_halo = parent_categories == 1
+            in_subhalo = parent_subhalos != -1
+            fractions = np.count_nonzero(
+                np.logical_and(in_other_halo, in_subhalo), axis=1
+            )
+            fractions = fractions / np.count_nonzero(in_other_halo, axis=1)
+            # exclude incorrect snaps
+            where_faulty = np.any(parent_categories == 255, axis=1)
+            fractions[where_faulty] = np.nan
+            bound_fraction[zoom_id] = fractions[constants.MIN_SNAP:]
+
+        # Step 3: figure and axis setup
+        fig, axes = plt.subplots(figsize=(5, 4))
+        axes.set_ylabel("Fraction of bound tracers in other halos")
+        xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
+
+        # Step 4: plot lines and mean/median
+        common.plot_cluster_line_plot(fig, axes, xs, bound_fraction, masses)
+
+        # Step 5: save figure
+        self._save_fig(fig, ident_flag="other_halo_bound_fraction")
+        logging.info(
+            "Finished saving plot for fraction of other halo tracers bound "
+            "to satellites to file."
         )
