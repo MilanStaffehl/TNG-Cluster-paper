@@ -103,8 +103,8 @@ class HistogramMixin:
             cbar_lims = (7, 11)
             cbar_label = r"Tracer mass [$\log_{10}M_\odot$]"
         else:
-            cbar_lims = (-4, None)
-            cbar_label = "Normalized count [log]"
+            cbar_lims = (7, None)
+            cbar_label = r"Tracer mass [$\log_{10}M_\odot$]"
 
         # plot 2D histograms
         ranges = [
@@ -220,9 +220,6 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                     f"Zoom-in {zoom_id} missing dataset {self.quantity}."
                 )
                 quantity_archived = False
-            if "uniqueness_flags" not in f[grp].keys():
-                logging.error(f"Zoom-in {zoom_id} missing uniqueness flags.")
-                quantity_archived = False
         if not quantity_archived:
             logging.fatal(
                 f"Quantity {self.quantity} is not archived for all zoom-ins. "
@@ -308,17 +305,13 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             logging.debug(f"Creating histogram for zoom-in {zoom_id}.")
             group = f"ZoomRegion_{zoom_id:03d}"
             quantity = archive_file[group][self.quantity]
-            uniqueness_flags = archive_file[group]["uniqueness_flags"]
             for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-                unique_q = quantity[snap][uniqueness_flags[snap] == 1]
-                normed_q = unique_q / normalization_factor[zoom_id, i]
+                q = quantity[snap] / normalization_factor[zoom_id, i]
                 if self.log:
-                    q = np.log10(normed_q)
-                else:
-                    q = normed_q
+                    q = np.log10(q)
                 # different normalizations
+                weights = np.ones_like(q) * constants.TRACER_MASS
                 if self.volume_normalize:
-                    weights = np.ones_like(q) * constants.TRACER_MASS
                     hist = statistics.volume_normalized_radial_profile(
                         q,
                         weights,
@@ -329,23 +322,28 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                     )[0]
                 else:
                     hist = np.histogram(
-                        q, self.n_bins, range=self.hist_range
+                        q, self.n_bins, range=self.hist_range, weights=weights
                     )[0]
-                    hist = hist / np.sum(hist)  # normalize to unity
                 quantity_hists[zoom_id, i] = hist
         return quantity_hists
 
-    def _get_hists_split_by_parent(
-        self, archive_file: h5py.File
-    ) -> tuple[NDArray, list[str]]:
+    def _get_hists_split_by_category(
+        self,
+        archive_file: h5py.File,
+    ) -> NDArray:
         """
-        Create and return 2D histograms, split by parent category.
+        Create and return 2D histograms, split by the set category.
+
+        Category is determined from ``self.split_by``. The corresponding
+        category masks for the data are inferred in another method and
+        applied to the data here.
 
         Function is equivalent to ``_get_quantity_hist`` except it
-        returns 5 histograms, where each only represents a histogram of
-        particles that belong to a specific parent category.
+        returns X histograms, where each only represents a histogram of
+        particles that belong to a specific category.
 
         :param archive_file: Opened cool gas history archive file.
+        :param categories: List of category names.
         :return: Tuple of an array and a list of strings. The array is
             that of histograms of the distribution of the quantity at
             all snapshots analyzed for all clusters, split by category.
@@ -357,101 +355,42 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             f"Creating histogram data for all clusters, split by "
             f"{self.split_by.replace('-', ' ')}. This can take a while."
         )
+
+        # set-up and allocation
+        categories = self._get_category_mapping(archive_file, zoom_in=-1)
+        n_categories = len(categories.keys())
         quantity_hists = np.zeros(
-            (5, self.n_clusters, self.n_snaps, self.n_bins)
+            (n_categories, self.n_clusters, self.n_snaps, self.n_bins)
         )
         normalization_factor = self._get_normalization()
-        categories = [
-            "unbound", "other_halo", "inner_fuzz", "primary", "satellite"
-        ]
-        for category_idx in range(5):
-            for zoom_id in range(self.n_clusters):
-                logging.debug(
-                    f"Creating histogram for zoom-in {zoom_id}, category "
-                    f"{category_idx} ({categories[category_idx]}) only."
-                )
-                group = f"ZoomRegion_{zoom_id:03d}"
-                quantity = archive_file[group][self.quantity][()]
-                parent_category = archive_file[group]["ParentCategory"][()]
-                for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-                    if self.split_by == "parent-category-at-zero":
-                        s = 99
-                    else:
-                        s = snap
-                    where = parent_category[s] == category_idx
-                    current_q = quantity[snap][where]
-                    normed_q = current_q / normalization_factor[zoom_id, i]
-                    if self.log:
-                        q = np.log10(normed_q)
-                    else:
-                        q = normed_q
-                    # different normalizations
-                    weights = np.ones_like(q) * constants.TRACER_MASS
-                    if self.volume_normalize:
-                        hist = statistics.volume_normalized_radial_profile(
-                            q,
-                            weights,
-                            self.n_bins,
-                            radial_range=self.hist_range,
-                            virial_radius=normalization_factor[zoom_id, i],
-                            distances_are_log=self.log,
-                        )[0]
-                    else:
-                        hist = np.histogram(
-                            q,
-                            self.n_bins,
-                            weights=weights,
-                            range=self.hist_range
-                        )[0]
-                    quantity_hists[category_idx, zoom_id, i] = hist
-        return quantity_hists, categories
 
-    def _get_hists_split_by_bound_state(
-        self, archive_file: h5py.File
-    ) -> tuple[NDArray, list[str]]:
-        """
-        Create and return 2D histograms, split by parenthood of particles.
+        # load additional quantities if needed
+        if self.split_by.startswith("distance"):
+            virial_radii = halos_daq.get_halo_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                fields=[self.config.radius_field],
+                cluster_restrict=True,
+            )[self.config.radius_field]
+        else:
+            virial_radii = [None for _ in range(self.n_clusters)]
 
-        Function is equivalent to ``_get_quantity_hist`` except it
-        returns 3 histograms, where the first only shows particles that
-        are bound to both a halo and a subhalo (regardless of which),
-        the second only particles bound to a halo but no subhalo, and
-        the third only unbound particles.
-
-        :param archive_file: Opened cool gas history archive file.
-        :return: Tuple of an array and a list of strings. The array is
-            that of histograms of the distribution of the quantity at
-            all snapshots analyzed for all clusters, split by category.
-            Suitably normalized for the given quantity. The list is a
-            list of suitable names for each category, in the same order
-            as in the array.
-        """
-        logging.info(
-            f"Creating histogram data for all clusters, split by "
-            f"{self.split_by.replace('-', ' ')}. This can take a while."
-        )
-        quantity_hists = np.zeros(
-            (3, self.n_clusters, self.n_snaps, self.n_bins)
-        )
-        normalization_factor = self._get_normalization()
-        categories = ["in_subhalo", "in_halo", "unbound"]
+        # loop over zoom-in, snap and category to get histograms
         for zoom_id in range(self.n_clusters):
             logging.debug(f"Creating histogram for zoom-in {zoom_id}.")
             group = f"ZoomRegion_{zoom_id:03d}"
             quantity = archive_file[group][self.quantity][()]
-            parent_halo = archive_file[group]["ParentHaloIndex"][()]
-            parent_subhalo = archive_file[group]["ParentSubhaloIndex"][()]
-            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-                if self.split_by == "bound-category-at-zero":
-                    s = 99
-                else:
-                    s = snap
-                where_s = (parent_halo[s] != -1) & (parent_subhalo[s] != -1)
-                where_h = (parent_halo[s] != -1) & (parent_subhalo[s] == -1)
-                where_u = (parent_halo[s] == -1) & (parent_subhalo[s] == -1)
+            masks = self._get_category_mapping(
+                archive_file, zoom_id, virial_radii[zoom_id]
+            )
 
-                for j, where in enumerate([where_s, where_h, where_u]):
-                    current_q = quantity[snap][where]
+            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+                # decide what mask to use: current or z = 0 mask?
+                s = 99 if self.split_by.endswith("at-zero") else snap
+
+                for j, category in enumerate(masks.keys()):
+                    mask = masks[category][s]
+                    current_q = quantity[snap][mask]
                     q = current_q / normalization_factor[zoom_id, i]
                     if self.log:
                         q = np.log10(q)
@@ -471,96 +410,84 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                             q,
                             self.n_bins,
                             weights=weights,
-                            range=self.hist_range
+                            range=self.hist_range,
                         )[0]
                     quantity_hists[j, zoom_id, i] = hist
-        return quantity_hists, categories
+        return quantity_hists
 
-    def _get_hists_split_by_distance(
-        self, archive_file: h5py.File
-    ) -> tuple[NDArray, list[str]]:
+    def _get_category_mapping(
+        self,
+        archive_file: h5py.File,
+        zoom_in: int,
+        virial_radius: float | None = None
+    ) -> dict[str, NDArray] | dict[str, None]:
         """
-       Create and return 2D histograms, split by distance at z = 0.
+        Return mapping of category names to boolean masks.
 
-       Function is equivalent to ``_get_quantity_hist`` except it
-       returns 3 histograms, where each only represents a histogram of
-       particles that are within a certain spherical shell at z = 0.
+        Method returns a mapping of category names to boolean masks for
+        each category under the current splitting scheme.
 
-       The three distance categories are within 10% of virial radius,
-       between 10% and 100% virial radius, and beyond virial radius.
+        When given an invalid zoom-in, this function returns a mapping
+        containing None as values (this is an option to get only the
+        names without additional computation).
 
-       :param archive_file: Opened cool gas history archive file.
-       :return: Tuple of an array and a list of strings. The array is
-           that of histograms of the distribution of the quantity at
-           all snapshots analyzed for all clusters, split by category.
-           Suitably normalized for the given quantity. The list is a
-           list of suitable names for each category, in the same order
-           as in the array.
-       """
-        logging.info(
-            f"Creating histogram data for all clusters, split by "
-            f"{self.split_by.replace('-', ' ')}. This can take a while."
-        )
-        quantity_hists = np.zeros(
-            (5, self.n_clusters, self.n_snaps, self.n_bins)
-        )
+        :param archive_file: Opened cool gas archive file.
+        :param zoom_in: The zoom-in for which to return masks. When
+            set to -1, the boolean masks are replaced by None.
+        :param virial_radius: The virial radius of the cluster at z = 0
+            in units of ckpc. Can be left as None, unless required.
+        :return: Mapping of category names to boolean masks, that when
+            applied only leaves particles belonging to the category that
+            the mask corresponds to. Masks are of shape (100, N) where
+            N is the number of particles traced in this zoom-in.
+        """
+        # create category name lists
+        if self.split_by.startswith("parent-category"):
+            categories = [
+                "unbound", "other_halo", "inner_fuzz", "primary", "satellite"
+            ]
+        elif self.split_by.startswith("bound-state"):
+            categories = ["in_subhalo", "in_halo", "unbound"]
+        elif self.split_by.startswith("distance"):
+            categories = ["inner_halo", "outer_halo", "outskirts"]
+        else:
+            raise KeyError(f"Unknown split category: {self.split_by}")
 
-        # get virial radii for splitting of categories
-        virial_radii = halos_daq.get_halo_properties(
-            self.config.base_path,
-            self.config.snap_num,
-            fields=[self.config.radius_field],
-            cluster_restrict=True,
-        )[self.config.radius_field]
+        # create empty mapping and possibly return it
+        mapping = {c: None for c in categories}
+        if zoom_in < 0 or zoom_in >= self.n_clusters:
+            return mapping
 
-        normalization_factor = self._get_normalization()
-        categories = ["inner_halo", "outer_halo", "outskirts"]
-        for zoom_id in range(self.n_clusters):
-            logging.debug(
-                f"Creating histogram for zoom-in {zoom_id}, split by redshift "
-                f"zero distance to cluster."
+        # fill mapping with real masks
+        grp = f"ZoomRegion_{zoom_in:03d}"
+        if self.split_by.startswith("parent-category"):
+            # categories are ordered from 0 to 4, so we just loop over them
+            parent_categories = archive_file[grp]["ParentCategory"][()]
+            for i, category in enumerate(categories):
+                mapping[category] = (parent_categories == i)
+        elif self.split_by.startswith("bound-state"):
+            # load data from file
+            parent_halo = archive_file[grp]["ParentHaloIndex"][()]
+            parent_subhalo = archive_file[grp]["ParentSubhaloIndex"][()]
+            # create and assign masks
+            in_subhalo_mask = (parent_halo != -1) & (parent_subhalo != -1)
+            mapping["in_subhalo"] = in_subhalo_mask
+            in_halo_mask = (parent_halo != -1) & (parent_subhalo == -1)
+            mapping["in_halo"] = in_halo_mask
+            unbound_mask = (parent_halo == -1) & (parent_subhalo == -1)
+            mapping["unbound"] = unbound_mask
+        elif self.split_by.startswith("distance"):
+            assert virial_radius is not None
+            # load data
+            d = archive_file[grp]["DistanceToMP"][()]
+            # create masks
+            mapping["inner_halo"] = d <= 0.1 * virial_radius
+            mapping["outer_halo"] = (
+                (d > 0.1 * virial_radius) & (d <= virial_radius)
             )
-            # load required data
-            virial_radius = virial_radii[zoom_id]
-            group = f"ZoomRegion_{zoom_id:03d}"
-            quantity = archive_file[group][self.quantity][()]
-            distances = archive_file[group]["DistanceToMP"][()]
+            mapping["outskirts"] = d > virial_radius
 
-            # create masks for particles
-            in_inner_halo = distances[99] <= 0.1 * virial_radius
-            in_outer_halo = (
-                (distances[99] > 0.1 * virial_radius)
-                & (distances[99] <= virial_radius)
-            )
-            in_outskirts = distances[99] > virial_radius
-
-            where_list = [in_inner_halo, in_outer_halo, in_outskirts]
-            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-                for j, where in enumerate(where_list):
-                    current_q = quantity[snap][where]
-                    q = current_q / normalization_factor[zoom_id, i]
-                    if self.log:
-                        q = np.log10(q)
-                    # different normalizations
-                    weights = np.ones_like(q) * constants.TRACER_MASS
-                    if self.volume_normalize:
-                        hist = statistics.volume_normalized_radial_profile(
-                            q,
-                            weights,
-                            self.n_bins,
-                            radial_range=self.hist_range,
-                            virial_radius=normalization_factor[zoom_id, i],
-                            distances_are_log=self.log,
-                        )[0]
-                    else:
-                        hist = np.histogram(
-                            q,
-                            self.n_bins,
-                            weights=weights,
-                            range=self.hist_range
-                        )[0]
-                    quantity_hists[j, zoom_id, i] = hist
-        return quantity_hists, categories
+        return mapping
 
     def _get_normalization(self) -> NDArray:
         """
@@ -820,19 +747,11 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             return
 
         # Load data and create a histogram
-        if self.split_by.startswith("parent-category"):
-            quantity_hists, category_list = self._get_hists_split_by_parent(
-                archive_file
-            )
-        elif self.split_by.startswith("bound-state"):
-            quantity_hists, category_list = self._get_hists_split_by_bound_state(
-                archive_file
-            )
-        elif self.split_by == "distance-at-zero":
-            quantity_hists, category_list = self._get_hists_split_by_distance(
-                archive_file
-            )
-        else:
+        try:
+            quantity_hists = self._get_hists_split_by_category(archive_file)
+            categories = self._get_category_mapping(archive_file, zoom_in=-1)
+            category_list = list(categories.keys())
+        except KeyError:
             logging.error(
                 f"Unknown split category: {self.split_by}. Will continue with "
                 f"unsplit histogram instead."
@@ -925,7 +844,6 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
 
         # Step 2: extract the data required
         particle_data = f[f"ZoomRegion_{self.zoom_in:03d}/{self.quantity}"][()]
-        uniqueness = f[f"ZoomRegion_{self.zoom_in:03d}/uniqueness_flags"][()]
         cts = f[f"ZoomRegion_{self.zoom_in:03d}/FirstCrossingRedshift"][()]
 
         # Step 3: get characteristic cluster property
@@ -996,9 +914,7 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
                 f"Plotting 2D histogram of {self.quantity} of zoom-in "
                 f"{self.zoom_in}."
             )
-            self._plot_2dhistogram(
-                particle_data, uniqueness, cluster_cq, label
-            )
+            self._plot_2dhistogram(particle_data, cluster_cq, label)
 
         return 0
 
@@ -1249,7 +1165,6 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
     def _plot_2dhistogram(
         self,
         particle_data: NDArray,
-        uniqueness_flags: NDArray,
         cluster_cq: NDArray,
         label: str | None,
     ) -> None:
@@ -1262,8 +1177,6 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         :param particle_data: The array of the quantity to plot of shape
             (S, N) where S is the number of snapshots and N the number of
             particles.
-        :param uniqueness_flags: Uniqueness flags of the particles, must
-            be of shape (S, N).
         :param cluster_cq: Characteristic property of the cluster,
             matching the current quantity to plot (e.g. virial temperature
             for plotting particle temperature). Must be an array of shape
@@ -1284,14 +1197,12 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         # Step 1: Calculate the histogram
         quantity_hist = np.zeros((self.n_snaps, self.n_bins))
         for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
-            unique_q = particle_data[snap][uniqueness_flags[snap] == 1]
+            q = particle_data[snap]
             if self.log:
-                q = np.log10(unique_q)
-            else:
-                q = unique_q
+                q = np.log10(q)
             # different normalizations
+            weights = np.ones_like(q) * constants.TRACER_MASS
             if self.volume_normalize:
-                weights = np.ones_like(q) * constants.TRACER_MASS
                 hist = statistics.volume_normalized_radial_profile(
                     q,
                     weights,
@@ -1300,8 +1211,9 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
                     distances_are_log=self.log,
                 )[0]
             else:
-                hist = np.histogram(q, self.n_bins, range=self.hist_range)[0]
-                hist = hist / np.sum(hist)  # normalize to unity
+                hist = np.histogram(
+                    q, self.n_bins, range=self.hist_range, weights=weights
+                )[0]
             quantity_hist[i] = hist
 
         # Step 2: set up figure
