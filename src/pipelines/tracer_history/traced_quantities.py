@@ -476,6 +476,92 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                     quantity_hists[j, zoom_id, i] = hist
         return quantity_hists, categories
 
+    def _get_hists_split_by_distance(
+        self, archive_file: h5py.File
+    ) -> tuple[NDArray, list[str]]:
+        """
+       Create and return 2D histograms, split by distance at z = 0.
+
+       Function is equivalent to ``_get_quantity_hist`` except it
+       returns 3 histograms, where each only represents a histogram of
+       particles that are within a certain spherical shell at z = 0.
+
+       The three distance categories are within 10% of virial radius,
+       between 10% and 100% virial radius, and beyond virial radius.
+
+       :param archive_file: Opened cool gas history archive file.
+       :return: Tuple of an array and a list of strings. The array is
+           that of histograms of the distribution of the quantity at
+           all snapshots analyzed for all clusters, split by category.
+           Suitably normalized for the given quantity. The list is a
+           list of suitable names for each category, in the same order
+           as in the array.
+       """
+        logging.info(
+            f"Creating histogram data for all clusters, split by "
+            f"{self.split_by.replace('-', ' ')}. This can take a while."
+        )
+        quantity_hists = np.zeros(
+            (5, self.n_clusters, self.n_snaps, self.n_bins)
+        )
+
+        # get virial radii for splitting of categories
+        virial_radii = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=[self.config.radius_field],
+            cluster_restrict=True,
+        )[self.config.radius_field]
+
+        normalization_factor = self._get_normalization()
+        categories = ["inner_halo", "outer_halo", "outskirts"]
+        for zoom_id in range(self.n_clusters):
+            logging.debug(
+                f"Creating histogram for zoom-in {zoom_id}, split by redshift "
+                f"zero distance to cluster."
+            )
+            # load required data
+            virial_radius = virial_radii[zoom_id]
+            group = f"ZoomRegion_{zoom_id:03d}"
+            quantity = archive_file[group][self.quantity][()]
+            distances = archive_file[group]["DistanceToMP"][()]
+
+            # create masks for particles
+            in_inner_halo = distances[99] <= 0.1 * virial_radius
+            in_outer_halo = (
+                (distances[99] > 0.1 * virial_radius)
+                & (distances[99] <= virial_radius)
+            )
+            in_outskirts = distances[99] > virial_radius
+
+            where_list = [in_inner_halo, in_outer_halo, in_outskirts]
+            for i, snap in enumerate(range(constants.MIN_SNAP, 100, 1)):
+                for j, where in enumerate(where_list):
+                    current_q = quantity[snap][where]
+                    q = current_q / normalization_factor[zoom_id, i]
+                    if self.log:
+                        q = np.log10(q)
+                    # different normalizations
+                    weights = np.ones_like(q) * constants.TRACER_MASS
+                    if self.volume_normalize:
+                        hist = statistics.volume_normalized_radial_profile(
+                            q,
+                            weights,
+                            self.n_bins,
+                            radial_range=self.hist_range,
+                            virial_radius=normalization_factor[zoom_id, i],
+                            distances_are_log=self.log,
+                        )[0]
+                    else:
+                        hist = np.histogram(
+                            q,
+                            self.n_bins,
+                            weights=weights,
+                            range=self.hist_range
+                        )[0]
+                    quantity_hists[j, zoom_id, i] = hist
+        return quantity_hists, categories
+
     def _get_normalization(self) -> NDArray:
         """
         Get a characteristic cluster property for the current cluster.
@@ -740,6 +826,10 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             )
         elif self.split_by.startswith("bound-state"):
             quantity_hists, category_list = self._get_hists_split_by_bound_state(
+                archive_file
+            )
+        elif self.split_by == "distance-at-zero":
+            quantity_hists, category_list = self._get_hists_split_by_distance(
                 archive_file
             )
         else:
