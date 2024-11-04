@@ -132,25 +132,29 @@ class TimeOfCrossingPipeline(base.Pipeline):
             redshifts, d, last_crossing
         )
 
-        # Step 5: warn ifg any particle never crosses (should not happen)
-        if np.any(np.isnan(first_crossing)):
+        # Step 5: warn if any particle never crosses (should not happen)
+        if np.any(np.isnan(first_crossing)) and self.distance_multiplier == 2:
             logging.warning(
-                f"Encountered particles that never cross the virial radius "
+                f"Encountered particles that never cross the 2x virial radius "
                 f"sphere in zoom-in {zoom_id}! This should not be possible. "
                 f"Location: {np.argwhere(np.isnan(first_crossing))}."
             )
-        if np.any(np.isnan(last_crossing)):
+        if np.any(np.isnan(last_crossing)) and self.distance_multiplier == 2:
             logging.warning(
-                f"Encountered particles that never cross the virial radius "
+                f"Encountered particles that never cross the 2x virial radius "
                 f"sphere in zoom-in {zoom_id}! This should not be possible. "
                 f"Location: {np.argwhere(np.isnan(last_crossing))}."
             )
 
         # Step 6: save crossing times to archive
         logging.info(f"Archiving crossing times for zoom-in {zoom_id}.")
+        multiplier = int(self.distance_multiplier)
+        sfx = "" if multiplier == 2 else f"{multiplier:d}Rvir"
         field_mapping = {
-            "FirstCrossingRedshift": first_crossing_z,
-            "LastCrossingRedshift": last_crossing_z,
+            f"FirstCrossingRedshift{sfx}": first_crossing_z,
+            f"LastCrossingRedshift{sfx}": last_crossing_z,
+            f"FirstCrossingSnapshot{sfx}": first_crossing + constants.MIN_SNAP,
+            f"LastCrossingSnapshot{sfx}": last_crossing + constants.MIN_SNAP,
         }
         for field, value in field_mapping.items():
             grp = f"ZoomRegion_{zoom_id:03d}"
