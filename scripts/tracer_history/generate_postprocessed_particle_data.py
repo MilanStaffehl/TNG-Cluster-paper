@@ -35,6 +35,9 @@ def main(args: argparse.Namespace) -> None:
     # select and build pipeline
     if args.what == "crossing-times":
         pipeline = TimeOfCrossingPipeline(**pipeline_config)
+    elif args.what == "crossing-time-1rvir":
+        pipeline_config.update({"distance_multiplier": 1})
+        pipeline = TimeOfCrossingPipeline(**pipeline_config)
     elif args.what == "parent-category":
         pipeline = ParentCategoryPipeline(**pipeline_config)
     else:
@@ -48,7 +51,7 @@ if __name__ == "__main__":
         prog=f"python {Path(__file__).name}",
         description=(
             "Process existing particle data for the traced cool gas into "
-            "other, derived quantites."
+            "other, derived quantities."
         ),
         allowed_sims=["TNG-Cluster"],
     )
@@ -68,7 +71,7 @@ if __name__ == "__main__":
             "traced back in time for those cells that end up in cool "
             "gas at redshift zero. Can only choose from the valid options."
         ),
-        choices=["crossing-times", "parent-category"],
+        choices=["crossing-times", "crossing-times-1rvir", "parent-category"],
     )
     parser.add_argument(
         "-z",
