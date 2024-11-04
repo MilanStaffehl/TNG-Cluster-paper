@@ -35,7 +35,7 @@ def main(args: argparse.Namespace) -> None:
     # select and build pipeline
     if args.what == "crossing-times":
         pipeline = TimeOfCrossingPipeline(**pipeline_config)
-    elif args.what == "crossing-time-1rvir":
+    elif args.what == "crossing-times-1rvir":
         pipeline_config.update({"distance_multiplier": 1})
         pipeline = TimeOfCrossingPipeline(**pipeline_config)
     elif args.what == "parent-category":

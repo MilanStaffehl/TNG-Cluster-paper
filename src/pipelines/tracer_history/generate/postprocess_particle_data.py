@@ -284,8 +284,9 @@ class TimeOfCrossingPipeline(base.Pipeline):
         # set crossing time to NaN for particles that never crossed
         never_crossed_mask = crossing_indices == -1
         if np.any(never_crossed_mask):
+            n = np.count_nonzero(never_crossed_mask)
             logging.warning(
-                f"Encountered particles that never crossed while "
+                f"Encountered {n} particles that never crossed while "
                 f"interpolating redshifts! Positions: "
                 f"{np.argwhere(never_crossed_mask)[:, 0]}."
             )
