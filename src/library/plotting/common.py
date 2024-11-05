@@ -413,7 +413,7 @@ def plot_cluster_line_plot(
     xs: NDArray,
     quantity: NDArray,
     cluster_masses: NDArray,
-    cmap: str | matplotlib.colors.Colormap = "plasma",
+    cmap: str | matplotlib.colors.Colormap = "jet",
 ) -> tuple[Figure, Axes]:
     """
     Plot a line for every cluster, colored by their mass.
