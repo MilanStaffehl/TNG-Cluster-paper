@@ -26,7 +26,8 @@ class PlotType(enum.IntEnum):
     FRACTION_PLOT = 0
     CUMULATIVE_FRACTION_PLOT = 1
     INDIVIDUAL_FRACTION_PLOT = 2
-    OTHER_HALO_FRACTION_PLOT = 3
+    INDIVIDUAL_FRACTION_RVIR = 3
+    OTHER_HALO_FRACTION_PLOT = 4
 
 
 @dataclasses.dataclass
@@ -56,6 +57,11 @@ class PlotParentCategoryPlots(base.Pipeline):
 
         :return: Exit code.
         """
+        logging.info(
+            f"Starting pipeline for plot types "
+            f"{', '.join([PlotType(e).name for e in self.plot_types])}"
+        )
+
         # Step 1: open archive file
         archive_file = h5py.File(self.config.cool_gas_history, "r")
 
@@ -63,10 +69,11 @@ class PlotParentCategoryPlots(base.Pipeline):
         cluster_data = halos_daq.get_halo_properties(
             self.config.base_path,
             self.config.snap_num,
-            [self.config.mass_field],
+            [self.config.mass_field, self.config.radius_field],
             cluster_restrict=True,
         )
         masses = np.log10(cluster_data[self.config.mass_field])
+        radii = cluster_data[self.config.radius_field]
 
         # Step 3: plot fraction of tracers at current redshift
         if PlotType.FRACTION_PLOT in self.plot_types:
@@ -104,7 +111,15 @@ class PlotParentCategoryPlots(base.Pipeline):
                 "Plotting fraction of tracers by parent category for all "
                 "clusters individually."
             )
-            self._plot_individual_fractions(archive_file)
+            self._plot_individual_fractions(archive_file, None)
+
+        # step 6: plot fractions for individuals, only within virial radius
+        if PlotType.INDIVIDUAL_FRACTION_RVIR in self.plot_types:
+            logging.info(
+                "Plotting fraction of tracers by parent category for all "
+                "clusters individually, limited to virial radius at z = 0."
+            )
+            self._plot_individual_fractions(archive_file, radii)
 
         # Step 6: plot about how the "other halo" category is comprised
         if PlotType.OTHER_HALO_FRACTION_PLOT in self.plot_types:
@@ -211,7 +226,11 @@ class PlotParentCategoryPlots(base.Pipeline):
             "Finished saving plot for cumulative satellite fraction to file."
         )
 
-    def _plot_individual_fractions(self, archive_file: h5py.File) -> None:
+    def _plot_individual_fractions(
+        self,
+        archive_file: h5py.File,
+        virial_radii: NDArray | None = None
+    ) -> None:
         """
         Plot the fraction of every category vs redshift per cluster.
 
@@ -219,6 +238,15 @@ class PlotParentCategoryPlots(base.Pipeline):
         where each line shows the fraction of tracers belonging to a
         parent category. Plot is saved to file.
 
+        Optionally, the plot can be limited to only take into account
+        particles that end up within aspecific radius, usually the
+        virial radius. To achieve this, the ``virial_radii`` argument
+        must be given, defining this radius for every cluster.
+
+        :param virial_radii: Either an array of virial radii in ckpc for
+            all clusters or None. If given an array of radii, the plots
+            will be limited to only include particles that end up within
+            this radius at z = 0.
         :param archive_file: The opened cool gas archive file.
         :return: None, figure is saved to file.
         """
@@ -239,6 +267,11 @@ class PlotParentCategoryPlots(base.Pipeline):
             # load parent categories
             dataset = f"ZoomRegion_{zoom_in:03d}/ParentCategory"
             parent_categories = archive_file[dataset][constants.MIN_SNAP:, :]
+            if virial_radii is not None:
+                dataset = f"ZoomRegion_{zoom_in:03d}/DistanceToMP"
+                distances_z0 = archive_file[dataset][99, :]
+                mask = distances_z0 <= virial_radii[zoom_in]
+                parent_categories = parent_categories[:, mask]
             n_particles = parent_categories.shape[1]
 
             # plot lines for categories
@@ -267,9 +300,10 @@ class PlotParentCategoryPlots(base.Pipeline):
             axes.legend(fontsize="small")
 
             # save figure to file
+            sfx = "" if virial_radii is None else "_within_Rvir"
             self._save_fig(
                 fig,
-                ident_flag=f"parent_category_fractions_z{zoom_in:03d}",
+                ident_flag=f"parent_category_fractions_z{zoom_in:03d}{sfx}",
                 subdir=f"individuals/zoom_in_{zoom_in:03d}",
             )
         logging.info(
