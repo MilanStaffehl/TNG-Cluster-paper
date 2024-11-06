@@ -24,10 +24,11 @@ if TYPE_CHECKING:
 
 class PlotType(enum.IntEnum):
     FRACTION_PLOT = 0
-    CUMULATIVE_FRACTION_PLOT = 1
-    INDIVIDUAL_FRACTION_PLOT = 2
-    INDIVIDUAL_FRACTION_RVIR = 3
-    OTHER_HALO_FRACTION_PLOT = 4
+    FRACTION_PLOT_RVIR = 1
+    CUMULATIVE_FRACTION_PLOT = 2
+    INDIVIDUAL_FRACTION_PLOT = 3
+    INDIVIDUAL_FRACTION_RVIR = 4
+    OTHER_HALO_FRACTION_PLOT = 5
 
 
 @dataclasses.dataclass
@@ -75,37 +76,38 @@ class PlotParentCategoryPlots(base.Pipeline):
         masses = np.log10(cluster_data[self.config.mass_field])
         radii = cluster_data[self.config.radius_field]
 
+        category_map = {
+            "no host": 0,
+            "other halos": 1,
+            "inner fuzz": 2,
+            "primaries": 3,
+            "satellites": 4,
+        }
+
         # Step 3: plot fraction of tracers at current redshift
         if PlotType.FRACTION_PLOT in self.plot_types:
-            logging.info("Plotting fraction of tracers in satellites.")
-            self._plot_category_fractions(
-                4, "satellites", masses, archive_file
-            )
+            for name, num in category_map.items():
+                logging.info(f"Plotting fraction of tracers in {name}.")
+                self._plot_category_fractions(num, name, masses, archive_file)
 
-            logging.info("Plotting fraction of tracers in primaries.")
-            self._plot_category_fractions(3, "primaries", masses, archive_file)
+        # Step 4: plot fraction of tracers within R_vir
+        if PlotType.FRACTION_PLOT_RVIR in self.plot_types:
+            for name, num in category_map.items():
+                logging.info(
+                    f"Plotting fraction of tracers within R_vir in {name}."
+                )
+                self._plot_category_fractions(
+                    num, name, masses, archive_file, radii
+                )
 
-            logging.info("Plotting fraction of tracers in primaries.")
-            self._plot_category_fractions(
-                2, "inner fuzz", masses, archive_file
-            )
-
-            logging.info("Plotting fraction of tracers in other halos.")
-            self._plot_category_fractions(
-                1, "other halos", masses, archive_file
-            )
-
-            logging.info("Plotting fraction of unbound tracers.")
-            self._plot_category_fractions(0, "no host", masses, archive_file)
-
-        # Step 4: plot cumulative fraction of tracers in satellites
+        # Step 5: plot cumulative fraction of tracers in satellites
         if PlotType.CUMULATIVE_FRACTION_PLOT in self.plot_types:
             logging.info(
                 "Plotting cumulative fraction of tracers in satellites."
             )
             self._plot_cumulative_satellite_fraction(masses, archive_file)
 
-        # Step 5: plot fractions for individual clusters
+        # Step 6: plot fractions for individual clusters
         if PlotType.INDIVIDUAL_FRACTION_PLOT in self.plot_types:
             logging.info(
                 "Plotting fraction of tracers by parent category for all "
@@ -113,7 +115,7 @@ class PlotParentCategoryPlots(base.Pipeline):
             )
             self._plot_individual_fractions(archive_file, None)
 
-        # step 6: plot fractions for individuals, only within virial radius
+        # step 7: plot fractions for individuals, only within virial radius
         if PlotType.INDIVIDUAL_FRACTION_RVIR in self.plot_types:
             logging.info(
                 "Plotting fraction of tracers by parent category for all "
@@ -121,7 +123,7 @@ class PlotParentCategoryPlots(base.Pipeline):
             )
             self._plot_individual_fractions(archive_file, radii)
 
-        # Step 6: plot about how the "other halo" category is comprised
+        # Step 8: plot about how the "other halo" category is comprised
         if PlotType.OTHER_HALO_FRACTION_PLOT in self.plot_types:
             logging.info(
                 "Plotting fraction of \"other halo\" tracers bound to a "
@@ -136,7 +138,8 @@ class PlotParentCategoryPlots(base.Pipeline):
         category: int,
         category_name: str,
         masses: NDArray,
-        archive_file: h5py.File
+        archive_file: h5py.File,
+        virial_radii: NDArray | None = None,
     ) -> None:
         """
         Plot the time development of the fraction in the given category.
@@ -145,6 +148,10 @@ class PlotParentCategoryPlots(base.Pipeline):
         :param category_name: The name of the category as it should appear
             in the axes labels and file ident flag.
         :param archive_file: The opened archive file.
+        :param virial_radii: Either an array of radii of shape (352, ),
+            giving a (virial) radius for every cluster in ckpc, or None.
+            When given a list of radii, only particles that end up within
+            that radius at z = 0 are considered.
         :return: None, plot saved to file.
         """
         # Step 1: allocate memory
@@ -154,6 +161,11 @@ class PlotParentCategoryPlots(base.Pipeline):
         for zoom_id in range(self.n_clusters):
             grp = f"ZoomRegion_{zoom_id:03d}"
             parent_categories = archive_file[grp]["ParentCategory"][()]
+            if virial_radii is not None:
+                dataset = f"ZoomRegion_{zoom_id:03d}/DistanceToMP"
+                distances_z0 = archive_file[dataset][99, :]
+                mask = distances_z0 <= virial_radii[zoom_id]
+                parent_categories = parent_categories[:, mask]
             fractions = np.count_nonzero(parent_categories == category, axis=1)
             fractions = fractions / parent_categories.shape[1]
             # exclude incorrect snaps
@@ -171,7 +183,10 @@ class PlotParentCategoryPlots(base.Pipeline):
 
         # Step 5: save figure
         category_file = category_name.replace(" ", "_")
-        self._save_fig(fig, ident_flag=f"current_{category_file}_fraction")
+        sfx = "" if virial_radii is None else "_within_1Rvir"
+        self._save_fig(
+            fig, ident_flag=f"current_{category_file}_fraction{sfx}"
+        )
         logging.info(
             f"Finished saving plot for {category_name} fraction to file."
         )
