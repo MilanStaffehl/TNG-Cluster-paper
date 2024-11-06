@@ -7,6 +7,8 @@ import copy
 import dataclasses
 import enum
 import logging
+import time
+import tracemalloc
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 
@@ -14,6 +16,7 @@ import h5py
 import matplotlib.cm
 import matplotlib.collections
 import matplotlib.colors
+import matplotlib.lines
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
@@ -794,7 +797,8 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
 
 @dataclasses.dataclass
-class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
+class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
+                                            base.DiagnosticsPipeline):
     """
     Plot simple particle quantities, but for individual clusters.
 
@@ -840,6 +844,7 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
 
     def run(self) -> int:
         """Load and plot data"""
+        start = time.time()
         # Step 0: check archive exists, create paths
         self._verify_directories()
         if not self.config.cool_gas_history.exists():
@@ -900,12 +905,15 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         # Step 4: load color quantity if set
         if self.color_by == "parent-category":
             colors = f[f"ZoomRegion_{self.zoom_in:03d}/ParentCategory"][()]
+        elif self.color_by == "parent-category-at-zero":
+            colors = f[f"ZoomRegion_{self.zoom_in:03d}/ParentCategory"][99, :]
         else:
             colors = None
 
         f.close()
 
         # Step 5: plot the data
+        tp = self._diagnostics(start, "setting things up")
         if PlotType.LINEPLOT in self.plot_types:
             logging.info(
                 f"Plotting development of {self.quantity} for all particles "
@@ -919,6 +927,8 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
                 np.nanmedian(cts),
                 label,
             )
+        self._diagnostics(tp, "plotting line plot")
+        tracemalloc.stop()
         if PlotType.GLOBAL_2DHIST in self.plot_types:
             logging.info(
                 f"Plotting 2D histogram of {self.quantity} of zoom-in "
@@ -987,7 +997,9 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         # plot data
         logging.info("Plotting a line for every tracer. May take a while...")
         if color_quantity is None:
-            self._plot_rainbow_line_collection(axes, particle_data, xs)
+            self._plot_line_collection(axes, particle_data, xs)
+        elif len(color_quantity.shape) == 1:
+            self._plot_line_collection(axes, particle_data, xs, color_quantity)
         else:
             self._plot_categorized_line_collection(
                 axes, particle_data, xs, color_quantity
@@ -1052,8 +1064,12 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         )
         logging.info("Done! Saved individual line plot to file!")
 
-    def _plot_rainbow_line_collection(
-        self, axes: Axes, particle_data: NDArray, xs: NDArray
+    def _plot_line_collection(
+        self,
+        axes: Axes,
+        particle_data: NDArray,
+        xs: NDArray,
+        color_quantity: NDArray | None = None,
     ) -> None:
         """
         Plot a line collection, with each line colored a different color.
@@ -1068,19 +1084,23 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
             of shape (100, N).
         :param xs: The array of x-values of shape (S, ) where S is the
             number of snaps from ``constants.MIN_SNAP`` to z = 0.
+        :param color_quantity: An array of some quantity, shape (N, ),
+            which will be used to color the lines.
         :return: None
         """
-        n_part = particle_data.shape[1]
-        cmap = matplotlib.cm.get_cmap("hsv")
-        norm = matplotlib.colors.Normalize(vmin=0, vmax=n_part)
-        colors = cmap(norm(np.arange(0, n_part, step=1)))
+        if color_quantity is None:
+            # give every line a unique color
+            n_part = particle_data.shape[1]
+            color_quantity = np.arange(0, n_part, step=1)
+        cmap, norm = self._get_norm_and_cmap(color_quantity)
+        colors = cmap(norm(color_quantity))
         # BEHOLD: the absolute clusterfuck that matplotlib requires, just
         # to make LineCollection work. Whatever the developers are on, I
         # want some of that. Must be good stuff...
         ys = particle_data[constants.MIN_SNAP:, :]
         lines = [np.column_stack([xs, ys[:, i]]) for i in range(ys.shape[1])]
         lc = matplotlib.collections.LineCollection(
-            lines, colors=colors, alpha=0.2
+            lines, colors=colors, alpha=0.1
         )
 
         axes.add_collection(lc)
@@ -1144,14 +1164,17 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
         axes.set_rasterization_zorder(5)
 
     def _get_norm_and_cmap(
-        self, color_quantity: NDArray
+        self, color_quantity: NDArray | None
     ) -> tuple[matplotlib.colors.Colormap, matplotlib.colors.Normalize]:
         """
         Return a cmap and norm for the current color quantity.
 
+        :param color_quantity: The array of the quantity used to color
+            the lines. Can be None if one is sure that it is not needed
+            for determining the norm and cmap.
         :return: Tuple of appropriate cmap and norm objects.
         """
-        if self.color_by == "parent-category":
+        if self.color_by.startswith("parent-category"):
             logging.info("Setting cmap and norm for parent category.")
             cmap = matplotlib.cm.get_cmap("turbo_r")
             norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)
@@ -1170,7 +1193,22 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin, base.Pipeline):
             by new, appropriate handles.
         :return: None, list is altered in place.
         """
-        pass
+        if self.color_by.startswith("parent-category"):
+            categories = [
+                "unbound", "other halo", "inner fuzz", "primary", "satellite"
+            ]
+            cmap, norm = self._get_norm_and_cmap(None)
+            for i, category in enumerate(categories):
+                handles.append(
+                    matplotlib.lines.Line2D(
+                        [],
+                        [],
+                        color=cmap(norm(i)),
+                        ls="solid",
+                        label=category,
+                        marker="none",
+                    )
+                )
 
     def _plot_2dhistogram(
         self,

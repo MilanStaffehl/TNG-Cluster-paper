@@ -244,7 +244,7 @@ def startup(
     log_level = parse_verbosity(namespace)
     log_config = logging_config.get_logging_config(log_level)
     logging.config.dictConfig(log_config)
-    logging.addLevelName(18, "MEMORY")  # custom level
+    logging.addLevelName(18, "DIAGNOSTIC")  # custom level
     # parse namespace for initial kwargs dictionary for pipelines
     return parse_namespace(
         namespace,
