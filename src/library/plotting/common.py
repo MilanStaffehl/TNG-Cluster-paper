@@ -450,7 +450,7 @@ def plot_cluster_line_plot(
     plot_config = {
         "marker": "none",
         "linestyle": "solid",
-        "alpha": 0.1,
+        "alpha": 0.2,
     }
     for i in range(n_clusters):
         axes.plot(

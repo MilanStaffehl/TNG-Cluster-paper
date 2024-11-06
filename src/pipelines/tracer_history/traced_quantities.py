@@ -70,7 +70,8 @@ class HistogramMixin:
         q_label: str,
         fig: Figure,
         axes: Axes,
-        quantity_hist: NDArray
+        quantity_hist: NDArray,
+        cbar_label_prefix: str | None = None,
     ) -> NDArray:
         """
         Plot the given ``quantity_hist`` onto the given axes.
@@ -89,6 +90,9 @@ class HistogramMixin:
             (S, N), i.e. the way it is returned from numpy's
             ``histogram2d`` as-is. Transformation for plotting is done
             by the method.
+        :param cbar_label_prefix: If the colorbar label needs to be
+            prefixed with anything (e.g. "mean" or "median"), it can
+            be specified as this paramter.
         :return: The x-values needed for overplotting other data,
             corresponding to redshifts of the 92 snapshots plotted.
         """
@@ -105,6 +109,10 @@ class HistogramMixin:
         else:
             cbar_lims = (7, None)
             cbar_label = r"Tracer mass [$\log_{10}M_\odot$]"
+
+        if cbar_label_prefix is not None:
+            cbar_label = f"{cbar_label[0].lower()}{cbar_label[1:]}"
+            cbar_label = f"{cbar_label_prefix.capitalize()} {cbar_label}"
 
         # plot 2D histograms
         ranges = [
@@ -720,7 +728,9 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5.5, 4))
-            self._plot_histogram(self.quantity_label, fig, axes, stacked_hist)
+            self._plot_histogram(
+                self.quantity_label, fig, axes, stacked_hist, method
+            )
 
             # Step 5: save figure
             norm_flag = "_normalized" if self.normalize else ""
@@ -770,7 +780,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                 # Step 2: set up figure
                 fig, axes = plt.subplots(figsize=(5.5, 4))
                 self._plot_histogram(
-                    self.quantity_label, fig, axes, stacked_hist
+                    self.quantity_label, fig, axes, stacked_hist, method
                 )
 
                 # Step 5: save figure
