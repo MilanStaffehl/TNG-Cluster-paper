@@ -33,6 +33,8 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
+    from library.config.config import Config
+
 
 class PlotType(enum.IntEnum):
     LINEPLOT = 0
@@ -43,6 +45,10 @@ class PlotType(enum.IntEnum):
 
 class PlotPipelineProtocol(Protocol):
     """Dummy protocol to make mixin work."""
+
+    @property
+    def config(self) -> Config:
+        ...
 
     @property
     def log(self) -> bool:
@@ -62,6 +68,10 @@ class PlotPipelineProtocol(Protocol):
 
     @property
     def split_by(self) -> str | None:
+        ...
+
+    @property
+    def n_snaps(self) -> int:
         ...
 
 
@@ -144,6 +154,55 @@ class HistogramMixin:
             tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
         )
         return xs
+
+    def _get_characteristic_cluster_property(
+        self: PlotPipelineProtocol, primary_id: int
+    ) -> tuple[NDArray, str]:
+        """
+        Load and return characteristic cluster property.
+
+        The method loads a characteristic cluster property (virial radius
+        when plotting distance, virial temperature when plotting
+        temperature) and returns its value along the MPB of the given
+        primary subhalo of the cluster.
+
+        :param primary_id: ID of the primary subhalo of the cluster.
+        :return: An array of values for the characteristic property,
+            from ``MIN_SNAP`` to redshift zero.
+        """
+        if self.quantity == "Temperature":
+            label = "Virial temperature"
+            mpb_data = sublink_daq.get_mpb_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                primary_id,
+                fields=[self.config.radius_field, self.config.mass_field],
+                start_snap=constants.MIN_SNAP,
+                log_warning=False,
+            )
+            cluster_cq = compute.get_virial_temperature(
+                mpb_data[self.config.mass_field],
+                mpb_data[self.config.radius_field],
+            )
+        elif self.quantity == "DistanceToMP":
+            label = r"$R_{200c}$"
+            mpb_data = sublink_daq.get_mpb_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                primary_id,
+                fields=[self.config.radius_field],
+                start_snap=constants.MIN_SNAP,
+                log_warning=False,
+            )
+            cluster_cq = mpb_data[self.config.radius_field]
+        else:
+            logging.info(
+                f"No characteristic property to plot for {self.quantity}."
+            )
+            label = None
+            cluster_cq = np.empty(self.n_snaps)
+            cluster_cq[:] = np.nan
+        return cluster_cq, label
 
 
 @dataclasses.dataclass
@@ -239,7 +298,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             return 2
         logging.info("Archive OK. Continuing with plotting.")
 
-        # Step 2: check for lineplots and plot
+        # Step 2: plot lineplots
         if PlotType.LINEPLOT in self.plot_types:
             logging.info("Plotting line plots.")
             self._plot_and_save_lineplots(f)
@@ -248,10 +307,16 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
         # Step 3: plot 2D histograms
         if PlotType.GLOBAL_2DHIST in self.plot_types:
             logging.info("Plotting global 2D histograms.")
+            # get characteristic property for all clusters
+            mean_cq, min_cq, max_cq, label = self._get_cluster_cq_lines()
             if self.split_by is None:
-                self._plot_and_save_2dhistograms(f)
+                self._plot_and_save_2dhistograms(
+                    f, mean_cq, min_cq, max_cq, label
+                )
             else:
-                self._plot_and_save_2dhists_split(f)
+                self._plot_and_save_2dhists_split(
+                    f, mean_cq, min_cq, max_cq, label
+                )
             logging.info("Finished global 2D histograms, saved to file.")
 
         # Step 4: plot global ridgeline plot
@@ -282,6 +347,61 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
         f.close()
         logging.info("Done plotting! Saved all plots to file.")
         return 0
+
+    def _get_cluster_cq_lines(
+        self
+    ) -> tuple[NDArray, NDArray, NDArray, str] | tuple[None, None, None, None]:
+        """
+        Return the mean, min and max of the cluster characteristic property.
+
+        :return: Tuple of arrays, each of shape (92, ), containing the
+            characteristic cluster property (either virial temperature
+            or virial radius) of the cluster, plus a suitable label for
+            the axes legend. If no characteristic property exists for
+            the quantity to plot, returns a 4-tuple of None.
+        """
+        logging.info("Getting characteristic cluster properties.")
+        if self.quantity not in ["Temperature", "DistanceToMP"]:
+            logging.info(
+                f"No characteristic property for quantity {self.quantity}."
+            )
+            return None, None, None, None
+
+        if self.normalize:
+            logging.debug(
+                "Normalized quantities do not require characteristic "
+                "property. Skipping."
+            )
+            return None, None, None, None
+
+        # allocate memory
+        cq = np.zeros((self.n_clusters, self.n_snaps))
+
+        # load primary subhalo IDs
+        primary_ids = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=["GroupFirstSub"],
+            cluster_restrict=True,
+        )["GroupFirstSub"]
+
+        # find characteristic property
+        label = ""
+        for zoom_in in range(self.n_clusters):
+            cq[zoom_in], label = self._get_characteristic_cluster_property(
+                primary_ids[zoom_in]
+            )
+
+        if self.log:
+            cq = np.log10(cq)
+
+        mean = np.nanmean(cq, axis=0)
+        min_ = np.nanmin(cq, axis=0)
+        max_ = np.nanmax(cq, axis=0)
+        logging.info(
+            "Finished loading cluster characteristic property for all clusters."
+        )
+        return mean, min_, max_, label
 
     def _get_quantity_hists(self, archive_file: h5py.File) -> NDArray:
         """
@@ -702,7 +822,14 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} ridgeline plot to file.")
 
-    def _plot_and_save_2dhistograms(self, archive_file: h5py.File) -> None:
+    def _plot_and_save_2dhistograms(
+        self,
+        archive_file: h5py.File,
+        mean_cluster_property: NDArray | None,
+        min_cluster_property: NDArray | None,
+        max_cluster_property: NDArray | None,
+        cluster_property_label: str | None
+    ) -> None:
         """
         Plot a 2D histogram plot of the development of the quantity.
 
@@ -711,6 +838,20 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
         distribution over all clusters in every snapshot.
 
         :param archive_file: The opened cool gas history archive file.
+        :param mean_cluster_property: Either the mean virial radius of
+            all clusters, the mean virial temperature of all clusters
+            (both for each snapshot as an array of shape (92,)) or a
+            3-tuple of None.
+        :param min_cluster_property: Either the min virial radius of
+            all clusters, the mean virial temperature of all clusters
+            (both for each snapshot as an array of shape (92,)) or a
+            3-tuple of None.
+        :param max_cluster_property: Either the max virial radius of
+            all clusters, the mean virial temperature of all clusters
+            (both for each snapshot as an array of shape (92,)) or a
+            3-tuple of None.
+        :param cluster_property_label: A suitable label for the cluster
+            characteristic property to be placed in the legend.
         :return: None, figure saved to file.
         """
         # Check plotting is possible
@@ -731,18 +872,54 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
             # Step 2: set up figure
             fig, axes = plt.subplots(figsize=(5.5, 4))
-            self._plot_histogram(
+            xs = self._plot_histogram(
                 self.quantity_label, fig, axes, stacked_hist, method
             )
 
-            # Step 5: save figure
+            # Step 3: add lines for cluster property
+            if not self.normalize:
+                plot_config = {
+                    "color": "white", "alpha": 0.5, "marker": "none"
+                }
+                if mean_cluster_property is not None:
+                    axes.plot(
+                        xs,
+                        mean_cluster_property,
+                        linestyle="dashed",
+                        label=f"{cluster_property_label} (mean)",
+                        **plot_config,
+                    )
+                if max_cluster_property is not None:
+                    axes.plot(
+                        xs,
+                        max_cluster_property,
+                        linestyle="dotted",
+                        **plot_config,
+                    )
+                if min_cluster_property is not None:
+                    axes.plot(
+                        xs,
+                        min_cluster_property,
+                        linestyle="dotted",
+                        **plot_config,
+                    )
+                axes.legend()
+
+            # Step 4: save figure
             norm_flag = "_normalized" if self.normalize else ""
             volnorm_flag = "_volumenormalized" if self.volume_normalize else ""
             ident_flag = f"2dhist_{method}{volnorm_flag}{norm_flag}"
             self._save_fig(fig, ident_flag=ident_flag, subdir="2d_plots")
             logging.info(f"Saved {method} 2D histogram plot to file.")
 
-    def _plot_and_save_2dhists_split(self, archive_file: h5py.File) -> None:
+    def _plot_and_save_2dhists_split(
+        self,
+        archive_file: h5py.File,
+        mean_cluster_property: NDArray | None,
+        min_cluster_property: NDArray | None,
+        max_cluster_property: NDArray | None,
+        cluster_property_label: str | None
+    ) -> None:
         """
         Plot a 2D histogram split by a given category.
 
@@ -752,6 +929,20 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
         for every category.
 
         :param archive_file: The opened cool gas history archive file.
+        :param mean_cluster_property: Either the mean virial radius of
+            all clusters, the mean virial temperature of all clusters
+            (both for each snapshot as an array of shape (92,)) or a
+            3-tuple of None.
+        :param min_cluster_property: Either the min virial radius of
+            all clusters, the mean virial temperature of all clusters
+            (both for each snapshot as an array of shape (92,)) or a
+            3-tuple of None.
+        :param max_cluster_property: Either the max virial radius of
+            all clusters, the mean virial temperature of all clusters
+            (both for each snapshot as an array of shape (92,)) or a
+            3-tuple of None.
+        :param cluster_property_label: A suitable label for the cluster
+            characteristic property to be placed in the legend.
         :return: None, figure saved to file.
         """
         # Check plotting is possible
@@ -780,11 +971,42 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                     quantity_hists[i], method, axis=0
                 )[0]
 
-                # Step 2: set up figure
+                # Step 2: set up figure and plot hist
                 fig, axes = plt.subplots(figsize=(5.5, 4))
-                self._plot_histogram(
+                xs = self._plot_histogram(
                     self.quantity_label, fig, axes, stacked_hist, method
                 )
+
+                # Step 3: plot characteristic property
+                if not self.normalize:
+                    plot_config = {
+                        "color": "white", "alpha": 0.5, "marker": "none"
+                    }
+                    if mean_cluster_property is not None:
+                        axes.plot(
+                            xs,
+                            mean_cluster_property,
+                            linestyle="dashed",
+                            label=f"{cluster_property_label} (mean)",
+                            **plot_config
+                        )
+                    if max_cluster_property is not None:
+                        axes.plot(
+                            xs,
+                            max_cluster_property,
+                            linestyle="dotted",
+                            **plot_config
+                        )
+                    if min_cluster_property is not None:
+                        axes.plot(
+                            xs,
+                            min_cluster_property,
+                            linestyle="dotted",
+                            **plot_config
+                        )
+                    axes.legend(
+                        title=f"Category: {category.replace('_', ' ')}"
+                    )
 
                 # Step 5: save figure
                 norm_flag = "_normalized" if self.normalize else ""
@@ -862,45 +1084,14 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
         cts = f[f"ZoomRegion_{self.zoom_in:03d}/FirstCrossingRedshift"][()]
 
         # Step 3: get characteristic cluster property
-        logging.info("Loading characteristic cluster property.")
+        logging.debug("Loading characteristic cluster property.")
         primary_id = halos_daq.get_halo_properties(
             self.config.base_path,
             self.config.snap_num,
             ["GroupFirstSub"],
             cluster_restrict=True,
         )["GroupFirstSub"][self.zoom_in]
-        if self.quantity == "Temperature":
-            label = "Virial temperature"
-            mpb_data = sublink_daq.get_mpb_properties(
-                self.config.base_path,
-                self.config.snap_num,
-                primary_id,
-                fields=[self.config.radius_field, self.config.mass_field],
-                start_snap=constants.MIN_SNAP,
-                log_warning=False,
-            )
-            cluster_cq = compute.get_virial_temperature(
-                mpb_data[self.config.mass_field],
-                mpb_data[self.config.radius_field],
-            )
-        elif self.quantity == "DistanceToMP":
-            label = r"$R_{200c}$"
-            mpb_data = sublink_daq.get_mpb_properties(
-                self.config.base_path,
-                self.config.snap_num,
-                primary_id,
-                fields=[self.config.radius_field],
-                start_snap=constants.MIN_SNAP,
-                log_warning=False,
-            )
-            cluster_cq = mpb_data[self.config.radius_field]
-        else:
-            logging.info(
-                f"No characteristic property to plot for {self.quantity}."
-            )
-            label = None
-            cluster_cq = np.empty(self.n_snaps)
-            cluster_cq[:] = np.nan
+        cluster_cq, label = self._get_characteristic_cluster_property(primary_id)
 
         # Step 4: load color quantity if set
         if self.color_by == "parent-category":
