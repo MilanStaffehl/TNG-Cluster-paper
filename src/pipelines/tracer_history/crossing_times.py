@@ -29,11 +29,12 @@ if TYPE_CHECKING:
 class PlotType(enum.IntEnum):
     """Enum for different plot types"""
     DISTRIBUTION = 0
-    HIGH_Z_DISTANCE = 1
-    CURRENT_DISTANCE = 2
-    HIGH_Z_DISTANCE_STACKED = 3
-    CURRENT_DISTANCE_STACKED = 4
-    MEAN_CROSSING_TIME = 5
+    DISTRIBUTION_RVIR = 1
+    HIGH_Z_DISTANCE = 2
+    CURRENT_DISTANCE = 3
+    HIGH_Z_DISTANCE_STACKED = 4
+    CURRENT_DISTANCE_STACKED = 5
+    MEAN_CROSSING_TIME = 6
 
 
 @dataclasses.dataclass
@@ -75,6 +76,9 @@ class PlotCrossingTimesPlots(base.Pipeline):
         if PlotType.DISTRIBUTION in self.plot_types:
             self._plot_distribution(archive_file)
 
+        if PlotType.DISTRIBUTION_RVIR in self.plot_types:
+            self._plot_distribution(archive_file, "1Rvir")
+
         if PlotType.HIGH_Z_DISTANCE in self.plot_types:
             self._plot_distance_dependence_overall(
                 constants.MIN_SNAP, archive_file
@@ -98,7 +102,9 @@ class PlotCrossingTimesPlots(base.Pipeline):
         logging.info("Done! Successfully plotted all requested plots!")
         return 0
 
-    def _plot_distribution(self, archive_file: h5py.File) -> None:
+    def _plot_distribution(
+        self, archive_file: h5py.File, sfx: str = ""
+    ) -> None:
         """
         Plot the distribution of crossing times.
 
@@ -110,23 +116,30 @@ class PlotCrossingTimesPlots(base.Pipeline):
         with two distributions for first and last crossing.
 
         :param archive_file: Opened cool gas history archive file.
+        :param sfx: Suffix to the field name of the crossing time. Since
+            crossing times for other spheres than the 2Rvir case can
+            exist, and since these are suffixed by the radius in the
+            form ``NRvir``, this allows for plotting the distirbution
+            also for other crossing time definitions.
         :return: None, plots are saved to file.
         """
         logging.info(
             "Plotting distributions of crossing times for all clusters."
         )
+        file_suffix = f"_{sfx}" if sfx else ""
         # Loop over all clusters and count number of total particles
         total_part_num = 0
         for zoom_id in range(self.n_clusters):
             logging.debug(f"Plotting distribution for zoom-in {zoom_id}.")
             grp = f"ZoomRegion_{zoom_id:03d}"
-            first_crossing = archive_file[grp]["FirstCrossingRedshift"][()]
-            last_crossing = archive_file[grp]["LastCrossingRedshift"][()]
+            first_crossing = archive_file[grp][f"FirstCrossingRedshift{sfx}"][(
+            )]
+            last_crossing = archive_file[grp][f"LastCrossingRedshift{sfx}"][()]
             total_part_num += last_crossing.size  # increment counter
             self._save_distribution_plot(
                 first_crossing,
                 last_crossing,
-                f"distribution_z{zoom_id:03d}",
+                f"distribution_z{zoom_id:03d}{file_suffix}",
                 f"individuals/zoom_in_{zoom_id}"
             )
             logging.debug(f"Saved distribution for zoom-in {zoom_id}.")
@@ -139,8 +152,9 @@ class PlotCrossingTimesPlots(base.Pipeline):
         i = 0
         for zoom_id in range(self.n_clusters):
             grp = f"ZoomRegion_{zoom_id:03d}"
-            first_crossing = archive_file[grp]["FirstCrossingRedshift"][()]
-            last_crossing = archive_file[grp]["LastCrossingRedshift"][()]
+            first_crossing = archive_file[grp][f"FirstCrossingRedshift{sfx}"][(
+            )]
+            last_crossing = archive_file[grp][f"LastCrossingRedshift{sfx}"][()]
             n = first_crossing.size
             all_first_crossings[i:i + n] = first_crossing
             all_last_crossings[i:i + n] = last_crossing
@@ -150,7 +164,7 @@ class PlotCrossingTimesPlots(base.Pipeline):
         self._save_distribution_plot(
             all_first_crossings,
             all_last_crossings,
-            "distribution_unweighted",
+            f"distribution_unweighted{file_suffix}",
             None,
         )
 
@@ -174,7 +188,7 @@ class PlotCrossingTimesPlots(base.Pipeline):
         fig, axes = plt.subplots(figsize=(4, 4))
         zs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
         axes.set_xlabel("Estimated crossing redshift [z]")
-        axes.set_ylabel("Count")
+        axes.set_ylabel(r"Tracer mass [$\log_{10} M_\odot$]")
         axes.set_yscale("log")
 
         # set all crossing times close to zero to a sentinel value (as
@@ -185,9 +199,11 @@ class PlotCrossingTimesPlots(base.Pipeline):
 
         # plot histograms
         logbins = np.geomspace(zs[-1], zs[0], 21)
+        weights = constants.TRACER_MASS * np.ones_like(first_crossing)
         axes.hist(
             first_crossing,
             bins=logbins,
+            weights=weights,
             histtype="step",
             color="teal",
             label="First crossing",
@@ -196,6 +212,7 @@ class PlotCrossingTimesPlots(base.Pipeline):
         axes.hist(
             last_crossing,
             bins=logbins,
+            weights=weights,
             histtype="step",
             color="purple",
             label="Last crossing",
