@@ -1174,7 +1174,12 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
             for determining the norm and cmap.
         :return: Tuple of appropriate cmap and norm objects.
         """
-        if self.color_by.startswith("parent-category"):
+        if self.color_by is None:
+            cmap = matplotlib.cm.get_cmap("hsv")
+            vmin = np.nanmin(color_quantity[constants.MIN_SNAP:, :])
+            vmax = np.nanmax(color_quantity[constants.MIN_SNAP:, :])
+            norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
+        elif self.color_by.startswith("parent-category"):
             logging.info("Setting cmap and norm for parent category.")
             cmap = matplotlib.cm.get_cmap("turbo_r")
             norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)

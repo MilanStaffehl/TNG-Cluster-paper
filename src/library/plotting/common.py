@@ -413,7 +413,10 @@ def plot_cluster_line_plot(
     xs: NDArray,
     quantity: NDArray,
     cluster_masses: NDArray,
-    cmap: str | matplotlib.colors.Colormap = "jet",
+    cmap: str | matplotlib.colors.Colormap = "plasma",
+    min_mass: float = 14.2,
+    max_mass: float = 15.4,
+    use_discrete_norm: bool = False,
 ) -> tuple[Figure, Axes]:
     """
     Plot a line for every cluster, colored by their mass.
@@ -435,6 +438,13 @@ def plot_cluster_line_plot(
         The masses must be supplied in log(M_sol)!
     :param cmap: The name of the colormap to use or the colormap object
         itself.
+    :param min_mass: Minimum mass to show on the colorbar, in units of
+        log10 of solar masses. Defaults to 14.0.
+    :param max_mass: Maximum mass to show on the colorbar, in units of
+        log10 of solar masses. Defaults to 15.4.
+    :param use_discrete_norm: When set to True, the colorbar will not be
+        continuous but rather discrete, coloring all masses in bins of
+        0.2 dex from ``min_mass`` to ``max_mas`` the same color.
     :return: Returns the figure and axes objects as tuple for convenience;
         both are however altered in place and do not need to be updated.
     """
@@ -443,7 +453,12 @@ def plot_cluster_line_plot(
     # create colormap
     if isinstance(cmap, str):
         cmap = matplotlib.cm.get_cmap(cmap)
-    norm = matplotlib.colors.Normalize(vmin=14.0, vmax=15.4)
+
+    if use_discrete_norm:
+        boundaries = np.arange(min_mass, max_mass, step=0.2)
+        norm = matplotlib.colors.BoundaryNorm(boundaries, cmap.N, clip=True)
+    else:
+        norm = matplotlib.colors.Normalize(vmin=min_mass, vmax=max_mass)
     colors = [cmap(norm(mass)) for mass in cluster_masses]
 
     # plot mean, median, etc.
