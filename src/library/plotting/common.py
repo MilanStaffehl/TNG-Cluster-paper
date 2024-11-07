@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Literal, Sequence
 
 import astropy.cosmology
 import astropy.units
+import cmasher  # noqa: F401
 import matplotlib.cm
 import matplotlib.colors
 import numpy as np
@@ -413,9 +414,10 @@ def plot_cluster_line_plot(
     xs: NDArray,
     quantity: NDArray,
     cluster_masses: NDArray,
-    cmap: str | matplotlib.colors.Colormap = "plasma",
+    cmap: str | matplotlib.colors.Colormap = "jet",
     min_mass: float = 14.2,
     max_mass: float = 15.4,
+    alpha: float = 0.15,
     use_discrete_norm: bool = False,
 ) -> tuple[Figure, Axes]:
     """
@@ -439,12 +441,14 @@ def plot_cluster_line_plot(
     :param cmap: The name of the colormap to use or the colormap object
         itself.
     :param min_mass: Minimum mass to show on the colorbar, in units of
-        log10 of solar masses. Defaults to 14.0.
+        log10 of solar masses. Defaults to 14.2.
     :param max_mass: Maximum mass to show on the colorbar, in units of
         log10 of solar masses. Defaults to 15.4.
     :param use_discrete_norm: When set to True, the colorbar will not be
         continuous but rather discrete, coloring all masses in bins of
         0.2 dex from ``min_mass`` to ``max_mas`` the same color.
+    :param alpha: The alpha-value for the colored lines of individual
+        clusters.
     :return: Returns the figure and axes objects as tuple for convenience;
         both are however altered in place and do not need to be updated.
     """
@@ -465,13 +469,14 @@ def plot_cluster_line_plot(
     plot_config = {
         "marker": "none",
         "linestyle": "solid",
-        "alpha": 0.3,
+        "alpha": alpha,
     }
     for i in range(n_clusters):
         axes.plot(
             xs,
             quantity[i],
             color=colors[i],
+            zorder=cluster_masses[i],
             **plot_config,
         )
     figure.colorbar(
@@ -482,7 +487,7 @@ def plot_cluster_line_plot(
     )
 
     # plot mean and median
-    m_config = {"marker": "none", "color": "black"}
+    m_config = {"marker": "none", "color": "black", "zorder": 20}
     mean = np.nanmean(quantity, axis=0)
     axes.plot(xs, mean, ls="solid", **m_config)
     median = np.nanmedian(quantity, axis=0)

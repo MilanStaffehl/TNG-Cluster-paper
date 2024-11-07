@@ -224,7 +224,7 @@ class PlotParentCategoryPlots(base.Pipeline):
                 mask = distances_z0 <= virial_radii[zoom_id]
                 parent_categories = parent_categories[:, mask]
             in_halo = np.logical_or(
-                (parent_categories == 2 | parent_categories == 3),
+                np.logical_or(parent_categories == 2, parent_categories == 3),
                 parent_categories == 4
             )
             fractions = np.count_nonzero(in_halo, axis=1)
