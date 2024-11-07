@@ -18,8 +18,129 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
+class CrossingUtilMixin:
+    """
+    Mixin class, providing common methods to find crossing times.
+    """
+
+    @staticmethod
+    def _first_and_last_zero_crossing(
+        differences: NDArray,
+    ) -> tuple[NDArray, NDArray]:
+        """
+        Given an array of numbers, return first and last zero-crossing.
+
+        Method takes an array of shape (S, N) and finds, along the first
+        axis, the first and last crossing over zero .This is used to
+        find the first and last crossing of particles over the virial
+        radius of a cluster: given an array of the difference between
+        the distance of the particle and the virial radius of shape
+        (S, N), where S is the number of snapshots and N is the number
+        of particles, the function finds all crossing from positive to
+        negative (i.e. all moments where a particle crossed the virial
+        radius from the outside to the inside) and returns an array of
+        shape (N, ) containing the index of the first time this happens
+        and one of shape (N, ) of the last time where it happens (which
+        may be the same as the first crossing).
+
+        .. warning:: If the differences are ever exactly 0, the corresponding
+            index is not returned! A warning will be logged then.
+
+        .. note:: The indices are such that they point to the last positive
+            entry. The next entry will be negative.
+
+        :param differences: An array of shape (S, N) containing the
+            difference ``part_distance - virial_radius``.
+        :return: The array of indices of the first change from positive
+            to negative in ``differences`` along the S-axis of shape (N, )
+            and one array of the indices of the last change from positive
+            to negative. Note that the index points to the last entry of
+            ``differences`` that is positive before it changes sign, i.e.
+            it points at the entry where the particle is still outside
+            the threshold.
+        """
+        if np.count_nonzero(differences) != differences.size:
+            logging.warning(
+                "Encountered difference with values exactly zero! This means "
+                "some crossing indices will not be correct!"
+            )
+        # find all array positions where the sign changes towards negative
+        crossings_indices = (np.diff(np.sign(differences), axis=0) == -2)
+        first_crossing_idx = np.argmax(crossings_indices, axis=0)
+        index_from_back = np.argmax(np.flip(crossings_indices, axis=0), axis=0)
+        last_crossing_idx = crossings_indices.shape[0] - index_from_back - 1
+        # take into account particles that never cross
+        no_changes_mask = ~np.any(crossings_indices, axis=0)
+        first_crossing_idx[no_changes_mask] = -1
+        last_crossing_idx[no_changes_mask] = -1
+        return first_crossing_idx, last_crossing_idx
+
+    @staticmethod
+    def _interpolate_crossing_redshift(
+        redshifts: NDArray,
+        differences: NDArray,
+        crossing_indices: NDArray,
+    ) -> NDArray:
+        """
+        Find redshift of crossing, given the snap indices.
+
+        Given the array of differences between the particle distance and
+        the virial radius of shape (S, N), and a list of redshifts for
+        all S snaps, the method interpolates the redshift of all crossings
+        over the virial radius, specified by the given indices.
+
+        Returns an estimate for the redshift of every crossing.
+
+        ``differences`` can be computed as follows:
+
+        .. code:: Python
+
+            vr_broadcast = np.broadcast_to(virial_radii[:, None], (S, N))
+            differences = distances - multiplier * vr_broadcast
+
+        Where we assume that ``virial_radii`` is the S radii of the
+        cluster MP at the S different snapshots, and ``distances`` is the
+        shape (S, N) array of distances of particles from the main
+        progenitor of the primary subhalo of the cluster, as saved in the
+        archive under the field name ``DistanceToMP``.
+
+        :param redshifts: Array of redshifts associated with the S
+            snapshots analyzed. Shape (S, ).
+        :param differences: The array of the difference between the
+            particle distance to the cluster center at every snapshot
+            and the virial radius of the cluster at that snapshot. Shape
+            (S, N).
+        :param crossing_indices: The Array of indices of shape (N, )
+            giving for every particle the index of the snapshot where
+            the particle crosses the virial radius for the first time,
+            i.e. the index ``i`` for which ``differences[i] > 0`` but
+            ``differences[i + 1] < 0``.
+        :return: The redshifts of the crossings pointed to by
+            ``crossing_indices``, interpolated between snapshots.
+        """
+        z_1 = redshifts[crossing_indices]
+        z_2 = redshifts[crossing_indices + 1]
+        n = differences.shape[1]
+        d_1 = np.array([differences[crossing_indices[i], i] for i in range(n)])
+        d_2 = np.array(
+            [differences[crossing_indices[i] + 1, i] for i in range(n)]
+        )
+        z_interp = z_2 - d_2 * (z_2 - z_1) / (d_2 - d_1)
+        # set crossing time to NaN for particles that never crossed
+        never_crossed_mask = crossing_indices == -1
+        if np.any(never_crossed_mask):
+            n = np.count_nonzero(never_crossed_mask)
+            logging.warning(
+                f"Encountered {n} particles that never crossed while "
+                f"interpolating redshifts! Positions: "
+                f"{np.argwhere(never_crossed_mask)[:, 0]}."
+            )
+        z_interp[never_crossed_mask] = np.nan
+        return z_interp
+
+
 @dataclasses.dataclass
-class TimeOfCrossingPipeline(base.Pipeline):
+class TimeOfCrossingPipeline(CrossingUtilMixin, base.Pipeline):
     """
     Find for every particle the time of first and last crossing.
     """
@@ -178,120 +299,112 @@ class TimeOfCrossingPipeline(base.Pipeline):
         )
         return mpb_data[self.config.radius_field]
 
-    @staticmethod
-    def _first_and_last_zero_crossing(
-        differences: NDArray,
-    ) -> tuple[NDArray, NDArray]:
+
+@dataclasses.dataclass
+class TimeOfCoolingPipeline(CrossingUtilMixin, base.Pipeline):
+    """
+    Find for every particle the time of first and last cooling.
+    """
+
+    zoom_in: int | None = None
+
+    n_clusters: ClassVar[int] = 352
+    n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
+    threshold: ClassVar[float] = 10**4.5  # in Kelvin
+
+    def run(self) -> int:
         """
-        Given an array of numbers, return first and last zero-crossing.
+        Find time of first and last cooling for every particle.
 
-        Method takes an array of shape (S, N) and finds, along the first
-        axis, the first and last crossing over zero .This is used to
-        find the first and last crossing of particles over the virial
-        radius of a cluster: given an array of the difference between
-        the distance of the particle and the virial radius of shape
-        (S, N), where S is the number of snapshots and N is the number
-        of particles, the function finds all crossing from positive to
-        negative (i.e. all moments where a particle crossed the virial
-        radius from the outside to the inside) and returns an array of
-        shape (N, ) containing the index of the first time this happens
-        and one of shape (N, ) of the last time where it happens (which
-        may be the same as the first crossing).
-
-        .. warning:: If the differences are ever exactly 0, the corresponding
-            index is not returned! A warning will be logged then.
-
-        .. note:: The indices are such that they point to the last positive
-            entry. The next entry will be negative.
-
-        :param differences: An array of shape (S, N) containing the
-            difference ``part_distance - virial_radius``.
-        :return: The array of indices of the first change from positive
-            to negative in ``differences`` along the S-axis of shape (N, )
-            and one array of the indices of the last change from positive
-            to negative. Note that the index points to the last entry of
-            ``differences`` that is positive before it changes sign, i.e.
-            it points at the entry where the particle is still outside
-            the threshold.
+        :return: Exit code.
         """
-        if np.count_nonzero(differences) != differences.size:
-            logging.warning(
-                "Encountered difference with values exactly zero! This means "
-                "some crossing indices will not be correct!"
+        # Step 1: open the archive
+        archive_file = h5py.File(self.config.cool_gas_history, "r+")
+
+        # Step 2: loop over the zoom-ins
+        if self.zoom_in is None:
+            logging.info(
+                "Finding time of first and last cooling for all particles "
+                "in all zoom-ins."
             )
-        # find all array positions where the sign changes towards negative
-        crossings_indices = (np.diff(np.sign(differences), axis=0) == -2)
-        first_crossing_idx = np.argmax(crossings_indices, axis=0)
-        index_from_back = np.argmax(np.flip(crossings_indices, axis=0), axis=0)
-        last_crossing_idx = crossings_indices.shape[0] - index_from_back - 1
-        # take into account particles that never cross
-        no_changes_mask = ~np.any(crossings_indices, axis=0)
-        first_crossing_idx[no_changes_mask] = -1
-        last_crossing_idx[no_changes_mask] = -1
-        return first_crossing_idx, last_crossing_idx
+            for zoom_id in range(self.n_clusters):
+                self._find_cooling_times(zoom_id, archive_file)
+        else:
+            logging.info(
+                f"Finding the time of first and last cooling for all "
+                f"particles of zoom-in {self.zoom_in}."
+            )
+            self._find_cooling_times(self.zoom_in, archive_file)
 
-    @staticmethod
-    def _interpolate_crossing_redshift(
-        redshifts: NDArray,
-        differences: NDArray,
-        crossing_indices: NDArray,
-    ) -> NDArray:
+        archive_file.close()
+        logging.info("Done! Successfully found and archived cooling times!")
+        return 0
+
+    def _find_cooling_times(
+        self, zoom_id: int, archive_file: h5py.File
+    ) -> None:
         """
-        Find redshift of crossing, given the snap indices.
+        Find and archive the time of first and last cooling.
 
-        Given the array of differences between the particle distance and
-        the virial radius of shape (S, N), and a list of redshifts for
-        all S snaps, the method interpolates the redshift of all crossings
-        over the virial radius, specified by the given indices.
+        Method finds the time at which each traced particle has cooled
+        from a higher temperature to below the threshold temperature
+        (i.e. crossing from a temperature log T > 4.5 to below the
+        threshold temperature of log T = 4.5) and saves the time to the
+        archive file. The time is interpolated in between snapshots to
+        reach an accurate redshift estimate for the time of cooling.
 
-        Returns an estimate for the redshift of every crossing.
-
-        ``differences`` can be computed as follows:
-
-        .. code:: Python
-
-            vr_broadcast = np.broadcast_to(virial_radii[:, None], (S, N))
-            differences = distances - multiplier * vr_broadcast
-
-        Where we assume that ``virial_radii`` is the S radii of the
-        cluster MP at the S different snapshots, and ``distances`` is the
-        shape (S, N) array of distances of particles from the main
-        progenitor of the primary subhalo of the cluster, as saved in the
-        archive under the field name ``DistanceToMP``.
-
-        :param redshifts: Array of redshifts associated with the S
-            snapshots analyzed. Shape (S, ).
-        :param differences: The array of the difference between the
-            particle distance to the cluster center at every snapshot
-            and the virial radius of the cluster at that snapshot. Shape
-            (S, N).
-        :param crossing_indices: The Array of indices of shape (N, )
-            giving for every particle the index of the snapshot where
-            the particle crosses the virial radius for the first time,
-            i.e. the index ``i`` for which ``differences[i] > 0`` but
-            ``differences[i + 1] < 0``.
-        :return: The redshifts of the crossings pointed to by
-            ``crossing_indices``, interpolated between snapshots.
+        :param zoom_id: The ID of the zoom-in region for which to find
+            the time of cooling.
+        :param archive_file: The archive file containing the cool gas
+            tracer history. Must contain the temperature of every
+            particle, given by the field ``Temperature``.
+        :return: None, resulting times are archived to the archive file.
         """
-        z_1 = redshifts[crossing_indices]
-        z_2 = redshifts[crossing_indices + 1]
-        n = differences.shape[1]
-        d_1 = np.array([differences[crossing_indices[i], i] for i in range(n)])
-        d_2 = np.array(
-            [differences[crossing_indices[i] + 1, i] for i in range(n)]
+        logging.info(f"Finding cooling times for zoom-in {zoom_id}.")
+        # Step 0: allocate memory for result
+        time_of_first_cooling = np.empty(100)
+        time_of_first_cooling[:] = np.nan
+        time_of_last_cooling = np.empty(100)
+        time_of_last_cooling[:] = np.nan
+
+        # Step 1: load distances from archive
+        ds = f"ZoomRegion_{zoom_id:03d}/Temperature"
+        temperatures = archive_file[ds][constants.MIN_SNAP:]
+
+        # Step 2: find crossings
+        diff = temperatures - self.threshold
+        # TODO: handle NaNs due to particles in stars
+        first_cooling, last_cooling = self._first_and_last_zero_crossing(diff)
+        # Note: the indices returned here are NOT snapshot numbers, but
+        # start at MIN_SNAP as 0, i.e. 0 points to MIN_SNAP, not snapshot
+        # zero!
+
+        # Step 3: interpolate time of crossing
+        redshifts = constants.REDSHIFTS[constants.MIN_SNAP:]
+        first_crossing_z = self._interpolate_crossing_redshift(
+            redshifts, diff, first_cooling
         )
-        z_interp = z_2 - d_2 * (z_2 - z_1) / (d_2 - d_1)
-        # set crossing time to NaN for particles that never crossed
-        never_crossed_mask = crossing_indices == -1
-        if np.any(never_crossed_mask):
-            n = np.count_nonzero(never_crossed_mask)
-            logging.warning(
-                f"Encountered {n} particles that never crossed while "
-                f"interpolating redshifts! Positions: "
-                f"{np.argwhere(never_crossed_mask)[:, 0]}."
-            )
-        z_interp[never_crossed_mask] = np.nan
-        return z_interp
+        last_crossing_z = self._interpolate_crossing_redshift(
+            redshifts, diff, last_cooling
+        )
+
+        # Step 4: save crossing times to archive
+        logging.info(f"Archiving cooling times for zoom-in {zoom_id}.")
+        field_mapping = {
+            "FirstCoolingRedshift": first_crossing_z,
+            "LastCoolingRedshift": last_crossing_z,
+            "FirstCoolingSnapshot": first_cooling + constants.MIN_SNAP,
+            "LastCoolingSnapshot": last_cooling + constants.MIN_SNAP,
+        }
+        for field, value in field_mapping.items():
+            grp = f"ZoomRegion_{zoom_id:03d}"
+            if field not in archive_file[grp].keys():
+                logging.debug(f"Creating missing dataset {field}.")
+                archive_file[grp].create_dataset(
+                    field, value.shape, value.dtype, data=value
+                )
+            else:
+                archive_file[grp][field][:] = value
 
 
 @dataclasses.dataclass
