@@ -304,11 +304,17 @@ class TimeOfCrossingPipeline(CrossingUtilMixin, base.Pipeline):
         logging.info(f"Archiving crossing times for zoom-in {zoom_id}.")
         multiplier = int(self.distance_multiplier)
         sfx = "" if multiplier == 2 else f"{multiplier:d}Rvir"
+        # convert crossing indices to actual snapshot numbers
+        first_crossing_snap = first_crossing + constants.MIN_SNAP
+        first_crossing_snap[first_crossing == -1] = -1
+        last_crossing_snap = last_crossing + constants.MIN_SNAP
+        last_crossing_snap[last_crossing == -1] = -1
+
         field_mapping = {
             f"FirstCrossingRedshift{sfx}": first_crossing_z,
             f"LastCrossingRedshift{sfx}": last_crossing_z,
-            f"FirstCrossingSnapshot{sfx}": first_crossing + constants.MIN_SNAP,
-            f"LastCrossingSnapshot{sfx}": last_crossing + constants.MIN_SNAP,
+            f"FirstCrossingSnapshot{sfx}": first_crossing_snap,
+            f"LastCrossingSnapshot{sfx}": last_crossing_snap,
         }
         for field, value in field_mapping.items():
             grp = f"ZoomRegion_{zoom_id:03d}"
@@ -442,11 +448,17 @@ class TimeOfCoolingPipeline(CrossingUtilMixin, base.Pipeline):
 
         # Step 4: save crossing times to archive
         logging.info(f"Archiving cooling times for zoom-in {zoom_id}.")
+        # convert from index to snapshot number
+        first_cooling_snap = first_cooling + constants.MIN_SNAP
+        first_cooling_snap[first_cooling == -1] = -1
+        last_cooling_snap = last_cooling + constants.MIN_SNAP
+        last_cooling_snap[last_cooling == -1] = -1
+
         field_mapping = {
             "FirstCoolingRedshift": first_crossing_z,
             "LastCoolingRedshift": last_crossing_z,
-            "FirstCoolingSnapshot": first_cooling + constants.MIN_SNAP,
-            "LastCoolingSnapshot": last_cooling + constants.MIN_SNAP,
+            "FirstCoolingSnapshot": first_cooling_snap,
+            "LastCoolingSnapshot": last_cooling_snap,
         }
         for field, value in field_mapping.items():
             grp = f"ZoomRegion_{zoom_id:03d}"
