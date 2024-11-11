@@ -26,6 +26,7 @@ class CrossingUtilMixin:
     @staticmethod
     def _first_and_last_zero_crossing(
         differences: NDArray,
+        treat_zeroes: bool = False,
     ) -> tuple[NDArray, NDArray]:
         """
         Given an array of numbers, return first and last zero-crossing.
@@ -49,8 +50,20 @@ class CrossingUtilMixin:
         .. note:: The indices are such that they point to the last positive
             entry. The next entry will be negative.
 
+        It can theoretically happen, that the difference is exactly zero
+        in some cases. This is not easily taken into account by the
+        algorithm. If this is however something that needs to be taken
+        into account, set ``treat_zeroes`` to True, so that the algorithm
+        will also treat differences from positive values to exactly zero
+        and subsequently negative values as a crossing. If set to False,
+        these pseudo-crossings are ignored and only a warning is logged
+        when there are zero-entries in ``differences``.
+
         :param differences: An array of shape (S, N) containing the
             difference ``part_distance - virial_radius``.
+        :param treat_zeroes: #whether to treat values exactly zero in
+            ``differences`` as a crossing, provided the value before is
+            positive and the value after is negative.
         :return: The array of indices of the first change from positive
             to negative in ``differences`` along the S-axis of shape (N, )
             and one array of the indices of the last change from positive
@@ -59,20 +72,54 @@ class CrossingUtilMixin:
             it points at the entry where the particle is still outside
             the threshold.
         """
-        if np.count_nonzero(differences) != differences.size:
-            logging.warning(
-                "Encountered difference with values exactly zero! This means "
-                "some crossing indices will not be correct!"
-            )
+        contains_zeros = (np.count_nonzero(differences) != differences.size)
+        if not treat_zeroes:
+            if contains_zeros:
+                logging.warning(
+                    "Encountered difference with values exactly zero! This "
+                    "means some crossing indices will not be correct!"
+                )
+
         # find all array positions where the sign changes towards negative
         crossings_indices = (np.diff(np.sign(differences), axis=0) == -2)
         first_crossing_idx = np.argmax(crossings_indices, axis=0)
         index_from_back = np.argmax(np.flip(crossings_indices, axis=0), axis=0)
         last_crossing_idx = crossings_indices.shape[0] - index_from_back - 1
+
         # take into account particles that never cross
         no_changes_mask = ~np.any(crossings_indices, axis=0)
         first_crossing_idx[no_changes_mask] = -1
         last_crossing_idx[no_changes_mask] = -1
+
+        # find exact zero-crossings, check if they qualify for first or last
+        if treat_zeroes and contains_zeros:
+            pseudo_crossings = (np.diff(np.sign(differences), axis=0) == -1)
+            # check whether this is a crossing to zero, rather than
+            # a crossing FROM zero to a negative number:
+            for snap_num, pidx in zip(*np.nonzero(pseudo_crossings)):
+                # check value at next snapshot
+                if differences[snap_num + 1, pidx] != 0:
+                    # crossing is from zero to negative, remove:
+                    pseudo_crossings[snap_num, pidx] = 0
+            first_zero_idx = np.argmax(pseudo_crossings, axis=0)
+            idx_from_back = np.argmax(
+                np.flip(pseudo_crossings, axis=0), axis=0
+            )
+            last_zero_idx = crossings_indices.shape[0] - idx_from_back - 1
+
+            mask = np.any(pseudo_crossings, axis=0)
+            # replace first crossing with earlier pseudo-crossings; set invalid
+            # entries (-1) to a high value so that np.maximum ignores them:
+            where_invalid = (first_crossing_idx == -1) & mask
+            first_crossing_idx[where_invalid] = 99
+            first_crossing_idx[mask] = np.minimum(
+                first_crossing_idx[mask], first_zero_idx[mask]
+            )
+            # replace last crossings with later pseudo-crossings
+            last_crossing_idx[mask] = np.maximum(
+                last_crossing_idx[mask], last_zero_idx[mask]
+            )
+
         return first_crossing_idx, last_crossing_idx
 
     @staticmethod
@@ -376,7 +423,10 @@ class TimeOfCoolingPipeline(CrossingUtilMixin, base.Pipeline):
         # We treat particles in stars as hot, i.e. as having a positive
         # difference, so we set this here manually:
         diff[np.isnan(diff)] = 1
-        first_cooling, last_cooling = self._first_and_last_zero_crossing(diff)
+        # there are zeros in the diff, so we treat them separately
+        first_cooling, last_cooling = self._first_and_last_zero_crossing(
+            diff, treat_zeroes=True
+        )
         # Note: the indices returned here are NOT snapshot numbers, but
         # start at MIN_SNAP as 0, i.e. 0 points to MIN_SNAP, not snapshot
         # zero!
