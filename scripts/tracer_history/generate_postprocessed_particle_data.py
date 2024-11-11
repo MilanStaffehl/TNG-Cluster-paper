@@ -9,6 +9,7 @@ sys.path.insert(0, str(root_dir / "src"))
 from library import scriptparse
 from pipelines.tracer_history.generate.postprocess_particle_data import (
     ParentCategoryPipeline,
+    TimeOfCoolingPipeline,
     TimeOfCrossingPipeline,
 )
 
@@ -38,6 +39,8 @@ def main(args: argparse.Namespace) -> None:
     elif args.what == "crossing-times-1rvir":
         pipeline_config.update({"distance_multiplier": 1})
         pipeline = TimeOfCrossingPipeline(**pipeline_config)
+    elif args.what == "cooling-times":
+        pipeline = TimeOfCoolingPipeline(**pipeline_config)
     elif args.what == "parent-category":
         pipeline = ParentCategoryPipeline(**pipeline_config)
     else:
@@ -71,7 +74,12 @@ if __name__ == "__main__":
             "traced back in time for those cells that end up in cool "
             "gas at redshift zero. Can only choose from the valid options."
         ),
-        choices=["crossing-times", "crossing-times-1rvir", "parent-category"],
+        choices=[
+            "crossing-times",
+            "crossing-times-1rvir",
+            "cooling-times",
+            "parent-category",
+        ],
     )
     parser.add_argument(
         "-z",

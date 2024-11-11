@@ -373,7 +373,9 @@ class TimeOfCoolingPipeline(CrossingUtilMixin, base.Pipeline):
 
         # Step 2: find crossings
         diff = temperatures - self.threshold
-        # TODO: handle NaNs due to particles in stars
+        # We treat particles in stars as hot, i.e. as having a positive
+        # difference, so we set this here manually:
+        diff[np.isnan(diff)] = 1
         first_cooling, last_cooling = self._first_and_last_zero_crossing(diff)
         # Note: the indices returned here are NOT snapshot numbers, but
         # start at MIN_SNAP as 0, i.e. 0 points to MIN_SNAP, not snapshot
