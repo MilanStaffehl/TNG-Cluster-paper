@@ -28,13 +28,13 @@ printf "\n\nRunning: density plots (stacks, split by parent, all plot types)"
 python ./plot_quantity_with_time.py density -l -pt 1 --split-by parent-category -q
 
 # STACKS SPLIT BY PARENT AT Z = 0
-printf "\n\nRunning: distance plots (stacks, split by parent, all plot types)"
+printf "\n\nRunning: distance plots (stacks, split by parent at z=0, all plot types)"
 python ./plot_quantity_with_time.py distance -l -pt 1 --split-by parent-category-at-zero -q
-printf "\n\nRunning: volume normalized distance plots (stacks, split by parent, all plot types)"
+printf "\n\nRunning: volume normalized distance plots (stacks, split by parent at z=0, all plot types)"
 python ./plot_quantity_with_time.py distance -l -vn -pt 1 --split-by parent-category-at-zero -q
-printf "\n\nRunning: temperature plots (stacks, split by parent, all plot types)"
+printf "\n\nRunning: temperature plots (stacks, split by parent at z=0, all plot types)"
 python ./plot_quantity_with_time.py temperature -l -pt 1 --split-by parent-category-at-zero -q
-printf "\n\nRunning: density plots (stacks, split by parent, all plot types)"
+printf "\n\nRunning: density plots (stacks, split by parent at z=0, all plot types)"
 python ./plot_quantity_with_time.py density -l -pt 1 --split-by parent-category-at-zero -q
 
 # STACKS SPLIT BY BOUND STATE
@@ -73,11 +73,11 @@ done
 # INDIVIDUAL LINE PLOTS, SPLIT BY CATEGORY AT REDSHIFT ZERO
 for i in $(seq 0 351)
 do
-  printf "\n\nRunning: distance line plots (individual, zoom-in $i, split by parent category)\n"
+  printf "\n\nRunning: distance line plots (individual, zoom-in $i, split by parent category at z=0)\n"
   python ./plot_quantity_with_time.py distance -l -z "$i" -pt 0 --split-by parent-category-at-zero -q
-  printf "\n\nRunning: temperature line plots (individual, zoom-in $i, split by parent category)\n"
+  printf "\n\nRunning: temperature line plots (individual, zoom-in $i, split by parent category at z=0)\n"
   python ./plot_quantity_with_time.py temperature -l -z "$i" -pt 0 --split-by parent-category-at-zero -q
-  printf "\n\nRunning: density line plots (individual, zoom-in $i, split by parent category)\n"
+  printf "\n\nRunning: density line plots (individual, zoom-in $i, split by parent category at z=0)\n"
   python ./plot_quantity_with_time.py density -l -z "$i" -pt 0 --split-by parent-category-at-zero -q
 done
 

@@ -79,7 +79,7 @@ def main(args: argparse.Namespace) -> None:
             "part_limit": args.particle_limit,
             "volume_normalize": args.volume_normalize,
             "plot_types": plot_types,
-            "color_by": args.split_by,
+            "split_by": args.split_by,
         }
     else:
         plotting_pipeline = PlotSimpleQuantityWithTimePipeline

@@ -327,14 +327,18 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
         # Step 5: plot zoomed-in ridgeline plot
         if PlotType.ZOOMED_RIDGELINE in self.plot_types:
-            logging.info("Plotting zoomed-in ridgeline plots.")
+            if self.normalize:
+                logging.info(
+                    "Skipping zoomed ridgeline for normalized quantity."
+                )
             # see if zoomed-in plot it supported
-            if self.zoomed_range is None:
+            elif self.zoomed_range is None:
                 logging.warning(
                     "None or incomplete config for zoomed ridgeline plot. "
                     "Skipping."
                 )
             else:
+                logging.info("Plotting zoomed-in ridgeline plots.")
                 # change ranges
                 old_range = copy.copy(self.hist_range)
                 self.hist_range = self.zoomed_range
@@ -957,10 +961,9 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             category_list = list(categories.keys())
         except KeyError:
             logging.error(
-                f"Unknown split category: {self.split_by}. Will continue with "
-                f"unsplit histogram instead."
+                f"Unknown split category: {self.split_by}. Cannot continue "
+                f"with plotting of split 2D histogram."
             )
-            self._plot_and_save_2dhistograms(archive_file)
             return
 
         # Plot the histograms
@@ -1033,7 +1036,7 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
     part_limit: int | None = None  # limit plots to this many particles
     volume_normalize: bool = False
     plot_types: list[int] | None = None  # what to plot
-    color_by: str | None = None  # what to color lines by
+    split_by: str | None = None  # what to color lines by
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -1094,9 +1097,9 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
         cluster_cq, label = self._get_characteristic_cluster_property(primary_id)
 
         # Step 4: load color quantity if set
-        if self.color_by == "parent-category":
+        if self.split_by == "parent-category":
             colors = f[f"ZoomRegion_{self.zoom_in:03d}/ParentCategory"][()]
-        elif self.color_by == "parent-category-at-zero":
+        elif self.split_by == "parent-category-at-zero":
             colors = f[f"ZoomRegion_{self.zoom_in:03d}/ParentCategory"][99, :]
         else:
             colors = None
@@ -1235,7 +1238,7 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
         )
 
         # construct and add legend
-        if self.color_by is not None:
+        if self.split_by is not None:
             self._add_additional_handles(handles)
         if label:
             axes.legend(handles=handles)
@@ -1243,8 +1246,8 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
         # save fig
         logging.info("Saving plot to file, may take a while...")
         ident_flag = f"z{self.zoom_in:03d}_tracks_"
-        if self.color_by is not None:
-            split_by = self.color_by.replace("-", "_")
+        if self.split_by is not None:
+            split_by = self.split_by.replace("-", "_")
             ident_flag += f"{split_by}_"
         if self.part_limit is None:
             ident_flag += "all_particles"
@@ -1365,12 +1368,12 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
             for determining the norm and cmap.
         :return: Tuple of appropriate cmap and norm objects.
         """
-        if self.color_by is None:
+        if self.split_by is None:
+            # every line just gets a color from the hsv colormap
             cmap = matplotlib.cm.get_cmap("hsv")
-            vmin = np.nanmin(color_quantity[constants.MIN_SNAP:, :])
-            vmax = np.nanmax(color_quantity[constants.MIN_SNAP:, :])
-            norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
-        elif self.color_by.startswith("parent-category"):
+            n_part = color_quantity.size
+            norm = matplotlib.colors.Normalize(vmin=0, vmax=n_part)
+        elif self.split_by.startswith("parent-category"):
             logging.info("Setting cmap and norm for parent category.")
             cmap = matplotlib.cm.get_cmap("turbo_r")
             norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)
@@ -1389,7 +1392,7 @@ class PlotSimpleQuantitiesForSingleClusters(HistogramMixin,
             by new, appropriate handles.
         :return: None, list is altered in place.
         """
-        if self.color_by.startswith("parent-category"):
+        if self.split_by.startswith("parent-category"):
             categories = [
                 "unbound", "other halo", "inner fuzz", "primary", "satellite"
             ]
