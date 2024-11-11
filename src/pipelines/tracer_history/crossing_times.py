@@ -37,8 +37,110 @@ class PlotType(enum.IntEnum):
     MEAN_CROSSING_TIME = 6
 
 
+class CommonPlotMixin:
+    """Mixin for common plotting methods"""
+
+    def _save_distribution_plot(
+        self: base.Pipeline,
+        first_crossing: NDArray,
+        last_crossing: NDArray,
+        legend_title: str,
+        ident_flag: str,
+        subdir: str | None,
+        color_first: str = "teal",
+        color_last: str = "purple",
+    ) -> None:
+        """
+        Plot the distribution of first and last crossing time and save it.
+
+        :param first_crossing: Array of first crossing redshifts.
+        :param last_crossing: Array of last crossing redshifts.
+        :param legend_title: Title for the legend.
+        :param ident_flag: Ident flag for the figure.
+        :param subdir: Subdir for the figure.
+        :param color_first: Color for first crossing lines.
+        :param color_last: Color for last crossing lines.
+        :return: None, figure is saved to file.
+        """
+        # create and configure a figure
+        fig, axes = plt.subplots(figsize=(4, 4))
+        zs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
+        axes.set_xlabel("Estimated crossing redshift [z]")
+        axes.set_ylabel(r"Tracer mass [$\log_{10} M_\odot$]")
+        axes.set_yscale("log")
+
+        # set all crossing times close to zero to a sentinel value (as
+        # the range will be limited to 1e-3 to 8 later, and we need the
+        # outliers to still fall into the last bin)
+        first_crossing[first_crossing <= zs[-1]] = 1.01 * zs[-1]
+        last_crossing[last_crossing <= zs[-1]] = 1.01 * zs[-1]
+
+        # plot histograms
+        logbins = np.geomspace(zs[-1], zs[0], 21)
+        weights = constants.TRACER_MASS * np.ones_like(first_crossing)
+        axes.hist(
+            first_crossing,
+            bins=logbins,
+            weights=weights,
+            histtype="step",
+            color=color_first,
+            label="First crossing",
+            zorder=10,
+        )
+        axes.hist(
+            last_crossing,
+            bins=logbins,
+            weights=weights,
+            histtype="step",
+            color=color_last,
+            label="Last crossing",
+            zorder=9,
+        )
+
+        # plot mean and median
+        axes.axvline(
+            np.nanmean(first_crossing),
+            linestyle="solid",
+            color=color_first,
+            zorder=12,
+        )
+        axes.axvline(
+            np.nanmedian(first_crossing),
+            linestyle="dashed",
+            color=color_first,
+            zorder=12,
+        )
+        axes.axvline(
+            np.nanmean(last_crossing),
+            linestyle="solid",
+            color=color_last,
+            zorder=11,
+        )
+        axes.axvline(
+            np.nanmedian(last_crossing),
+            linestyle="dashed",
+            color=color_last,
+            zorder=11,
+        )
+
+        # plot label showing how many particles cross more than once
+        legend = axes.legend(
+            title=legend_title,
+            title_fontsize="small",
+            alignment="left",
+            loc="best",
+        )
+        legend.set_zorder(20)
+
+        self._save_fig(
+            fig,
+            ident_flag=ident_flag,
+            subdir=subdir,
+        )
+
+
 @dataclasses.dataclass
-class PlotCrossingTimesPlots(base.Pipeline):
+class PlotCrossingTimesPlots(CommonPlotMixin, base.Pipeline):
     """
     Pipeline to plot various plots involving the first and last crossing
     time of particles that eventually end up in cool gas.
@@ -136,9 +238,16 @@ class PlotCrossingTimesPlots(base.Pipeline):
             )]
             last_crossing = archive_file[grp][f"LastCrossingRedshift{sfx}"][()]
             total_part_num += last_crossing.size  # increment counter
+
+            # find legend title
+            diff = first_crossing - last_crossing
+            mc = np.count_nonzero(diff) / first_crossing.size
+            title = f"Multiple crossings: {mc * 100:.2f}%"
+
             self._save_distribution_plot(
                 first_crossing,
                 last_crossing,
+                title,
                 f"distribution_z{zoom_id:03d}{file_suffix}",
                 f"individuals/zoom_in_{zoom_id}"
             )
@@ -160,106 +269,18 @@ class PlotCrossingTimesPlots(base.Pipeline):
             all_last_crossings[i:i + n] = last_crossing
             i += n
 
+        # find legend title
+        diff = all_first_crossings - all_last_crossings
+        mc = np.count_nonzero(diff) / total_part_num
+        title = f"Multiple crossings: {mc * 100:.2f}%"
+
         # plot distribution of all particles
         self._save_distribution_plot(
             all_first_crossings,
             all_last_crossings,
+            title,
             f"distribution_unweighted{file_suffix}",
             None,
-        )
-
-    def _save_distribution_plot(
-        self,
-        first_crossing: NDArray,
-        last_crossing: NDArray,
-        ident_flag: str,
-        subdir: str | None,
-    ) -> None:
-        """
-        Plot the distribution of first and last crossing time and save it.
-
-        :param first_crossing: Array of first crossing redshifts.
-        :param last_crossing: Array of last crossing redshifts.
-        :param ident_flag: Ident flag for the figure.
-        :param subdir: Subdir for the figure.
-        :return: None, figure is saved to file.
-        """
-        # create and configure a figure
-        fig, axes = plt.subplots(figsize=(4, 4))
-        zs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
-        axes.set_xlabel("Estimated crossing redshift [z]")
-        axes.set_ylabel(r"Tracer mass [$\log_{10} M_\odot$]")
-        axes.set_yscale("log")
-
-        # set all crossing times close to zero to a sentinel value (as
-        # the range will be limited to 1e-3 to 8 later, and we need the
-        # outliers to still fall into the last bin)
-        first_crossing[first_crossing <= zs[-1]] = 1.01 * zs[-1]
-        last_crossing[last_crossing <= zs[-1]] = 1.01 * zs[-1]
-
-        # plot histograms
-        logbins = np.geomspace(zs[-1], zs[0], 21)
-        weights = constants.TRACER_MASS * np.ones_like(first_crossing)
-        axes.hist(
-            first_crossing,
-            bins=logbins,
-            weights=weights,
-            histtype="step",
-            color="teal",
-            label="First crossing",
-            zorder=10,
-        )
-        axes.hist(
-            last_crossing,
-            bins=logbins,
-            weights=weights,
-            histtype="step",
-            color="purple",
-            label="Last crossing",
-            zorder=9,
-        )
-
-        # plot mean and median
-        axes.axvline(
-            np.nanmean(first_crossing),
-            linestyle="solid",
-            color="teal",
-            zorder=12,
-        )
-        axes.axvline(
-            np.nanmedian(first_crossing),
-            linestyle="dashed",
-            color="teal",
-            zorder=12,
-        )
-        axes.axvline(
-            np.nanmean(last_crossing),
-            linestyle="solid",
-            color="purple",
-            zorder=11,
-        )
-        axes.axvline(
-            np.nanmedian(last_crossing),
-            linestyle="dashed",
-            color="purple",
-            zorder=11,
-        )
-
-        # plot label showing how many particles cross more than once
-        diff = first_crossing - last_crossing
-        mc = np.count_nonzero(diff) / first_crossing.size
-        legend = axes.legend(
-            title=f"Multiple crossings: {mc * 100:.2f}%",
-            title_fontsize="small",
-            alignment="left",
-            loc="best",
-        )
-        legend.set_zorder(20)
-
-        self._save_fig(
-            fig,
-            ident_flag=ident_flag,
-            subdir=subdir,
         )
 
     def _plot_distance_dependence_overall(
@@ -546,6 +567,211 @@ class PlotCrossingTimesPlots(base.Pipeline):
             axes,
             cluster_masses,
             mean_crossing_times,
+            marker_style="D",
+            color_quantity=np.log10(cool_gas_fractions),
+            cmap="cmr.cosmic",
+            cbar_label=r"Cool gas fraction at $z = 0$ [$\log_{10}$]",
+        )
+        axes.plot(
+            left_bin_edges + 0.1,
+            medians,
+            linestyle="dashed",
+            color="black",
+            zorder=20,
+            label="Median",
+        )
+        axes.legend()
+
+        # save figure
+        self._save_fig(fig, ident_flag="mean_vs_mass")
+
+
+@dataclasses.dataclass
+class PlotCoolingTimesPlots(CommonPlotMixin, base.Pipeline):
+    """
+    Pipeline to plot various plots involving the first and last time
+    when particles that eventually end up in cool gas cooled below the
+    temperature threshold of logT < 4.5.
+    """
+
+    plot_types: list[int] | None = None  # what to plot
+
+    n_clusters: ClassVar[int] = 352
+    n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
+
+    def __post_init__(self):
+        super().__post_init__()
+        if self.plot_types is None:
+            self.plot_types = [e.value for e in PlotType]
+
+    def run(self) -> int:
+        """
+        Plot crossing times plots and save them to file.
+
+        :return: Exit code.
+        """
+        logging.info("Starting pipeline to plot cooling times plots.")
+        # Step 0: check directories and archive
+        if not self.config.cool_gas_history.exists():
+            logging.fatal(
+                f"Did not find cool gas archive file "
+                f"{self.config.cool_gas_history}."
+            )
+            return 1
+
+        # Step 1: open the archive file
+        archive_file = h5py.File(self.config.cool_gas_history, "r")
+
+        # Step 2: plot the different plot types
+        if PlotType.DISTRIBUTION in self.plot_types:
+            self._plot_distribution(archive_file)
+
+        # Step 3: plot mean cooling time vs. cluster mass
+        if PlotType.MEAN_CROSSING_TIME in self.plot_types:
+            self._plot_mean_last_cooling_time(archive_file)
+
+        archive_file.close()
+        logging.info("Done! Successfully plotted all requested plots!")
+        return 0
+
+    def _plot_distribution(self, archive_file: h5py.File) -> None:
+        """
+        Plot the distribution of cooling times.
+
+        Method plots for every cluster the distribution of cooling times
+        for the traced gas cells, with first and last cooling times in
+        the same plot as two separate distributions.
+
+        It also creates a final plot of all cooling times, similarly
+        with two distributions for first and last crossing.
+
+        :param archive_file: Opened cool gas history archive file.
+        :return: None, plots are saved to file.
+        """
+        logging.info(
+            "Plotting distributions of cooling times for all clusters."
+        )
+        # Loop over all clusters and count number of total particles
+        total_part_num = 0
+        for zoom_id in range(self.n_clusters):
+            logging.debug(f"Plotting distribution for zoom-in {zoom_id}.")
+            grp = f"ZoomRegion_{zoom_id:03d}"
+            first_cooling = archive_file[grp]["FirstCoolingRedshift"][()]
+            last_cooling = archive_file[grp]["LastCoolingRedshift"][()]
+            total_part_num += last_cooling.size  # increment counter
+
+            # find legend title
+            n_nans = np.count_nonzero(np.isnan(first_cooling))
+            title = f"Always cool: {n_nans / total_part_num * 1000:.3f}‰"
+
+            self._save_distribution_plot(
+                first_cooling,
+                last_cooling,
+                title,
+                f"distribution_z{zoom_id:03d}",
+                f"individuals/zoom_in_{zoom_id}",
+                color_first="orange",
+                color_last="navy",
+            )
+            logging.debug(f"Saved distribution for zoom-in {zoom_id}.")
+
+        logging.info("Plotting distribution over all particles.")
+        logging.debug(f"Total number of particles: {total_part_num}.")
+        # allocate memory for total particle number
+        all_first_coolings = np.zeros(total_part_num)
+        all_last_coolings = np.zeros(total_part_num)
+        i = 0
+        for zoom_id in range(self.n_clusters):
+            grp = f"ZoomRegion_{zoom_id:03d}"
+            first_cooling = archive_file[grp]["FirstCoolingRedshift"][()]
+            last_cooling = archive_file[grp]["LastCoolingRedshift"][()]
+            n = first_cooling.size
+            all_first_coolings[i:i + n] = first_cooling
+            all_last_coolings[i:i + n] = last_cooling
+            i += n
+
+        # find legend title
+        n_nans = np.count_nonzero(np.isnan(all_first_coolings))
+        title = f"Always cool: {n_nans / total_part_num * 1000:.3f}‰"
+
+        # plot distribution of all particles
+        self._save_distribution_plot(
+            all_first_coolings,
+            all_last_coolings,
+            title,
+            "distribution_unweighted",
+            None,
+            color_first="orange",
+            color_last="navy",
+        )
+
+    def _plot_mean_last_cooling_time(self, archive_file: h5py.File) -> None:
+        """
+        Plot the mean last cooling time of each cluster vs. its mass.
+
+        Mass is taken at redshift zero.
+
+        :param archive_file: The opened archive file.
+        :return: None, figure is saved to file.
+        """
+        logging.info("Plotting mean last cooling time vs. cluster mass.")
+        # allocate memory
+        mean_last_cooling_times = np.zeros(self.n_clusters)
+
+        # find mean crossing times
+        for zoom_in in range(self.n_clusters):
+            ds = f"ZoomRegion_{zoom_in:03d}/LastCoolingRedshift"
+            mean_last_cooling_times[zoom_in] = np.nanmean(archive_file[ds][()])
+
+        # load cluster masses
+        cluster_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            [self.config.mass_field],
+            cluster_restrict=True,
+        )
+        cluster_masses = np.log10(cluster_data[self.config.mass_field])
+
+        # load cool gas fraction as color value
+        base_file = (
+            self.config.data_home / "mass_trends"
+            / "mass_trends_clusters_base_data.npz"
+        )
+        with np.load(base_file) as base_data:
+            cool_gas_fractions = base_data["cool_gas_fracs"][-self.n_clusters:]
+
+        # find median crossing time in 7 mass bins
+        left_bin_edges = np.array([14.2, 14.4, 14.6, 14.8, 15.0, 15.2])
+        medians = np.zeros_like(left_bin_edges, dtype=np.float64)
+        for i, left_bin_edge in enumerate(left_bin_edges):
+            right_bin_edge = left_bin_edge + 0.2
+            if i == len(left_bin_edges):
+                right_bin_edge += 0.01  # catch the once cluster to right
+            where = np.logical_and(
+                cluster_masses >= left_bin_edge,
+                cluster_masses < right_bin_edge
+            )
+            medians[i] = np.nanmedian(mean_last_cooling_times[where])
+
+        # create and configure fig and axes
+        fig, axes = plt.subplots(figsize=(5, 4))
+        axes.set_xlabel(r"Cluster mass at $z = 0$ [$\log_{10} M_\odot$]")
+        axes.set_ylabel("Redshift of final cooling")
+        axes.set_yscale("log")
+        axes.set_yticks(
+            [0.2, 0.1, 0.06, 0.05, 0.04],
+            labels=["0.2", "0.1", "", "0.05", ""],
+        )
+        axes.get_xaxis().set_major_formatter(
+            matplotlib.ticker.ScalarFormatter()
+        )
+
+        # plot scatterplot and median line
+        common.plot_scatterplot(
+            fig,
+            axes,
+            cluster_masses,
+            mean_last_cooling_times,
             marker_style="D",
             color_quantity=np.log10(cool_gas_fractions),
             cmap="cmr.cosmic",

@@ -6,7 +6,11 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.crossing_times import PlotCrossingTimesPlots, PlotType
+from pipelines.tracer_history.crossing_times import (
+    PlotCoolingTimesPlots,
+    PlotCrossingTimesPlots,
+    PlotType,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -14,7 +18,7 @@ def main(args: argparse.Namespace) -> None:
     args.sim = "TNG-Cluster"
 
     # type flag, subdirectories, and other config changes
-    type_flag = "crossing_times"
+    type_flag = args.what.replace("-", "_")
 
     # figures subdir
     figures_subdir = f"./{type_flag}"
@@ -36,7 +40,12 @@ def main(args: argparse.Namespace) -> None:
         plot_types = None
     pipeline_config.update({"plot_types": plot_types})
 
-    pipeline = PlotCrossingTimesPlots(**pipeline_config)
+    if args.what == "crossing-times":
+        pipeline = PlotCrossingTimesPlots(**pipeline_config)
+    elif args.what == "cooling-times":
+        pipeline = PlotCoolingTimesPlots(**pipeline_config)
+    else:
+        raise KeyError(f"Unsupported quantity: {args.what}")
     sys.exit(pipeline.run())
 
 
@@ -57,12 +66,18 @@ if __name__ == "__main__":
 
     # add new args
     parser.add_argument(
+        "what",
+        help="What quantity to plot.",
+        choices=["crossing-times", "cooling-times"]
+    )
+    parser.add_argument(
         "-pt",
         "--plot-types",
         help=(
             f"Comma-separated list of plot types to create. Plot types must be "
             f"given as integers. When not set, all available plot types are "
-            f"plotted. Must be one of the following valid plot types: "
+            f"plotted. Note that not all plot types are available for cooling "
+            f"times. Must be one of the following valid plot types: "
             f"{', '.join([f'{p.value}: {p.name.lower()}' for p in PlotType])}."
         ),
         dest="plot_types",
