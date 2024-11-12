@@ -6,7 +6,10 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.tracer_history.final_plots import ParentCategoryBarPlotPipeline
+from pipelines.tracer_history.final_plots import (
+    ParentCategoryBarPlotPipeline,
+    PlotTracerFractionInRadius,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -14,7 +17,7 @@ def main(args: argparse.Namespace) -> None:
     args.sim = "TNG-Cluster"
 
     # type flag, subdirectories, and other config changes
-    type_flag = "final_plots"
+    type_flag = f"final_plots_{args.what.replace('-', '_')}"
 
     pipeline_config = scriptparse.startup(
         args,
@@ -26,10 +29,14 @@ def main(args: argparse.Namespace) -> None:
     )
 
     # update pipeline config here
-    pipeline_config.update({"fractions": args.fractions})
+    if args.what == "bar-chart":
+        pipeline_config.update({"fractions": args.fractions})
+        pipeline = ParentCategoryBarPlotPipeline(**pipeline_config)
+    elif args.what == "tracer-fraction":
+        pipeline = PlotTracerFractionInRadius(**pipeline_config)
+    else:
+        raise KeyError(f"Unsupported plot type: {args.what}")
 
-    # select and build pipeline
-    pipeline = ParentCategoryBarPlotPipeline(**pipeline_config)
     sys.exit(pipeline.run())
 
 
@@ -50,10 +57,15 @@ if __name__ == "__main__":
 
     # add new args
     parser.add_argument(
+        "what",
+        help="Which plot type to plot.",
+        choices=["bar-chart", "tracer-fraction"],
+    )
+    parser.add_argument(
         "--fractions",
         help=(
             "When set, the plot will show fractions instead of tracer mass "
-            "on the y-axis."
+            "on the y-axis. Only has an effect when plotting bar chart."
         ),
         dest="fractions",
         action="store_true",

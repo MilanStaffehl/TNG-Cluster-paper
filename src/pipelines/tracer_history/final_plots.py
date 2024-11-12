@@ -15,6 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from library import constants
+from library.data_acquisition import halos_daq, sublink_daq
+from library.plotting import common
 from pipelines import base
 
 
@@ -171,4 +173,86 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
             ident_flag += "_fractions"
         self._save_fig(fig, ident_flag=ident_flag)
 
+        return 0
+
+
+@dataclasses.dataclass
+class PlotTracerFractionInRadius(base.Pipeline):
+    """Plot the fraction of tracers in 1 and 2 R_vir."""
+
+    n_clusters: ClassVar[int] = 352
+    n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
+
+    def run(self) -> int:
+        """
+        Plot the fraction of tracers within 1 and 2 Rvir.
+
+        :return: Exit code.
+        """
+        logging.info(
+            "Starting pipeline to plot tracer fraction within 1 and 2 Rvir."
+        )
+        # Step 1: open archive
+        archive = h5py.File(self.config.cool_gas_history, "r")
+
+        # Step 2: allocate memory
+        fractions_1Rvir = np.zeros((self.n_clusters, self.n_snaps))
+        fractions_2Rvir = np.zeros_like(fractions_1Rvir)
+
+        # Step 3: load primaries and masses
+        cluster_data = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=["GroupFirstSub", self.config.mass_field],
+            cluster_restrict=True,
+        )
+        cluster_masses = np.log10(cluster_data[self.config.mass_field])
+        primaries = cluster_data["GroupFirstSub"]
+
+        # Step 4: Find fractions
+        logging.info("Starting to calculate fractions. Can take a while...")
+        for zoom_in in range(self.n_clusters):
+            logging.debug(f"Finding fractions for zoom-in {zoom_in:03d}.")
+            # Step 4.1: load virial radius
+            mpb = sublink_daq.get_mpb_properties(
+                self.config.base_path,
+                self.config.snap_num,
+                primaries[zoom_in],
+                fields=[self.config.radius_field],
+                start_snap=constants.MIN_SNAP,
+                interpolate=True,
+            )
+            virial_radii = mpb[self.config.radius_field]
+
+            # Step 4.2: load distances
+            grp = f"ZoomRegion_{zoom_in:03d}"
+            distances = archive[grp]["DistanceToMP"][constants.MIN_SNAP:, :]
+            n_particles = distances.shape[1]
+
+            # Step 4.3: find fraction
+            for i in range(self.n_snaps):
+                snap_num = i + constants.MIN_SNAP
+                vr = virial_radii[mpb["SnapNum"] == snap_num]
+                within_1rvir = np.count_nonzero(distances[i] <= vr)
+                fractions_1Rvir[zoom_in, i] = within_1rvir / n_particles
+                within_2rvir = np.count_nonzero(distances[i] <= 2 * vr)
+                fractions_2Rvir[zoom_in, i] = within_2rvir / n_particles
+
+        # Step 5: plot both fractions and save to file
+        mapping = {
+            "within_1Rvir": fractions_1Rvir,
+            "within_2Rvir": fractions_2Rvir,
+        }
+        for ident_flag, fractions in mapping.items():
+            logging.info(f"Plotting fraction {ident_flag.replace('_', ' ')}.")
+            fig, axes = plt.subplots(figsize=(5, 4))
+            xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
+            common.plot_cluster_line_plot(
+                fig, axes, xs, fractions, cluster_masses
+            )
+            self._save_fig(fig, ident_flag=ident_flag)
+
+        logging.info(
+            "Successfully plotted fraction of tracers within 1 and 2 Rvir."
+        )
         return 0
