@@ -177,7 +177,8 @@ def plot_2d_radial_profile(
 
     # scaling
     if scale == "log":
-        histogram2d = np.log10(histogram2d)
+        with np.errstate(divide="ignore"):
+            histogram2d = np.log10(histogram2d)
 
     # clipping (clip values and determine open ends of colorbar)
     if cbar_limits is not None:
