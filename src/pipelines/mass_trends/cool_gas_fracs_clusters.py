@@ -28,7 +28,7 @@ from library.data_acquisition import clusters_daq, gas_daq, halos_daq
 from library.loading import load_radial_profiles
 from library.plotting import colormaps, common
 from library.processing import selection, statistics
-from pipelines.base import Pipeline
+from pipelines.base import DiagnosticsPipeline
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ClusterCoolGasMassTrendPipeline(Pipeline):
+class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     """
     Pipeline to create plots of cool gas fraction vs halo mass.
 
@@ -58,6 +58,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
     gas_domain: Literal["halo", "central"]
     forbid_recalculation: bool
     force_recalculation: bool
+    use_absolute_mass: bool = False  # plot total mass instead of frac?
 
     n_clusters: ClassVar[int] = 632
     n300: ClassVar[int] = 280  # number of clusters in TNG300-1
@@ -136,6 +137,8 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         self._create_directories()
         if self.gas_domain == "central":
             logging.info("Plotting mass trends for core only.")
+        if self.use_absolute_mass:
+            logging.info("Plotting absolute gas mass instead of fraction.")
 
         # Step 1: acquire base halo data
         base_file = self.paths["data_dir"] / self.base_filename
@@ -144,10 +147,18 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             with np.load(base_file) as base_data:
                 halo_masses = base_data["halo_masses"]
                 cool_gas_fracs = base_data["cool_gas_fracs"]
+                cool_gas_masses = base_data["cool_gas_masses"]
         elif self.forbid_recalculation:
-            halo_masses, cool_gas_fracs = self._load_base_data()
+            halo_masses, cool_gas_fracs, cool_gas_masses = self._load_base_data()
         else:
-            halo_masses, cool_gas_fracs = self._get_base_data()
+            halo_masses, cool_gas_fracs, cool_gas_masses = self._get_base_data()
+
+        if self.use_absolute_mass:
+            y_axis_values = cool_gas_masses
+            ident_flag = "absolute_mass"
+        else:
+            y_axis_values = cool_gas_fracs
+            ident_flag = ""
 
         # Step 2: acquire data to color the points with
         try:
@@ -184,8 +195,8 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             plot_color = self._nanlog10(color_quantity)
         else:
             plot_color = np.copy(color_quantity)
-        f, _ = self._plot(halo_masses, cool_gas_fracs, plot_color, kwargs)
-        self._save_fig(f)
+        f, _ = self._plot(halo_masses, y_axis_values, plot_color, kwargs)
+        self._save_fig(f, ident_flag=ident_flag)
         logging.info(
             f"Successfully plotted mass trend colored by {self.field}."
         )
@@ -204,14 +215,14 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         dev_kwargs = self._get_plot_kwargs_for_median_diff()
         f, a = self._plot(
             halo_masses,
-            cool_gas_fracs,
+            y_axis_values,
             deviation_color,
             dev_kwargs,
         )
 
         # Step 5: overplot statistical quantities
         corcoef = statistics.pearson_corrcoeff_per_bin(
-            cool_gas_fracs,
+            y_axis_values,
             color_quantity,
             np.log10(halo_masses),
             min_mass=14.0,
@@ -219,7 +230,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             num_bins=7,
         )  # PCC for direct linear relation
         corcoef_log = statistics.pearson_corrcoeff_per_bin(
-            cool_gas_fracs,
+            y_axis_values,
             np.log10(color_quantity),
             np.log10(halo_masses),
             min_mass=14.0,
@@ -227,7 +238,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             num_bins=7,
         )  # PCC for exponential relations
         corcoef_loglog = statistics.pearson_corrcoeff_per_bin(
-            np.log10(cool_gas_fracs),
+            np.log10(y_axis_values),
             np.log10(color_quantity),
             np.log10(halo_masses),
             min_mass=14.0,
@@ -235,7 +246,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             num_bins=7,
         )  # PCC for polynomial relations
         ratios = statistics.two_side_difference_ratio(
-            cool_gas_fracs,
+            y_axis_values,
             color_quantity,
             np.log10(halo_masses),
             min_mass=14.0,
@@ -246,6 +257,8 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         if self.to_file:
             filepath = self.paths["data_dir"] / "statistical_measures"
             filename = f"{self.paths['data_file_stem']}_statistics.npz"
+            if self.use_absolute_mass:
+                filename.replace("statistics", "statistics_absolute_gas_mass")
             np.savez(
                 filepath / filename,
                 pcc=corcoef,
@@ -257,7 +270,10 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         self._add_statistics_labels(a, corcoef, ratios)
 
         # Step 6: save median deviation figure
-        self._save_fig(f, ident_flag="median_dev")
+        ident_flag = "median_dev"
+        if self.use_absolute_mass:
+            ident_flag += "_absolute_mass"
+        self._save_fig(f, ident_flag=ident_flag)
         logging.info(
             f"Successfully plotted mass trend median deviation of field "
             f"{self.field}."
@@ -265,7 +281,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
 
         return 0
 
-    def _get_base_data(self) -> tuple[NDArray, NDArray]:
+    def _get_base_data(self) -> tuple[NDArray, NDArray, NDArray]:
         """
         Generate the base data for the plot.
 
@@ -274,7 +290,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         with the :mod:`~pipelines.radial_profiles.individuals` pipelines.
 
         :return: The tuple of arrays of length 632 of the halo masses
-            and their corresponding cool gas fraction.
+            and their corresponding cool gas fraction and cool gas masses.
         """
         logging.info("Loading base data directly from simulation data.")
         tracemalloc.start()
@@ -283,6 +299,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         # Step 1: allocate memory for plot data
         halo_masses = np.zeros(self.n_clusters)
         cool_gas_fracs = np.zeros(self.n_clusters)
+        cool_gas_masses = np.zeros(self.n_clusters)
 
         # Step 2: load halo data for TNG300-1, restrict to clusters
         logging.info("Loading halo data for TNG300-1.")
@@ -338,16 +355,17 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
 
             # Step 5.3: Mask masses to cool gas only, sum cool gas mass
             mask = np.digitize(cur_temps, [0, 10**4.5, np.inf])
-            cool_gas_masses = selection.mask_quantity(
+            cool_gas_cell_masses = selection.mask_quantity(
                 cur_masses, mask, index=1, compress=True
             )
-            cool_mass = np.sum(cool_gas_masses)
+            cool_mass = np.sum(cool_gas_cell_masses)
 
             # Step 5.4: Calculate and save cool gas fraction
             cool_gas_fracs[i] = cool_mass / total_mass
+            cool_gas_masses[i] = cool_mass
 
             # Step 5.5: Clean-up
-            del neighbors, cur_masses, cur_temps, mask, cool_gas_masses
+            del neighbors, cur_masses, cur_temps, mask, cool_gas_cell_masses
         timepoint = self._diagnostics(
             timepoint, "processing all TNG300 clusters"
         )
@@ -400,16 +418,17 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
 
             # Step 7.5: Mask masses to only cool gas
             mask = np.digitize(cur_temps, [0, 10**4.5, np.inf])
-            cool_gas_masses = selection.mask_quantity(
+            cool_gas_cell_masses = selection.mask_quantity(
                 cur_masses, mask, index=1, compress=True
             )
-            cool_mass = np.sum(cool_gas_masses)
+            cool_mass = np.sum(cool_gas_cell_masses)
 
             # Step 7.6: Calculate gas fraction; place in array
             cool_gas_fracs[self.n300 + i] = cool_mass / total_mass
+            cool_gas_masses[self.n300 + i] = cool_mass
 
             # Step 7.7: Clean-up
-            del gas_data, cool_gas_masses
+            del gas_data, cool_gas_cell_masses
 
         self._diagnostics(timepoint, "processing all TNG-Cluster halos")
 
@@ -419,11 +438,12 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
                 self.paths["data_dir"] / self.base_filename,
                 halo_masses=halo_masses,
                 cool_gas_fracs=cool_gas_fracs,
+                cool_gas_masses=cool_gas_masses,
             )
         self._timeit(begin, "entire base data acquisition")
-        return halo_masses, cool_gas_fracs
+        return halo_masses, cool_gas_fracs, cool_gas_masses
 
-    def _load_base_data(self):
+    def _load_base_data(self) -> tuple[NDArray, NDArray, NDArray]:
         """
         Load the halo masses and cool gas fraction from the density profiles.
 
@@ -434,11 +454,12 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             TNG300, the last 352 are from TNG-Cluster)
 
         :return: The tuple of arrays of length 632 of the halo masses
-            and their corresponding cool gas fraction.
+            and their corresponding cool gas fraction and cool gas masses.
         """
         logging.info("Loading base data via radial density profiles.")
         halo_masses = np.zeros(self.n_clusters)
         cool_gas_fracs = np.zeros(self.n_clusters)
+        cool_gas_masses = np.zeros(self.n_clusters)
 
         data_path = self.config.data_home / "radial_profiles" / "individuals"
         subdir_name = "density_profiles"
@@ -449,7 +470,16 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
             limit = 2.0
 
         edges = np.linspace(0, limit, num=51, endpoint=True)
-        shell_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+        shell_pseudo_volumes = 4 / 3 * np.pi * (edges[1:]**3 - edges[:-1]**3)
+
+        # load virial radii for TNG300-1
+        tng300_data = halos_daq.get_halo_properties(
+            self.tng300_basepath,
+            self.config.snap_num,
+            fields=[self.config.radius_field],
+        )
+        virial_radii = tng300_data[self.config.radius_field]
+        halo_ids = tng300_data["IDs"]
 
         # load data for TNG300-1
         logging.info("Loading data for TNG300-1.")
@@ -460,26 +490,46 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
             cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
-            cool_gas = np.sum(cool_profile * shell_volumes)
+            cool_gas = np.sum(cool_profile * shell_pseudo_volumes)
             total_profile = halo_data["total_inflow"] + halo_data[
                 "total_outflow"]
-            total_gas = np.sum(total_profile * shell_volumes)
+            total_gas = np.sum(total_profile * shell_pseudo_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
+            # calculate physical shell volumes
+            halo_id = halo_data["halo_id"]
+            phye = edges * virial_radii[halo_ids == halo_id]  # edges in kpc
+            shell_phys_volumes = 4 / 3 * np.pi * (phye[1:]**3 - phye[:-1]**3)
+            cool_gas_masses[idx] = np.sum(cool_profile * shell_phys_volumes)
             idx += 1
+
+        # load virial radii for TNG-Cluster
+        tngclstr_data = halos_daq.get_halo_properties(
+            self.tngclstr_basepath,
+            self.config.snap_num,
+            fields=[self.config.radius_field],
+            cluster_restrict=True,
+        )
+        virial_radii = tngclstr_data[self.config.radius_field]
+        halo_ids = tngclstr_data["IDs"]
 
         # load data for TNG-Cluster
         logging.info("Loading data for TNG-Cluster.")
         halo_loader = load_radial_profiles.load_individuals_1d_profile(
             data_path / "TNG_Cluster" / subdir_name, (50, )
         )
-        for halo_data in halo_loader:
+        for zoom_id, halo_data in enumerate(halo_loader):
             halo_masses[idx] = halo_data["halo_mass"]
             cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
-            cool_gas = np.sum(cool_profile * shell_volumes)
+            cool_gas = np.sum(cool_profile * shell_pseudo_volumes)
             total_profile = halo_data["total_inflow"] + halo_data[
                 "total_outflow"]
-            total_gas = np.sum(total_profile * shell_volumes)
+            total_gas = np.sum(total_profile * shell_pseudo_volumes)
             cool_gas_fracs[idx] = cool_gas / total_gas
+            # calculate physical shell volumes
+            assert halo_data["halo_id"] == halo_ids[zoom_id]
+            phye = edges * virial_radii[zoom_id]  # edges in kpc
+            shell_phys_volumes = 4 / 3 * np.pi * (phye[1:]**3 - phye[:-1]**3)
+            cool_gas_masses[idx] = np.sum(cool_profile * shell_phys_volumes)
             idx += 1
 
         if self.to_file:
@@ -487,10 +537,11 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
                 self.paths["data_dir"] / self.base_filename,
                 halo_masses=halo_masses,
                 cool_gas_fracs=cool_gas_fracs,
+                cool_gas_masses=cool_gas_masses,
             )
             logging.info("Wrote base data to file.")
 
-        return halo_masses, cool_gas_fracs
+        return halo_masses, cool_gas_fracs, cool_gas_masses
 
     def _plot(
         self,
@@ -505,7 +556,8 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         :param halo_masses: Array of shape (632, ) containing the halo
             masses in units of M_sol.
         :param gas_fraction: Array of shape (632, ) containing the gas
-            fraction of cool gas in halos.
+            fraction of cool gas in halos or alternatively the cool gas
+            masses.
         :param colored_quantity: Array of shape (632, ) containing the
             quantity that shall be used for coloring the data points.
             Can be in arbitrary units. If no color is to be used, set
@@ -521,17 +573,21 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
         axes.set_xlim([13.95, 15.45])
         axes.set_xticks(np.linspace(14.0, 15.4, num=8))
-        if self.gas_domain == "central":
-            axes.set_ylabel(r"Cool gas fraction within $0.05R_{200c}$")
+        if self.use_absolute_mass:
+            what = "mass"
         else:
-            axes.set_ylabel(r"Cool gas fraction within $2R_{200c}$")
+            what = "fraction"
+        if self.gas_domain == "central":
+            axes.set_ylabel(fr"Cool gas {what} within $0.05R_{{200}}$")
+        else:
+            axes.set_ylabel(fr"Cool gas {what} within $2R_{{200}}$")
         axes.set_yscale("log")
 
-        logging.debug(f"Smallest gas frac value: {np.min(gas_fraction):e}")
+        logging.debug(f"Smallest gas {what} value: {np.min(gas_fraction):e}")
         # make zero-values visible; scatter them a little
         rng = np.random.default_rng(42)
         n_zeros = len(gas_fraction) - np.count_nonzero(gas_fraction)
-        logging.debug(f"Number of zero entries in gas fractions: {n_zeros}")
+        logging.debug(f"Number of zero entries in gas {what}: {n_zeros}")
         randnums = np.power(5, rng.random(n_zeros))
         gas_fraction[gas_fraction == 0] = 1e-7 * randnums
 
@@ -728,7 +784,6 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
         for the plotting function. This method returns the kwargs for
         plotting the deviation of a quantity from a mass bin median.
 
-        :param field: Name of the field.
         :return: Dict of keyword argument.
         """
         dev_cfg = self.plot_config[self.field]["dev-config"]
@@ -790,7 +845,7 @@ class ClusterCoolGasMassTrendPipeline(Pipeline):
 
 class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
     """
-    Pipeline to plot the gas fraction vs. mass trend from file.
+    Pipeline to plot the gas fraction/mass vs. halo mass trend from file.
 
     Plots a single quantity as a single panel.
     """
@@ -815,12 +870,20 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
         with np.load(base_file) as base_data:
             halo_masses = base_data["halo_masses"]
             cool_gas_fracs = base_data["cool_gas_fracs"]
+            cool_gas_masses = base_data["cool_gas_masses"]
+
+        if self.use_absolute_mass:
+            y_axis_values = cool_gas_masses
+            ident_flag = "absolute_mass"
+        else:
+            y_axis_values = cool_gas_fracs
+            ident_flag = ""
 
         # make zero-values visible; scatter them a little
         rng = np.random.default_rng(42)
-        n_zeros = len(cool_gas_fracs) - np.count_nonzero(cool_gas_fracs)
+        n_zeros = len(y_axis_values) - np.count_nonzero(y_axis_values)
         randnums = np.power(5, rng.random(n_zeros))
-        cool_gas_fracs[cool_gas_fracs == 0] = 1e-7 * randnums
+        y_axis_values[y_axis_values == 0] = 1e-7 * randnums
 
         # load color data
         filename = f"clusters_color_{self.field.replace('-', '_')}.npy"
@@ -834,8 +897,8 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             plot_color = self._nanlog10(color_data)
         else:
             plot_color = np.copy(color_data)
-        f, _ = self._plot(halo_masses, cool_gas_fracs, plot_color, color_kwargs)
-        self._save_fig(f)
+        f, _ = self._plot(halo_masses, y_axis_values, plot_color, color_kwargs)
+        self._save_fig(f, ident_flag=ident_flag)
         logging.info(
             f"Successfully plotted mass trend colored by {self.field}."
         )
@@ -850,7 +913,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
         )
         # get statistical quantities
         corcoef = statistics.pearson_corrcoeff_per_bin(
-            cool_gas_fracs,
+            y_axis_values,
             color_data,
             np.log10(halo_masses),
             min_mass=14.0,
@@ -858,7 +921,7 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
             num_bins=7,
         )
         ratios = statistics.two_side_difference_ratio(
-            cool_gas_fracs,
+            y_axis_values,
             color_data,
             np.log10(halo_masses),
             min_mass=14.0,
@@ -870,12 +933,15 @@ class ClusterCoolGasFromFilePipeline(ClusterCoolGasMassTrendPipeline):
         dev_kwargs = self._get_plot_kwargs_for_median_diff()
         f, a = self._plot(
             halo_masses,
-            cool_gas_fracs,
+            y_axis_values,
             deviation_color,
             dev_kwargs,
         )
         self._add_statistics_labels(a, corcoef, ratios)
-        self._save_fig(f, ident_flag="median_dev")
+        ident_flag_dev = "median_dev"
+        if self.use_absolute_mass:
+            ident_flag_dev += f"_{ident_flag}"
+        self._save_fig(f, ident_flag=ident_flag_dev)
         logging.info(
             f"Successfully plotted mass trend median deviation of field "
             f"{self.field}."

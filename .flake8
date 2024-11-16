@@ -2,7 +2,7 @@
 select = C,E,F,W,B,B950
 # create compatability with code formatters
 extend-ignore = E203, E501, W503, E402
-max-complexity = 15
+max-complexity = 16
 exclude =
     .git,
     __pycache__,

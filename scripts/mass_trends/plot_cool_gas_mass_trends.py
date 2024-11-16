@@ -48,6 +48,7 @@ def main(args: argparse.Namespace) -> None:
             "gas_domain": args.gas_domain,
             "forbid_recalculation": args.forbid_recalculation,
             "force_recalculation": args.force_recalculation,
+            "use_absolute_mass": args.absolute_mass,
         }
     )
 
@@ -82,6 +83,16 @@ if __name__ == "__main__":
         dest="field",
         choices=available_fields,
         required=True,
+    )
+    parser.add_argument(
+        "--absolute-mass",
+        help=(
+            "Plot the absolute cool gas mass vs. cluster mass instead of the "
+            "cool gas fraction. This will also use the absolute cool gas mass "
+            "for all follow-up plots and statistics."
+        ),
+        dest="absolute_mass",
+        action="store_true",
     )
     parser.add_argument(
         "--color-scale",
@@ -123,7 +134,9 @@ if __name__ == "__main__":
         "--forbid-recalculation",
         help=(
             "Forbid the recalculation of gas fractions and the color data. If "
-            "either is not available on file, the pipeline will fail."
+            "color data is not available on file, the pipeline will fail. If "
+            "the base data (cool gas fractions/masses) are not available on "
+            "file, they will be loaded from the radial profile data files."
         ),
         dest="forbid_recalculation",
         action="store_true",
