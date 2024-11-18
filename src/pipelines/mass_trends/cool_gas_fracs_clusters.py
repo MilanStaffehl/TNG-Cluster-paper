@@ -258,7 +258,14 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             filepath = self.paths["data_dir"] / "statistical_measures"
             filename = f"{self.paths['data_file_stem']}_statistics.npz"
             if self.use_absolute_mass:
-                filename.replace("statistics", "statistics_absolute_gas_mass")
+                filename = filename.replace(
+                    "statistics", "statistics_absolute_gas_mass"
+                )
+            logging.info("Saved statistical measures to file.")
+            logging.debug(
+                f"File path of statistical measures data file: "
+                f"{filepath / filename}."
+            )
             np.savez(
                 filepath / filename,
                 pcc=corcoef,

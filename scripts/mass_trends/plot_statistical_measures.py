@@ -80,6 +80,10 @@ def main(args: argparse.Namespace) -> None:
         filepath = cfg.data_home / "mass_trends" / "statistical_measures"
         fieldname = field.replace('-', '_')
         filename = f"mass_trends_clusters_{fieldname}{addin}_statistics.npz"
+        if args.use_mass:
+            filename = filename.replace(
+                "statistics", "statistics_absolute_gas_mass"
+            )
         with np.load(filepath / filename) as data_file:
             y_data[i] = data_file[key]
 
@@ -143,7 +147,8 @@ def main(args: argparse.Namespace) -> None:
         )
 
     figurepath = cfg.figures_home / "mass_trends" / "clusters"
-    sfx = f"{key}{addin}"
+    mass_suffix = "absolute_gas_mass" if args.use_mass else ""
+    sfx = f"{key}{addin}{mass_suffix}"
     filename = f"mass_trends_statistical_measure_{sfx}.{args.fig_ext}"
     if not figurepath.exists():
         logging.info(f"Creating missing figures directory {figurepath}.")
@@ -247,6 +252,15 @@ if __name__ == "__main__":
         dest="what",
         choices=["pcc", "pcc-log", "pcc-loglog", "ratio"],
         default="pcc",
+    )
+    parser.add_argument(
+        "--absolute-mass",
+        help=(
+            "Plot the statistical measure for absolute gas mass instead of "
+            "cool gas fraction."
+        ),
+        dest="use_mass",
+        action="store_true",
     )
     parser.add_argument(
         "-cc",

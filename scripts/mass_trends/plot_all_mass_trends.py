@@ -44,41 +44,43 @@ def main() -> None:
 
     for field in available_fields:
         for domain in ["halo", "central"]:
-            # find type flag depending on field name
-            type_flag = f"clusters_{field.replace('-', '_')}"
-            if domain == "central":
-                type_flag += "_core"
+            for use_mass in [False, True]:
+                # find type flag depending on field name
+                type_flag = f"clusters_{field.replace('-', '_')}"
+                if domain == "central":
+                    type_flag += "_core"
 
-            # subdirectory for figures
-            subdir = field.replace("-", "_")
-            if domain == "central":
-                subdir += "/core"
+                # subdirectory for figures
+                subdir = field.replace("-", "_")
+                if domain == "central":
+                    subdir += "/core"
 
-            # assemble paths for current setup
-            paths = scriptparse._assemble_path_dict(
-                "mass_trends",
-                pipeline_config["config"],
-                type_flag,
-                figures_subdirectory=f"./../clusters/{subdir}",
-                suppress_sim_path_in_names=True,
-            )
+                # assemble paths for current setup
+                paths = scriptparse._assemble_path_dict(
+                    "mass_trends",
+                    pipeline_config["config"],
+                    type_flag,
+                    figures_subdirectory=f"./../clusters/{subdir}",
+                    suppress_sim_path_in_names=True,
+                )
 
-            # add custom parameters
-            pipeline_config.update(
-                {
-                    "paths": paths,
-                    "field": field,
-                    "gas_domain": domain,
-                }
-            )
+                # add custom parameters
+                pipeline_config.update(
+                    {
+                        "paths": paths,
+                        "field": field,
+                        "gas_domain": domain,
+                        "use_absolute_mass": use_mass,
+                    }
+                )
 
-            print(f"Running: {field} on domain {domain}")
-            pipeline = ClusterCoolGasMassTrendPipeline(**pipeline_config)
-            try:
-                pipeline.run()
-            except Exception as exc:
-                logging.error(f"Encountered exception:\n{exc}")
-            print("\n")
+                print(f"Running: {field} on domain {domain}")
+                pipeline = ClusterCoolGasMassTrendPipeline(**pipeline_config)
+                try:
+                    pipeline.run()
+                except Exception as exc:
+                    logging.error(f"Encountered exception:\n{exc}")
+                print("\n")
 
 
 if __name__ == "__main__":
