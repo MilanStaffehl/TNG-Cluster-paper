@@ -576,18 +576,20 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         :return: Figure and axes objects as tuple.
         """
         logging.info("Plotting cool gas fraction mass trend for clusters.")
-        fig, axes = plt.subplots(figsize=(4, 3))
+        fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200}$ [$\log M_\odot$]")
         axes.set_xlim([13.95, 15.45])
         axes.set_xticks(np.linspace(14.0, 15.4, num=8))
         if self.use_absolute_mass:
             what = "mass"
+            sfx = r"[$M_\odot$]"
         else:
             what = "fraction"
+            sfx = ""
         if self.gas_domain == "central":
-            axes.set_ylabel(fr"Cool gas {what} within $0.05R_{{200}}$")
+            axes.set_ylabel(fr"Cool gas {what} within $0.05R_{{200}}$ {sfx}")
         else:
-            axes.set_ylabel(fr"Cool gas {what} within $2R_{{200}}$")
+            axes.set_ylabel(fr"Cool gas {what} within $2R_{{200}}$ {sfx}")
         axes.set_yscale("log")
 
         logging.debug(f"Smallest gas {what} value: {np.min(gas_fraction):e}")
