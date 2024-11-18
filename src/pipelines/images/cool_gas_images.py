@@ -151,8 +151,8 @@ class PlotCoolGasDistribution(base.Pipeline):
             axes,
             hist2d.transpose(),
             ranges=self.ranges.flatten(),
-            xlabel=r"x [$R_{200c}$]",
-            ylabel=r"y [$R_{200c}$]",
+            xlabel=r"x [$R_{200}$]",
+            ylabel=r"y [$R_{200}$]",
             colormap="binary",
             cbar_label="Column density [???]",  # TODO: units
             scale="log",

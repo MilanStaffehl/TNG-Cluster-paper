@@ -36,7 +36,7 @@ def digitize_clusters(
     .. attention:: This function is specifically meant for a very
         narrow purpose, namely to replace the use of ``numpy.digitize``
         for TNG300-1 and TNG-Cluster clusters, when used with the
-        M_200c mass field. Other mass fields or simulations probably
+        M_200 mass field. Other mass fields or simulations probably
         won't do anything different from ``numpy.digitize`` or they
         might cause seriously misleading results. Use with caution.
 

@@ -531,7 +531,7 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
         """
         logging.info("Plotting density profiles split by velocity.")
         fig, axes = plt.subplots(figsize=(4, 4))
-        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
         axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
         # adjust y-axis scale and limits
         if self.regime == "hot":
@@ -663,7 +663,7 @@ class PlotFlowRatioHistograms(PlotMeanProfilesPipeline):
         """
         logging.info("Plotting density ratios of inflow over outflow.")
         fig, axes = plt.subplots(figsize=(4, 4))
-        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
         axes.set_ylabel(r"Density ratio (inflowing/total)")
 
         if self.log:

@@ -185,7 +185,7 @@ class HistogramMixin:
                 mpb_data[self.config.radius_field],
             )
         elif self.quantity == "DistanceToMP":
-            label = r"$R_{200c}$"
+            label = r"$R_{200}$"
             mpb_data = sublink_daq.get_mpb_properties(
                 self.config.base_path,
                 self.config.snap_num,

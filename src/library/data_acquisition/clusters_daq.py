@@ -52,7 +52,7 @@ def get_cluster_property(
     :param snap_num: The snapshot number from which to load the data.
     :param mass_field: The name of the field to use as halo mass.
         Required for restriction of TNG300 halos to clusters. Defaults
-        to R_200c.
+        to R_200.
     :raises UnsupportedFieldError: When a field is requested that is not
         supported by the function.
     :return: Array of the requested quantity for all clusters in TNG300-1
@@ -124,7 +124,7 @@ def get_cluster_groupcat_field(
     :param snap_num: The snapshot from which to laod the data.
     :param mass_field: The name of the field to use as halo mass.
         Required for restriction of TNG300 halos to clusters. Defaults
-        to R_200c.
+        to R_200.
     :return: The quantity loaded from the group catalogue, converted
         into physical units, as an array of shape (632, ?) with the
         TNG300 clusters first. The question mark refers to the possible

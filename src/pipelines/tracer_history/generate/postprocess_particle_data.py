@@ -192,7 +192,7 @@ class TimeOfCrossingPipeline(CrossingUtilMixin, base.Pipeline):
     Find for every particle the time of first and last crossing.
     """
 
-    distance_multiplier: int = 2  # multiple of R_200c
+    distance_multiplier: int = 2  # multiple of R_200
     zoom_in: int | None = None
 
     n_clusters: ClassVar[int] = 352

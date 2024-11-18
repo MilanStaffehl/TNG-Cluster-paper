@@ -768,7 +768,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         )
         ranges = [xedges[0], xedges[-1], yedges[0], yedges[-1]]
         if self.normalize:
-            xlabel = r"Distance from halo center [$R_{200c}$]"
+            xlabel = r"Distance from halo center [$R_{200}$]"
         else:
             xlabel = r"Distance from halo center [$kpc$]"
         with np.errstate(invalid="ignore", divide="ignore"):
@@ -857,7 +857,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
         )
         ranges = np.array([edges[0], edges[-1]])
         if self.normalize:
-            xlabel = r"Distance from halo center [$R_{200c}$]"
+            xlabel = r"Distance from halo center [$R_{200}$]"
         else:
             xlabel = r"Distance from halo center [$kpc$]"
 

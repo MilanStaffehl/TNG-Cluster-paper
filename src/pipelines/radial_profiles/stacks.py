@@ -277,7 +277,7 @@ class StackProfilesPipeline(Pipeline):
         """
         logging.info(f"Plotting {type_} density profile.")
         fig, axes = plt.subplots(figsize=(5, 4))
-        axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+        axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
         axes.set_xlim([0, 2])
         axes.set_ylabel(
             fr"{type_.capitalize()} density in radial shell "

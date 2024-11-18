@@ -71,7 +71,7 @@ def plot_temperature_distribution(
     fig, axes = plt.subplots(figsize=(5, 4))
     fig.set_tight_layout(True)
     axes.set_title(
-        r"$M_{200c}$: "
+        r"$M_{200}$: "
         rf"${low_bound:.1f} < \log \ M_\odot < {upp_bound:.1f}$"
     )
     labelsize = 12

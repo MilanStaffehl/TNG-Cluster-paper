@@ -157,7 +157,7 @@ def load_individuals_2d_profile(
           will be an NDArray of shape (1, ).
         - ``halo_mass``: The mass of the halo in units of solar masses.
           The exact type of mass measure depends on the setup when the
-          data was saved, but typically, this is the virial mass (M_200c).
+          data was saved, but typically, this is the virial mass (M_200).
           Note that this will be an NDArray of shape (1, ).
     """
     if not isinstance(filepath, Path):
@@ -257,7 +257,7 @@ def load_individuals_1d_profile(
           will be an NDArray of shape (1, ).
         - ``halo_mass``: The mass of the halo in units of solar masses.
           The exact type of mass measure depends on the setup when the
-          data was saved, but typically, this is the virial mass (M_200c).
+          data was saved, but typically, this is the virial mass (M_200).
           Note that this will be an NDArray of shape (1, ).
     """
     if not isinstance(filepath, Path):

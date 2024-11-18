@@ -408,7 +408,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         flat_axes = axes.flatten()
         # common axes labels
         if self.normalize:
-            fig.supxlabel(r"Distance from halo center [$R_{200c}$]")
+            fig.supxlabel(r"Distance from halo center [$R_{200}$]")
         else:
             fig.supxlabel("Distance from halo center [kpc]")
         fig.supylabel(r"Temperature [$\log K$]")
@@ -491,7 +491,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         """
         fig, axes = plt.subplots(figsize=(5, 5))
         if self.normalize:
-            axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+            axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
         else:
             axes.set_xlabel("Distance from halo center [kpc]")
         axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
@@ -724,7 +724,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
         """
         fig, axes = plt.subplots(figsize=(4.5, 4.5))
         if self.normalize:
-            axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
+            axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
         else:
             axes.set_xlabel("Distance from halo center [kpc]")
         axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
@@ -1034,7 +1034,7 @@ class StackDensityProfilesByVelocityPipeline(
         )
         fig.set_tight_layout(True)
         if self.normalize:
-            xlabel = r"Distance from halo center [$R_{200c}$]"
+            xlabel = r"Distance from halo center [$R_{200}$]"
         else:
             xlabel = "Distance from halo center [kpc]"
         axes[0].set_xlabel(xlabel)

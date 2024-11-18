@@ -328,8 +328,8 @@ relaxedness-by-distance:
   default-scale: log
   daq-field-name: RelaxednessDist
   label:
-    log: "$\\log_{10} (|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200c})$"
-    linear: "$|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200c}$"
+    log: "$\\log_{10} (|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200})$"
+    linear: "$|\\vec{r}_{center} - \\vec{r}_{COM}| / R_{200}$"
     dev: ["\\delta r", "relaxedness by distance"]
   cbar-config:
     norm: twoslope

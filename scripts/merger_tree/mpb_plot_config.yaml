@@ -1,6 +1,6 @@
 HaloMass:
   field: "Group_M_Crit200"
-  label: "Host halo mass $M_{{200c}}$ [$M_\\odot$]"
+  label: "Host halo mass $M_{{200}}$ [$M_\\odot$]"
   dims: 1
   log: true
   ymin: 1e8
@@ -8,7 +8,7 @@ HaloMass:
 
 HaloRadius:
   field: "Group_R_Crit200"
-  label: "Host halo radius $R_{{200c}}$ [$R_\\odot$]"
+  label: "Host halo radius $R_{{200}}$ [$R_\\odot$]"
   dims: 1
   log: true
   ymin: 8
