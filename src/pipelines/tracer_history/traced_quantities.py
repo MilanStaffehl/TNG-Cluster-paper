@@ -153,6 +153,11 @@ class HistogramMixin:
             tick_positions_z=np.array([0, 0.1, 0.5, 1, 2, 5]),
             tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
         )
+
+        # add temperature divisions when plotting temperature
+        if self.quantity == "Temperature":
+            line_cfg = {"colors": "blue", "alpha": 0.6, "linewidth": 1}
+            axes.hlines([4.5, 5.5], xs[0], xs[-1], **line_cfg)
         return xs
 
     def _get_characteristic_cluster_property(

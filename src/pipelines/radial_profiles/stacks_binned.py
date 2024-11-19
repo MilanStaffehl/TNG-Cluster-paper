@@ -459,6 +459,9 @@ class StackProfilesBinnedPipeline(Pipeline):
                     rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}} M_\odot$"
                 )
             flat_axes[i].text(*text_pos, label, color="white")
+            # add temperature divisions
+            line_cfg = {"colors": "blue", "alpha": 0.7, "linewidth": 1}
+            flat_axes[i].hlines([4.5, 5.5], edges[0], edges[1], **line_cfg)
 
         # add a colorbar
         norm = matplotlib.colors.Normalize(*value_range)
