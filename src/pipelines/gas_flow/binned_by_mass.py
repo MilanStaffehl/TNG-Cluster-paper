@@ -407,7 +407,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         :return: The mean and median histograms respectively.
         """
         # create a colormap for the current mass range
-        cmap = matplotlib.cm.get_cmap("jet")
+        cmap = matplotlib.cm.get_cmap("plasma")
         norm = matplotlib.colors.Normalize(
             vmin=self.mass_bin_edges[vmin_idx],
             vmax=self.mass_bin_edges[vmax_idx]
