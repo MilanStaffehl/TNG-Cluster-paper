@@ -460,8 +460,9 @@ class StackProfilesBinnedPipeline(Pipeline):
                 )
             flat_axes[i].text(*text_pos, label, color="white")
             # add temperature divisions
-            line_cfg = {"colors": "blue", "alpha": 0.7, "linewidth": 1}
-            flat_axes[i].hlines([4.5, 5.5], edges[0], edges[1], **line_cfg)
+            plot_radial_profiles.overplot_temperature_divisions(
+                flat_axes[i], [4.5, 5.5], edges[0], edges[1]
+            )
 
         # add a colorbar
         norm = matplotlib.colors.Normalize(*value_range)

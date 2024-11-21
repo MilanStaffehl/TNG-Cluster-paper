@@ -279,6 +279,7 @@ def overplot_temperature_divisions(
     divisions: Sequence[float],
     xmin: float,
     xmax: float,
+    linewidth: float = 1,
 ) -> Axes:
     """
     Overplot two lines for the temperature divisions between regimes.
@@ -293,11 +294,14 @@ def overplot_temperature_divisions(
     :param xmin: Leftmost x value, from where to draw the line towards
         the right.
     :param xmax: Rightmost x value, up to where to draw the line.
+    :param linewidth: Width of the line for temperature divisions,
+        optional. Defaults to 1.
     :return: Axes, for convenience. Axes object is altered in place.
     """
     line_config = {
         "colors": "white",
         "linestyles": "dashed",
+        "linewidth": linewidth,
     }
     axes.hlines(divisions, xmin=xmin, xmax=xmax, **line_config)
     return axes

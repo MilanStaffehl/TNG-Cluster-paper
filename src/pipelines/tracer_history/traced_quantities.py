@@ -156,8 +156,9 @@ class HistogramMixin:
 
         # add temperature divisions when plotting temperature
         if self.quantity == "Temperature":
-            line_cfg = {"colors": "blue", "alpha": 0.6, "linewidth": 1}
-            axes.hlines([4.5, 5.5], xs[0], xs[-1], **line_cfg)
+            plot_hists.overplot_temperature_divisions(
+                axes, [4.5, 5.5], xs[0], xs[-1]
+            )
         return xs
 
     def _get_characteristic_cluster_property(
