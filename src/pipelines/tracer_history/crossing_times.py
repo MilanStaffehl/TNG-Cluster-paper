@@ -241,7 +241,8 @@ class PlotCrossingTimesPlots(CommonPlotMixin, base.Pipeline):
 
             # find legend title
             diff = first_crossing - last_crossing
-            mc = np.count_nonzero(diff) / first_crossing.size
+            n_crossings = np.count_nonzero(~np.isnan(first_crossing))
+            mc = np.count_nonzero(diff) / n_crossings
             title = f"Multiple crossings: {mc * 100:.2f}%"
 
             self._save_distribution_plot(
