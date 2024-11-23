@@ -313,6 +313,21 @@ def make_redshift_plot(
     sec_axes.set_xticks(tick_pos.value, labels=tick_labels)
     sec_axes.set_xlim(redshifts[stop], redshifts[start])
 
+    # set minor ticks for lookback time correctly
+    minor_ticks = np.concatenate(
+        [
+            np.arange(0.01, 0.1, 0.01),
+            np.arange(0.1, 1, 0.1),
+            np.arange(1, 13, 1),
+        ]
+    )
+    minor_labels = ["" for _ in minor_ticks]
+    lookback_times_minor = astropy.units.Quantity(minor_ticks, unit="Gyr")
+    minor_tick_pos = astropy.cosmology.z_at_value(
+        planck15.lookback_time, lookback_times_minor
+    )
+    sec_axes.set_xticks(minor_tick_pos.value, minor=True, labels=minor_labels)
+
     # redshifts as proxy values for snapnum
     redshift_proxies = redshifts[start:stop + 1]
     return redshift_proxies
