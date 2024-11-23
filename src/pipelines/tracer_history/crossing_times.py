@@ -242,7 +242,7 @@ class PlotCrossingTimesPlots(CommonPlotMixin, base.Pipeline):
             # find legend title
             diff = first_crossing - last_crossing
             n_crossings = np.count_nonzero(~np.isnan(first_crossing))
-            mc = np.count_nonzero(diff) / n_crossings
+            mc = np.count_nonzero(diff[~np.isnan(diff)]) / n_crossings
             title = f"Multiple crossings: {mc * 100:.2f}%"
 
             self._save_distribution_plot(
@@ -273,7 +273,7 @@ class PlotCrossingTimesPlots(CommonPlotMixin, base.Pipeline):
         # find legend title
         diff = all_first_crossings - all_last_crossings
         n_crossings = np.count_nonzero(~np.isnan(all_first_crossings))
-        mc = np.count_nonzero(diff) / n_crossings
+        mc = np.count_nonzero(diff[~np.isnan(diff)]) / n_crossings
         title = f"Multiple crossings: {mc * 100:.2f}%"
 
         # plot distribution of all particles
