@@ -246,6 +246,10 @@ class PlotTracerFractionInRadius(base.Pipeline):
         for ident_flag, fractions in mapping.items():
             logging.info(f"Plotting fraction {ident_flag.replace('_', ' ')}.")
             fig, axes = plt.subplots(figsize=(5, 4))
+            threshold = r"$R_{200}$"
+            if ident_flag == "within_2Rvir":
+                threshold = threshold.replace("$R", "$2R")
+            axes.set_ylabel(f"Tracer fraction within {threshold}")
             xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
             common.plot_cluster_line_plot(
                 fig, axes, xs, fractions, cluster_masses
