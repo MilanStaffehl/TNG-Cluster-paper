@@ -461,7 +461,7 @@ class PlotCrossingTimesPlots(CommonPlotMixin, base.Pipeline):
                 hist.transpose(),
                 ranges.flatten(),
                 xlabel=xlabel,
-                ylabel="Estimated crossing redshift [log z]",
+                ylabel="Estimated crossing redshift z",
                 scale="log",
                 cbar_label=r"Tracer mass [$\log_{10} M_\odot$]",
             )
