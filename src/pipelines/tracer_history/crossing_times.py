@@ -49,6 +49,8 @@ class CommonPlotMixin:
         subdir: str | None,
         color_first: str = "teal",
         color_last: str = "purple",
+        label_first: str = "First crossing",
+        label_last: str = "Last crossing",
     ) -> None:
         """
         Plot the distribution of first and last crossing time and save it.
@@ -60,6 +62,8 @@ class CommonPlotMixin:
         :param subdir: Subdir for the figure.
         :param color_first: Color for first crossing lines.
         :param color_last: Color for last crossing lines.
+        :param label_first: Label for the legend of the first crossing.
+        :param label_last: Label for the legend for the last crossing.
         :return: None, figure is saved to file.
         """
         # create and configure a figure
@@ -84,7 +88,7 @@ class CommonPlotMixin:
             weights=weights,
             histtype="step",
             color=color_first,
-            label="First crossing",
+            label=label_first,
             zorder=10,
         )
         axes.hist(
@@ -93,7 +97,7 @@ class CommonPlotMixin:
             weights=weights,
             histtype="step",
             color=color_last,
-            label="Last crossing",
+            label=label_last,
             zorder=9,
         )
 
@@ -674,6 +678,8 @@ class PlotCoolingTimesPlots(CommonPlotMixin, base.Pipeline):
                 f"individuals/zoom_in_{zoom_id}",
                 color_first="orange",
                 color_last="navy",
+                label_first="First cooling",
+                label_last="Final cooling",
             )
             logging.debug(f"Saved distribution for zoom-in {zoom_id}.")
 
@@ -705,6 +711,8 @@ class PlotCoolingTimesPlots(CommonPlotMixin, base.Pipeline):
             None,
             color_first="orange",
             color_last="navy",
+            label_first="First cooling",
+            label_last="Final cooling",
         )
 
     def _plot_mean_last_cooling_time(self, archive_file: h5py.File) -> None:
