@@ -892,6 +892,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
             # Step 3: add lines for cluster property
             if not self.normalize:
+                need_legend = False
                 plot_config = {
                     "color": "white", "alpha": 0.5, "marker": "none"
                 }
@@ -903,6 +904,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                         label=f"{cluster_property_label} (mean)",
                         **plot_config,
                     )
+                    need_legend = True
                 if max_cluster_property is not None:
                     axes.plot(
                         xs,
@@ -917,7 +919,8 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                         linestyle="dotted",
                         **plot_config,
                     )
-                axes.legend()
+                if need_legend:
+                    axes.legend()
 
             # Step 4: save figure
             norm_flag = "_normalized" if self.normalize else ""
