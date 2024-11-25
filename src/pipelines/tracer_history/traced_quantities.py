@@ -186,9 +186,11 @@ class HistogramMixin:
                 start_snap=constants.MIN_SNAP,
                 log_warning=False,
             )
+            # find scale factor to turn radii into physical units
+            a = 1 / (1 + constants.REDSHIFTS[mpb_data["SnapNum"]])
             cluster_cq = compute.get_virial_temperature(
                 mpb_data[self.config.mass_field],
-                mpb_data[self.config.radius_field],
+                mpb_data[self.config.radius_field] * a,  # physical kpc
             )
         elif self.quantity == "DistanceToMP":
             label = r"$R_{200}$"
@@ -666,9 +668,11 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                 log_warning=False,
             )
             if self.quantity == "Temperature":
+                # find scale factor to get radii in physical units
+                a = 1 / (1 + constants.REDSHIFTS[mpb_data["SnapNum"]])
                 normalization[zoom_in] = compute.get_virial_temperature(
                     mpb_data[self.config.mass_field],
-                    mpb_data[self.config.radius_field],
+                    mpb_data[self.config.radius_field] * a,  # physical kpc
                 )
             elif self.quantity == "DistanceToMP":
                 normalization[zoom_in] = mpb_data[self.config.radius_field]
