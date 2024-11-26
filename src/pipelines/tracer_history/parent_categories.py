@@ -90,9 +90,8 @@ class PlotParentCategoryPlots(base.Pipeline):
                 logging.info(f"Plotting fraction of tracers in {name}.")
                 self._plot_category_fractions(num, name, masses, archive_file)
             # additional plots not containing a single category
-            self._plot_primary_halo_fraction(masses, archive_file)
             self._plot_category_fractions_multiple(
-                [2, 3], "primary halo", masses, archive_file
+                [2, 3], "in primary halo", masses, archive_file
             )
 
         # Step 4: plot fraction of tracers within R_vir
@@ -105,9 +104,8 @@ class PlotParentCategoryPlots(base.Pipeline):
                     num, name, masses, archive_file, radii
                 )
             # additional plots not containing a single category
-            self._plot_primary_halo_fraction(masses, archive_file, radii)
             self._plot_category_fractions_multiple(
-                [2, 3], "primary halo", masses, archive_file, radii
+                [2, 3], "in primary halo", masses, archive_file, radii
             )
 
         # Step 5: plot cumulative fraction of tracers in satellites
@@ -264,58 +262,6 @@ class PlotParentCategoryPlots(base.Pipeline):
         logging.info(
             f"Finished saving plot for {category_name} fraction to file."
         )
-
-    def _plot_primary_halo_fraction(
-        self,
-        masses: NDArray,
-        archive_file: h5py.File,
-        virial_radii: NDArray | None = None,
-    ) -> None:
-        """
-        Plot the time development of the fraction in the primary halo.
-
-        :param archive_file: The opened archive file.
-        :param virial_radii: Either an array of radii of shape (352, ),
-            giving a (virial) radius for every cluster in ckpc, or None.
-            When given a list of radii, only particles that end up within
-            that radius at z = 0 are considered.
-        :return: None, plot saved to file.
-        """
-        # Step 1: allocate memory
-        current_fraction = np.zeros((self.n_clusters, self.n_snaps))
-
-        # Step 2: find fractions
-        for zoom_id in range(self.n_clusters):
-            grp = f"ZoomRegion_{zoom_id:03d}"
-            parent_categories = archive_file[grp]["ParentCategory"][()]
-            if virial_radii is not None:
-                dataset = f"ZoomRegion_{zoom_id:03d}/DistanceToMP"
-                distances_z0 = archive_file[dataset][99, :]
-                mask = distances_z0 <= virial_radii[zoom_id]
-                parent_categories = parent_categories[:, mask]
-            in_halo = np.logical_or(
-                np.logical_or(parent_categories == 2, parent_categories == 3),
-                parent_categories == 4
-            )
-            fractions = np.count_nonzero(in_halo, axis=1)
-            fractions = fractions / parent_categories.shape[1]
-            # exclude incorrect snaps
-            where_faulty = np.any(parent_categories == 255, axis=1)
-            fractions[where_faulty] = np.nan
-            current_fraction[zoom_id] = fractions[constants.MIN_SNAP:]
-
-        # Step 3: figure and axis setup
-        fig, axes = plt.subplots(figsize=(5, 4))
-        axes.set_ylabel("Fraction of tracers in primary halo")
-        xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
-
-        # Step 4: plot lines and mean/median
-        common.plot_cluster_line_plot(fig, axes, xs, current_fraction, masses)
-
-        # Step 5: save figure
-        sfx = "" if virial_radii is None else "_within_1Rvir"
-        self._save_fig(fig, ident_flag=f"current_primary_halo_fraction{sfx}")
-        logging.info("Finished saving plot for primary halo fraction to file.")
 
     def _plot_cumulative_satellite_fraction(
         self, masses: NDArray, archive_file: h5py.File
