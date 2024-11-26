@@ -615,7 +615,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             parent_categories = archive_file[grp]["ParentCategory"][()]
             mapping["unbound"] = (parent_categories == 0)
             mapping["other_halo"] = (parent_categories == 1)
-            mapping["primary_halo"] = np.logical_and(
+            mapping["primary_halo"] = np.logical_or(
                 (parent_categories == 2), (parent_categories == 3)
             )
             mapping["satellite"] = (parent_categories == 4)
