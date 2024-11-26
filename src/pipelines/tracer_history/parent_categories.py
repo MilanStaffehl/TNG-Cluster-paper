@@ -77,11 +77,11 @@ class PlotParentCategoryPlots(base.Pipeline):
         radii = cluster_data[self.config.radius_field]
 
         category_map = {
-            "no host": 0,
-            "other halos": 1,
-            "inner fuzz": 2,
-            "primaries": 3,
-            "satellites": 4,
+            "with no host": 0,
+            "in other halos": 1,
+            "in inner fuzz": 2,
+            "in primaries": 3,
+            "in satellites": 4,
         }
 
         # Step 3: plot fraction of tracers at current redshift
@@ -91,6 +91,9 @@ class PlotParentCategoryPlots(base.Pipeline):
                 self._plot_category_fractions(num, name, masses, archive_file)
             # additional plots not containing a single category
             self._plot_primary_halo_fraction(masses, archive_file)
+            self._plot_category_fractions_multiple(
+                [2, 3], "primary halo", masses, archive_file
+            )
 
         # Step 4: plot fraction of tracers within R_vir
         if PlotType.FRACTION_PLOT_RVIR in self.plot_types:
@@ -103,6 +106,9 @@ class PlotParentCategoryPlots(base.Pipeline):
                 )
             # additional plots not containing a single category
             self._plot_primary_halo_fraction(masses, archive_file, radii)
+            self._plot_category_fractions_multiple(
+                [2, 3], "primary halo", masses, archive_file, radii
+            )
 
         # Step 5: plot cumulative fraction of tracers in satellites
         if PlotType.CUMULATIVE_FRACTION_PLOT in self.plot_types:
@@ -171,6 +177,70 @@ class PlotParentCategoryPlots(base.Pipeline):
                 mask = distances_z0 <= virial_radii[zoom_id]
                 parent_categories = parent_categories[:, mask]
             fractions = np.count_nonzero(parent_categories == category, axis=1)
+            fractions = fractions / parent_categories.shape[1]
+            # exclude incorrect snaps
+            where_faulty = np.any(parent_categories == 255, axis=1)
+            fractions[where_faulty] = np.nan
+            current_fraction[zoom_id] = fractions[constants.MIN_SNAP:]
+
+        # Step 3: figure and axis setup
+        fig, axes = plt.subplots(figsize=(5, 4))
+        axes.set_ylabel(f"Fraction of tracers {category_name}")
+        xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
+
+        # Step 4: plot lines and mean/median
+        common.plot_cluster_line_plot(fig, axes, xs, current_fraction, masses)
+
+        # Step 5: save figure
+        category_file = category_name.replace(" ", "_")
+        sfx = "" if virial_radii is None else "_within_1Rvir"
+        self._save_fig(
+            fig, ident_flag=f"current_{category_file}_fraction{sfx}"
+        )
+        logging.info(
+            f"Finished saving plot for {category_name} fraction to file."
+        )
+
+    def _plot_category_fractions_multiple(
+        self,
+        categories: list[int],
+        category_name: str,
+        masses: NDArray,
+        archive_file: h5py.File,
+        virial_radii: NDArray | None = None,
+    ) -> None:
+        """
+        Plot the time development of the fraction in the given categories.
+
+        Gathers multiple parent categories into one fraction.
+
+        :param categories: List of parent categories to include. Can
+            include 0, 1, 2, 3, 4.
+        :param category_name: The name of the category as it should appear
+            in the axes labels and file ident flag.
+        :param archive_file: The opened archive file.
+        :param virial_radii: Either an array of radii of shape (352, ),
+            giving a (virial) radius for every cluster in ckpc, or None.
+            When given a list of radii, only particles that end up within
+            that radius at z = 0 are considered.
+        :return: None, plot saved to file.
+        """
+        # Step 1: allocate memory
+        current_fraction = np.zeros((self.n_clusters, self.n_snaps))
+
+        # Step 2: find fractions
+        for zoom_id in range(self.n_clusters):
+            grp = f"ZoomRegion_{zoom_id:03d}"
+            parent_categories = archive_file[grp]["ParentCategory"][()]
+            if virial_radii is not None:
+                dataset = f"ZoomRegion_{zoom_id:03d}/DistanceToMP"
+                distances_z0 = archive_file[dataset][99, :]
+                mask = distances_z0 <= virial_radii[zoom_id]
+                parent_categories = parent_categories[:, mask]
+            fractions = np.zeros(parent_categories.shape[0])
+            for category in categories:
+                n = np.count_nonzero(parent_categories == category, axis=1)
+                fractions = fractions + n
             fractions = fractions / parent_categories.shape[1]
             # exclude incorrect snaps
             where_faulty = np.any(parent_categories == 255, axis=1)
