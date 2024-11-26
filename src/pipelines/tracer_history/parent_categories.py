@@ -87,7 +87,7 @@ class PlotParentCategoryPlots(base.Pipeline):
         # Step 3: plot fraction of tracers at current redshift
         if PlotType.FRACTION_PLOT in self.plot_types:
             for name, num in category_map.items():
-                logging.info(f"Plotting fraction of tracers in {name}.")
+                logging.info(f"Plotting fraction of tracers {name}.")
                 self._plot_category_fractions(num, name, masses, archive_file)
             # additional plots not containing a single category
             self._plot_category_fractions_multiple(
@@ -98,7 +98,7 @@ class PlotParentCategoryPlots(base.Pipeline):
         if PlotType.FRACTION_PLOT_RVIR in self.plot_types:
             for name, num in category_map.items():
                 logging.info(
-                    f"Plotting fraction of tracers within R_vir in {name}."
+                    f"Plotting fraction of tracers within R_vir {name}."
                 )
                 self._plot_category_fractions(
                     num, name, masses, archive_file, radii
