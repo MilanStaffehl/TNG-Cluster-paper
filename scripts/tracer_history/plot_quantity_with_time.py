@@ -259,6 +259,8 @@ if __name__ == "__main__":
         choices=[
             "parent-category",
             "parent-category-at-zero",
+            "reduced-parent-category",
+            "reduced-parent-category-at-zero",
             "bound-state",
             "bound-state-at-zero",
             "distance-at-zero",

@@ -589,6 +589,8 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             categories = [
                 "unbound", "other_halo", "inner_fuzz", "primary", "satellite"
             ]
+        elif self.split_by.startswith("reduced-parent-category"):
+            categories = ["unbound", "other_halo", "primary_halo", "satellite"]
         elif self.split_by.startswith("bound-state"):
             categories = ["in_subhalo", "in_halo", "unbound"]
         elif self.split_by.startswith("distance"):
@@ -608,6 +610,15 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
             parent_categories = archive_file[grp]["ParentCategory"][()]
             for i, category in enumerate(categories):
                 mapping[category] = (parent_categories == i)
+        elif self.split_by.startswith("reduced-parent-category"):
+            # category 2 and 3 fall together
+            parent_categories = archive_file[grp]["ParentCategory"][()]
+            mapping["unbound"] = (parent_categories == 0)
+            mapping["other_halo"] = (parent_categories == 1)
+            mapping["primary_halo"] = np.logical_and(
+                (parent_categories == 2), (parent_categories == 3)
+            )
+            mapping["satellite"] = (parent_categories == 4)
         elif self.split_by.startswith("bound-state"):
             # load data from file
             parent_halo = archive_file[grp]["ParentHaloIndex"][()]
