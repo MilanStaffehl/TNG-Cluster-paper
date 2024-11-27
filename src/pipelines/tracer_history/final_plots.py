@@ -82,23 +82,38 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
         archive.close()
 
         # Step 4: count the number of parents that appear
+        logging.info("Calculating counts per parent category.")
         _, pc2Rvir_c = np.unique(parent_category_2Rvir, return_counts=True)
         _, pc1Rvir_c = np.unique(parent_category_1Rvir, return_counts=True)
         _, pcz0_c = np.unique(parent_category_z0, return_counts=True)
-        # no category -1 at redshift 0, so we have to "append" it
-        pcz0_counts = np.zeros(6)
-        pcz0_counts[:-1] = pcz0_c
+        logging.info(f"{pc2Rvir_c} {pc1Rvir_c} {pcz0_c}")
+        # sum together particles in inner fuzz and in primary halo
+        pc2Rvir_counts = np.zeros(5, dtype=np.uint32)
+        pc2Rvir_counts[0:2] = pc2Rvir_c[0:2]
+        pc2Rvir_counts[2] = pc2Rvir_c[2] + pc2Rvir_c[3]
+        pc2Rvir_counts[3:] = pc2Rvir_c[4:]
+        pc1Rvir_counts = np.zeros(5, dtype=np.uint32)
+        pc1Rvir_counts[0:2] = pc1Rvir_c[0:2]
+        pc1Rvir_counts[2] = pc1Rvir_c[2] + pc1Rvir_c[3]
+        pc1Rvir_counts[3:] = pc1Rvir_c[4:]
+        pcz0_counts = np.zeros(5, dtype=np.uint32)
+        pcz0_counts[0:2] = pcz0_c[0:2]
+        pcz0_counts[2] = pcz0_c[2] + pcz0_c[3]
+        pcz0_counts[3] = pcz0_c[4]
+        logging.info(f"{pc2Rvir_counts} {pc1Rvir_counts} {pcz0_counts}")
         # normalize to a fraction if required, tracer mass otherwise
         if self.fractions:
-            pc2Rvir_c = pc2Rvir_c / total_n_part
-            pc1Rvir_c = pc1Rvir_c / total_n_part
+            pc2Rvir_counts = pc2Rvir_counts / total_n_part
+            pc1Rvir_counts = pc1Rvir_counts / total_n_part
             pcz0_counts = pcz0_counts / total_n_part
         else:
-            pc2Rvir_c = pc2Rvir_c * constants.TRACER_MASS
-            pc1Rvir_c = pc1Rvir_c * constants.TRACER_MASS
+            pc2Rvir_counts = pc2Rvir_counts * constants.TRACER_MASS
+            pc1Rvir_counts = pc1Rvir_counts * constants.TRACER_MASS
             pcz0_counts = pcz0_counts * constants.TRACER_MASS
+        logging.info(f"{pc2Rvir_counts} {pc1Rvir_counts} {pcz0_counts}")
 
         # Step 5: set up figure
+        logging.info("Start plotting bar chart.")
         fig, axes = plt.subplots(figsize=(4, 4))
         # axes.set_xlabel("Category")
         if self.fractions:
@@ -107,56 +122,56 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
             axes.set_ylabel(r"Tracer mass [$\log_{10} M_\odot$]")
         axes.set_yscale("log")
         axes.set_xticks(
-            [0, 1, 2, 3, 4, 5],
+            [0, 1, 2, 3, 4],
             labels=[
-                "unbound",
-                "other\nhalo",
-                "inner\nfuzz",
-                "primary",
-                "satellite",
-                "never\ncrossed",
+                "Unbound",
+                "Other\nhalo",
+                "Primary\nhalo",
+                "Satellite",
+                "Never\ncrossed",
             ],
             rotation=25,
         )
 
         # Step 6: plot the data
-        midpoints = np.arange(0, 6, step=1)
+        midpoints = np.arange(0, 5, step=1)
         offset = 0.3
-        colors = np.zeros((6, 4))
         cmap = matplotlib.cm.get_cmap("turbo_r")
         norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)
-        colors[:-1] = cmap(norm(np.arange(0, 5, step=1)))
-        colors[-1, 3] = 1  # black, but the alpha needs to be set to 1
+        colors = cmap(norm(np.arange(0, 5, step=1)))
 
         bar_config = {
             "edgecolor": colors,
             "color": "none",
             "width": 0.3,
         }
-        axes.bar(midpoints, pc1Rvir_c, hatch="......", **bar_config)
-        axes.bar(midpoints - offset, pc2Rvir_c, hatch=r"\\\\\\", **bar_config)
-        axes.bar(midpoints + offset, pcz0_counts, hatch="//////", **bar_config)
+        axes.bar(midpoints, pc1Rvir_counts, hatch="......", **bar_config)
+        axes.bar(
+            midpoints - offset, pc2Rvir_counts, hatch=r"\\\\\\", **bar_config
+        )
+        axes.bar(midpoints + offset, pcz0_counts, color=colors, width=0.3)
 
         # Step 7: add a legend
         patch_config = {
-            "facecolor": "none",
             "edgecolor": "grey",
             "linestyle": "solid",
         }
         handles = [
             matplotlib.patches.Patch(
                 **patch_config,
-                hatch="......",
-                label=r"At crossing $2 R_{vir}$",
-            ),
-            matplotlib.patches.Patch(
-                **patch_config,
+                facecolor="none",
                 hatch=r"\\\\\\",
-                label=r"At crossing $1 R_{vir}$",
+                label=r"At crossing $2 R_{200}$",
             ),
             matplotlib.patches.Patch(
                 **patch_config,
-                hatch="//////",
+                facecolor="none",
+                hatch="......",
+                label=r"At crossing $1 R_{200}$",
+            ),
+            matplotlib.patches.Patch(
+                **patch_config,
+                facecolor="grey",
                 label=r"At redshift $z = 0$",
             )
         ]
@@ -172,6 +187,9 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
         if self.fractions:
             ident_flag += "_fractions"
         self._save_fig(fig, ident_flag=ident_flag)
+        logging.info(
+            "Finshed plotting bar chart for parent category fractions!"
+        )
 
         return 0
 
