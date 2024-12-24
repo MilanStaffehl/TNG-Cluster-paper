@@ -738,8 +738,10 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
         axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
         if self.core_only:
             axes.set_ylim((1e1, 1e8))
+            axes.set_xlim((0, 0.05))
         else:
             axes.set_ylim((1e-2, 1e6))
+            axes.set_xlim((0, 2))
         if self.log:
             axes.set_yscale("log")
 
