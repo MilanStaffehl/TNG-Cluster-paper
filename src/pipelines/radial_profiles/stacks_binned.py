@@ -726,7 +726,11 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
         :param edges: The edges of the histograms, [xmin, xmax].
         :return: The figure and axes with the plot.
         """
-        fig, axes = plt.subplots(figsize=(4.5, 4.5))
+        if self.core_only:
+            width = 4.5
+        else:
+            width = 7
+        fig, axes = plt.subplots(figsize=(width, 4.5))
         if self.normalize:
             axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
         else:
