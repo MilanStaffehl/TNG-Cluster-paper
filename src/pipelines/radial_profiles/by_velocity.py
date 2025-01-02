@@ -34,7 +34,7 @@ class GenerateIndividualHistogramsPipeline(base.Pipeline):
     The histograms are saved to file.
 
     Note that this pipeline does not create plots for the individual
-    profiledats.
+    profiles.
     """
     limiting_velocity: float  # either absolute value or fraction
     regime: Literal["cool", "warm", "hot", "total"]
@@ -539,6 +539,7 @@ class PlotMeanProfilesPipeline(GenerateIndividualHistogramsPipeline):
         else:
             ylim = (1e-2, 1e5)
         axes.set_ylim(ylim)
+        axes.set_xlim((0, self.max_distance))
         if self.log:
             axes.set_yscale("log")
 

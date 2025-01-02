@@ -107,9 +107,10 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
             pc1Rvir_counts = pc1Rvir_counts / total_n_part
             pcz0_counts = pcz0_counts / total_n_part
         else:
-            pc2Rvir_counts = pc2Rvir_counts * constants.TRACER_MASS
-            pc1Rvir_counts = pc1Rvir_counts * constants.TRACER_MASS
-            pcz0_counts = pcz0_counts * constants.TRACER_MASS
+            n = 352
+            pc2Rvir_counts = pc2Rvir_counts * constants.TRACER_MASS / n
+            pc1Rvir_counts = pc1Rvir_counts * constants.TRACER_MASS / n
+            pcz0_counts = pcz0_counts * constants.TRACER_MASS / n
         logging.info(f"{pc2Rvir_counts} {pc1Rvir_counts} {pcz0_counts}")
 
         # Step 5: set up figure
@@ -119,7 +120,7 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
         if self.fractions:
             axes.set_ylabel("Fraction")
         else:
-            axes.set_ylabel(r"Tracer mass [$\log_{10} M_\odot$]")
+            axes.set_ylabel(r"Mean gas mass [$\log_{10} M_\odot$]")
         axes.set_yscale("log")
         axes.set_xticks(
             [0, 1, 2, 3, 4],
