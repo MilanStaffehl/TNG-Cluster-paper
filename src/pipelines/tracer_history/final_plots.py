@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import h5py
 import matplotlib.cm
 import matplotlib.colors
+import matplotlib.lines
 import matplotlib.patches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,6 +19,9 @@ from library import constants
 from library.data_acquisition import halos_daq, sublink_daq
 from library.plotting import common
 from pipelines import base
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 
 @dataclasses.dataclass
@@ -86,7 +90,6 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
         _, pc2Rvir_c = np.unique(parent_category_2Rvir, return_counts=True)
         _, pc1Rvir_c = np.unique(parent_category_1Rvir, return_counts=True)
         _, pcz0_c = np.unique(parent_category_z0, return_counts=True)
-        logging.info(f"{pc2Rvir_c} {pc1Rvir_c} {pcz0_c}")
         # sum together particles in inner fuzz and in primary halo
         pc2Rvir_counts = np.zeros(5, dtype=np.uint32)
         pc2Rvir_counts[0:2] = pc2Rvir_c[0:2]
@@ -100,7 +103,6 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
         pcz0_counts[0:2] = pcz0_c[0:2]
         pcz0_counts[2] = pcz0_c[2] + pcz0_c[3]
         pcz0_counts[3] = pcz0_c[4]
-        logging.info(f"{pc2Rvir_counts} {pc1Rvir_counts} {pcz0_counts}")
         # normalize to a fraction if required, tracer mass otherwise
         if self.fractions:
             pc2Rvir_counts = pc2Rvir_counts / total_n_part
@@ -111,7 +113,6 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
             pc2Rvir_counts = pc2Rvir_counts * constants.TRACER_MASS / n
             pc1Rvir_counts = pc1Rvir_counts * constants.TRACER_MASS / n
             pcz0_counts = pcz0_counts * constants.TRACER_MASS / n
-        logging.info(f"{pc2Rvir_counts} {pc1Rvir_counts} {pcz0_counts}")
 
         # Step 5: set up figure
         logging.info("Start plotting bar chart.")
@@ -120,7 +121,7 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
         if self.fractions:
             axes.set_ylabel("Fraction")
         else:
-            axes.set_ylabel(r"Mean gas mass [$\log_{10} M_\odot$]")
+            axes.set_ylabel(r"Mean tracer mass [$\log_{10} M_\odot$]")
         axes.set_yscale("log")
         axes.set_xticks(
             [0, 1, 2, 3, 4],
@@ -279,3 +280,171 @@ class PlotTracerFractionInRadius(base.Pipeline):
             "Successfully plotted fraction of tracers within 1 and 2 Rvir."
         )
         return 0
+
+
+class ParentCategoryWithClusterMass(base.Pipeline):
+    """
+    Plot the parent category gas mass with cluster mass.
+    """
+
+    n_clusters: ClassVar[int] = 352
+
+    def run(self) -> int:
+        """
+        Plot the mass of tracers in each category vs. cluster mass.
+
+        :return: Exit code.
+        """
+        logging.info(
+            "Starting pipeline to plot parent gas mass vs cluster mass."
+        )
+
+        # Step 1: Open archive
+        archive = h5py.File(self.config.cool_gas_history)
+
+        # Step 2: allocate memory
+        pc_mass_1Rvir = np.zeros((self.n_clusters, 5))
+        pc_mass_2Rvir = np.zeros_like(pc_mass_1Rvir)
+        pc_mass_z0 = np.zeros_like(pc_mass_1Rvir)
+
+        # Step 3: load cluster masses
+        masses = halos_daq.get_halo_properties(
+            self.config.base_path,
+            self.config.snap_num,
+            fields=[self.config.mass_field],
+            cluster_restrict=True,
+        )[self.config.mass_field]
+
+        # Step 4: find and save parent fractions
+        logging.info(
+            "Loading parent categories at crossing times for all clusters. "
+            "May take a while..."
+        )
+        for zoom_in in range(self.n_clusters):
+            logging.debug(
+                f"Loading parent category and crossing times for zoom-in {zoom_in}."
+            )
+            grp = f"ZoomRegion_{zoom_in:03d}"
+            parent_category = archive[grp]["ParentCategory"][()]
+            crossing_snap_2 = archive[grp]["FirstCrossingSnapshot"][()]
+            crossing_snap_1 = archive[grp]["FirstCrossingSnapshot1Rvir"][()]
+            n = crossing_snap_2.size
+
+            pc_at_crossing_2 = np.array(
+                [parent_category[crossing_snap_2[i], i] for i in range(n)]
+            )
+            pc_at_crossing_1 = np.array(
+                [parent_category[crossing_snap_1[i], i] for i in range(n)]
+            )
+            # remove particles that never cross
+            pc_at_crossing_2[crossing_snap_2 == -1] = 255
+            pc_at_crossing_1[crossing_snap_1 == -1] = 255
+
+            # count parent category
+            pc_1Rvir, ct_1Rvir = np.unique(pc_at_crossing_1, return_counts=True)
+            pc_2Rvir, ct_2Rvir = np.unique(pc_at_crossing_2, return_counts=True)
+            pc_z0, ct_z0 = np.unique(parent_category[99], return_counts=True)
+
+            # assign results to allocated memory
+            pc_mass_1Rvir[zoom_in] = self._sum_masses(pc_1Rvir, ct_1Rvir)
+            pc_mass_2Rvir[zoom_in] = self._sum_masses(pc_2Rvir, ct_2Rvir)
+            pc_mass_z0[zoom_in] = self._sum_masses(pc_z0, ct_z0)
+        archive.close()
+
+        # Step 5: plot results
+        logging.info("Start plotting mass plots.")
+        parent_categories = [
+            "Unbound",
+            "Other halo",
+            "Primary halo",
+            "Satellite",
+            "Never crossed",
+        ]
+        plot_categories = {
+            "At crossing $1 R_{200}$": pc_mass_1Rvir,
+            "At crossing $2 R_{200}$": pc_mass_2Rvir,
+            "At redshift $z = 0$": pc_mass_z0,
+        }
+        ident_flags = {
+            "At crossing $1 R_{200}$": "at_crossing_1Rvir",
+            "At crossing $2 R_{200}$": "at_crossing_2Rvir",
+            "At redshift $z = 0$": "at_redshift_zero",
+        }
+        cmap = matplotlib.cm.get_cmap("turbo_r")
+        norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)
+        colors = cmap(norm(np.arange(0, 5, step=1)))
+
+        for plot_type, data in plot_categories.items():
+            logging.debug(f"Plotting mass plot for {plot_type}.")
+            fig, axes = plt.subplots(figsize=(4, 4))
+            axes.set_xlabel(r"Halo mass $M_{200}$ [$\log_{10} M_\odot$]")
+            axes.set_ylabel(r"Tracer mass [$M_\odot$]")
+            axes.set_yscale("log")
+
+            plot_config = {
+                "linestyle": "none",
+                "markersize": 2,
+                "marker": "D",
+                "alpha": 0.8,
+            }
+            for i, pc in enumerate(parent_categories):
+                axes.plot(
+                    np.log10(masses),
+                    data[:, i],
+                    color=colors[i],
+                    label=pc,
+                    **plot_config,
+                )
+            axes.legend(
+                ncols=3,
+                loc="upper center",
+                fontsize="small",
+                title_fontsize="small",
+                title=plot_type,
+                bbox_to_anchor=(0.5, 1.25),
+            )
+
+            # save figure
+            self._save_fig(fig, ident_flag=ident_flags[plot_type])
+
+        logging.info(
+            "Done! Successfully plotted mass dependence of parent category!"
+        )
+        return 0
+
+    @staticmethod
+    def _sum_masses(category_index: NDArray, counts: NDArray) -> NDArray:
+        """
+        Turn the cunts of each parent category into a mass.
+
+        Archived parent categories are turned into reduced parent category,
+        i.e. inner fuzz and primary halo categories are summed together.
+        Return an array of size (5, ) with the entries being:
+
+        0. The total tracer mass in unbound state
+        1. The total tracer mass in other halos
+        2. The total tracer mass in the primary
+        3. The total tracer mass in satellites
+        4. The total tracer mass that never crossed
+
+        Faulty entries are ignored.
+
+        :param category_index: Array of all parent categories found.
+            Must be archived parent categories, i.e. integers from
+            0 to 4, or 255 for faulty entries.
+        :param counts: The count belonging to each parent category.
+        :return: Array containing the total tracer mass of each
+            _reduced_ parent category.
+        """
+        result = np.zeros(5)
+        pc_index_list = list(category_index)
+        # map archived categories to reduced categories/result array index
+        category_mapping = {0: 0, 1: 1, 2: 2, 3: 2, 4: 3, 255: 4}
+        # go through parent categories
+        for pc, target_pc in category_mapping.items():
+            if pc not in pc_index_list:
+                continue
+            i = pc_index_list.index(pc)
+            mass = counts[i] * constants.TRACER_MASS
+            result[target_pc] = result[target_pc] + mass
+        return result

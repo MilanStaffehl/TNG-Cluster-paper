@@ -8,6 +8,7 @@ sys.path.insert(0, str(root_dir / "src"))
 from library import scriptparse
 from pipelines.tracer_history.final_plots import (
     ParentCategoryBarPlotPipeline,
+    ParentCategoryWithClusterMass,
     PlotTracerFractionInRadius,
 )
 
@@ -34,6 +35,8 @@ def main(args: argparse.Namespace) -> None:
         pipeline = ParentCategoryBarPlotPipeline(**pipeline_config)
     elif args.what == "tracer-fraction":
         pipeline = PlotTracerFractionInRadius(**pipeline_config)
+    elif args.what == "mass-plot":
+        pipeline = ParentCategoryWithClusterMass(**pipeline_config)
     else:
         raise KeyError(f"Unsupported plot type: {args.what}")
 
@@ -59,7 +62,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "what",
         help="Which plot type to plot.",
-        choices=["bar-chart", "tracer-fraction"],
+        choices=["bar-chart", "tracer-fraction", "mass-plot"],
     )
     parser.add_argument(
         "--fractions",
