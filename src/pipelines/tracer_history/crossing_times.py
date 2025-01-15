@@ -766,7 +766,7 @@ class PlotCoolingTimesPlots(CommonPlotMixin, base.Pipeline):
         # create and configure fig and axes
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Cluster mass at $z = 0$ [$\log_{10} M_\odot$]")
-        axes.set_ylabel("Redshift of final cooling")
+        axes.set_ylabel("Mean redshift of final cooling")
         axes.set_yscale("log")
         axes.set_yticks(
             [0.2, 0.1, 0.06, 0.05, 0.04],
