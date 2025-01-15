@@ -77,6 +77,7 @@ def plot_curve_with_error_region(
     y_err: NDArray | None,
     axes: Axes,
     linestyle: str = "solid",
+    linewidth: float | None = None,
     color: str | Sequence[float] = "black",
     label: str | None = None,
     zorder: int = 10,
@@ -95,6 +96,8 @@ def plot_curve_with_error_region(
     :param axes: The axes object onto which to plot the data.
     :param linestyle: The line style for the central line. Should not
         be 'dotted' as this is used for the errors.
+    :param linewidth: The stroke width for the data line. Defaults to
+        None which then uses the matplotlib default line width.
     :param color: The color for the lines and shaded region.
     :param label: A label for the curve. Note that this function will
         not create a legend on the plot.
@@ -126,9 +129,13 @@ def plot_curve_with_error_region(
         "alpha": 0.1,
         "color": color,
     }
+
     if label is not None:
         curve_config.update({"label": label})
+    if linewidth is not None:
+        curve_config.update({"linewidth": linewidth})
     axes.plot(x_data, y_data, **curve_config)
+
     if y_err is not None and not suppress_error_line:
         axes.plot(x_data, y_data - y_err[0], **error_config)
         axes.plot(x_data, y_data + y_err[1], **error_config)

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 import matplotlib.cm
 import matplotlib.colors
+import matplotlib.lines
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -752,12 +753,14 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
             if i == len(stacks) - 1:
                 color = "black"
                 label = "Total"
+                linewidth = 2.2
             else:
                 color = colormaps.sample_cmap("jet", len(stacks) - 1, i)
                 label = (
                     rf"$10^{{{np.log10(self.mass_bins[i]):.1f}}} - "
                     rf"10^{{{np.log10(self.mass_bins[i + 1]):.1f}}} M_\odot$"
                 )
+                linewidth = None
 
             # error config
             total_errors = errors[i][0]
@@ -774,6 +777,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
                 y_err=total_errors,
                 axes=axes,
                 linestyle="solid",
+                linewidth=linewidth,
                 color=color,
                 label=label,
                 suppress_error_line=True,
@@ -787,6 +791,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
                 y_err=cool_std,
                 axes=axes,
                 linestyle="dashed",
+                linewidth=linewidth,
                 color=color,
                 suppress_error_line=True,
                 suppress_error_region=True,
@@ -799,10 +804,43 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
                 y_err=cool_errors,
                 axes=axes,
                 linestyle="dotted",
+                linewidth=linewidth,
                 color=color,
                 suppress_error_line=True,
                 suppress_error_region=True,
             )
+
+        # add to artists handles for linestyles
+        handles = [
+            matplotlib.lines.Line2D(
+                [], [],
+                marker="none",
+                color="black",
+                ls="solid",
+                label="All gas"
+            ),
+            matplotlib.lines.Line2D(
+                [], [],
+                marker="none",
+                color="black",
+                ls="dashed",
+                label="Cool gas (mean)"
+            ),
+            matplotlib.lines.Line2D(
+                [], [],
+                marker="none",
+                color="black",
+                ls="dotted",
+                label="Cool gas (median)"
+            ),
+        ]
+        first_legend = axes.legend(
+            handles=handles,
+            loc="upper left",
+            bbox_to_anchor=(0.15, 1.),
+            fontsize="small",
+        )
+        axes.add_artist(first_legend)
 
         axes.legend(
             loc="upper right",
