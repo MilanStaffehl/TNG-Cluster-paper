@@ -28,7 +28,7 @@ class PlotCoolGasDistribution(base.Pipeline):
     Plot the distribution of cool gas in clusters.
     """
 
-    n_bins: int = 80
+    n_bins: int = 100
     z_threshold: float = 0.5  # half slice thickness in virial radii
 
     ranges: ClassVar[NDArray] = np.array([[-2, 2], [-2, 2]])
@@ -37,6 +37,7 @@ class PlotCoolGasDistribution(base.Pipeline):
     n_tng300_1: ClassVar[int] = 280
 
     def __post_init__(self):
+        super().__post_init__()
         self.tngclstr_basepath = config.get_simulation_base_path("TNG-Cluster")
         self.tng300_1_basepath = config.get_simulation_base_path("TNG300-1")
 
@@ -49,6 +50,10 @@ class PlotCoolGasDistribution(base.Pipeline):
         logging.info(
             "Started pipeline to plot cool gas distribution at redshift zero."
         )
+
+        # Step 0: create data directories
+        self._create_directories(subdirs=["individuals"], force=True)
+
         # Step 1: allocate memory
         distribution = np.zeros((self.n_clusters, self.n_bins, self.n_bins))
 
@@ -108,13 +113,26 @@ class PlotCoolGasDistribution(base.Pipeline):
                 weights=masses_masked,
             )
 
-            # assign to global array
-            distribution[zoom_in] = hist[0]
+            # assign to global array, adjusting units to M_sol / ckpc^2
+            bin_width = 4 * virial_radii[zoom_in] / self.n_bins
+            surface_area = bin_width**2
+            histogram = hist[0] / surface_area
+            distribution[zoom_in] = histogram
 
             # plot the histogram
             self._plot_distribution_hist(
-                hist[0], f"individuals/zoom_in_{zoom_in}", f"z{zoom_in:03d}"
+                histogram, f"individuals/zoom_in_{zoom_in}", f"z{zoom_in:03d}"
             )
+
+            # save data to file
+            filename = f"{self.paths['data_file_stem']}_z{zoom_in:03d}.npy"
+            filepath = self.paths["data_dir"] / "individuals"
+            logging.debug(
+                f"Saving data for zoom-in {zoom_in} to file under "
+                f"{str(filepath / filename)}"
+            )
+            with open(filepath / filename, "wb") as file:
+                np.save(file, histogram)
 
         # Step 4: create total histogram
         logging.info("Creating overall mean distribution plot.")
@@ -142,10 +160,19 @@ class PlotCoolGasDistribution(base.Pipeline):
         :return: None, figure is saved to file.
         """
         # Create figure
-        fig, axes = plt.subplots(figsize=(12, 10))
+        fig, axes = plt.subplots(figsize=(6.2, 5))
         axes.set_aspect("equal")
 
+        # find smallest non-zero value
+        min_val = np.min(hist2d[hist2d != 0])
+
+        # log the values
+        with np.errstate(divide="ignore"):
+            hist2d = np.log10(hist2d)
+            min_val = np.log10(min_val)
+
         # plot 2D hist on top
+        label = r"Cool gas surface density [$\log_{10} (M_\odot / ckpc^2)$]"
         plot_radial_profiles.plot_2d_radial_profile(
             fig,
             axes,
@@ -153,25 +180,85 @@ class PlotCoolGasDistribution(base.Pipeline):
             ranges=self.ranges.flatten(),
             xlabel=r"x [$R_{200}$]",
             ylabel=r"y [$R_{200}$]",
-            colormap="binary",
-            cbar_label="Column density [???]",  # TODO: units
-            scale="log",
+            colormap="magma",
+            cbar_label=label,
+            cbar_limits=(min_val, None),
         )
 
         # add circles for virial radius and 2Rvir
         circle_config = {
             "facecolor": "none",
-            "edgecolor": "black",
+            "edgecolor": "white",
             "alpha": 0.8,
         }
         inner_circle = plt.Circle(
-            (0, 0), radius=1, linestyle="solid", **circle_config
+            (0, 0),
+            radius=1,
+            linestyle="solid",
+            label=r"$R_{200}$",
+            **circle_config
         )
         outer_circle = plt.Circle(
-            (0, 0), radius=2, linestyle="dotted", **circle_config
+            (0, 0),
+            radius=2,
+            linestyle="dotted",
+            label=r"$2R_{200}$",
+            **circle_config
         )
         axes.add_patch(inner_circle)
         axes.add_patch(outer_circle)
 
+        # add legend
+        axes.legend(handles=[inner_circle, outer_circle], loc="upper left")
+
         # save figure
         self._save_fig(fig, ident_flag=ident_flag, subdir=figure_subdir)
+
+
+class PlotCoolGasDistrFromFile(PlotCoolGasDistribution):
+    """
+    Plot the images loading data from file.
+    """
+
+    def run(self) -> int:
+        """
+        Plot images of cool gas distribution from file.
+
+        :return: Exit code.
+        """
+        logging.info(
+            "Started pipeline to plot cool gas distribution at redshift zero."
+        )
+        # Step 0: verify directories
+        self._verify_directories()
+
+        # Step 1: allocate memory
+        distribution = np.zeros((self.n_clusters, self.n_bins, self.n_bins))
+
+        # Step 2: load and plot data for individual clusters
+        logging.info("Plotting cool gas distribution for individual clusters.")
+        for zoom_in in range(self.n_tngclstr):
+            logging.debug(
+                f"Plotting distribution for TNG-Cluster zoom-in {zoom_in:03d}."
+            )
+
+            # load histogram from file
+            filename = f"{self.paths['data_file_stem']}_z{zoom_in:03d}.npy"
+            filepath = self.paths["data_dir"] / "individuals"
+            histogram = np.load(filepath / filename)
+
+            # place histogram in allocated memory
+            distribution[zoom_in] = histogram
+
+            # plot the histogram
+            self._plot_distribution_hist(
+                histogram, f"individuals/zoom_in_{zoom_in}", f"z{zoom_in:03d}"
+            )
+
+        # Step 4: create total histogram
+        logging.info("Creating overall mean distribution plot.")
+        mean_distribution = np.nanmean(distribution, axis=0)
+        self._plot_distribution_hist(mean_distribution, None, "overall_mean")
+
+        logging.info("Done! Successfully saved plots to file.")
+        return 0

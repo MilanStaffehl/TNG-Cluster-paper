@@ -6,7 +6,10 @@ root_dir = Path(__file__).parents[2].resolve()
 sys.path.insert(0, str(root_dir / "src"))
 
 from library import scriptparse
-from pipelines.images.cool_gas_images import PlotCoolGasDistribution
+from pipelines.images.cool_gas_images import (
+    PlotCoolGasDistrFromFile,
+    PlotCoolGasDistribution,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -35,7 +38,10 @@ def main(args: argparse.Namespace) -> None:
     )
 
     # select and build pipeline
-    pipeline = PlotCoolGasDistribution(**pipeline_config)
+    if args.from_file:
+        pipeline = PlotCoolGasDistrFromFile(**pipeline_config)
+    else:
+        pipeline = PlotCoolGasDistribution(**pipeline_config)
     sys.exit(pipeline.run())
 
 
@@ -50,7 +56,6 @@ if __name__ == "__main__":
     )
     # remove unnecessary args
     parser.remove_argument("sim")
-    parser.remove_argument("from_file")
     parser.remove_argument("to_file")
     parser.remove_argument("processes")
 
@@ -71,7 +76,8 @@ if __name__ == "__main__":
             "plot. Equivalent to half the projection depth, i.e. the "
             "thickness of the slice that will be projected onto the "
             "x-y-plane. Must be given in units of virial radii. Defaults to "
-            "1."
+            "0.5, which is equivalent to a projection depth of 1 virial "
+            "radius."
         ),
         type=float,
         default=1.0,
