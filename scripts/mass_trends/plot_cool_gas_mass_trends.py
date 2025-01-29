@@ -24,11 +24,15 @@ def main(args: argparse.Namespace) -> None:
         type_flag = f"clusters_{args.field.lower().replace('-', '_')}"
     if args.gas_domain == "central":
         type_flag += "_core"
+    elif args.gas_domain == "vr":
+        type_flag += "_vr"
 
     # subdirectory for figures
     subdir = args.field.replace("-", "_")
     if args.gas_domain == "central":
         subdir += "/core"
+    elif args.gas_domain == "vr":
+        subdir += "/virial_radius"
 
     # base pipeline config dict
     pipeline_config = scriptparse.startup(
@@ -120,12 +124,12 @@ if __name__ == "__main__":
         "--gas-domain",
         help=(
             "The domain for the gas fraction. The y-axis can either show the "
-            "gas fraction of the entire cluster out to 2 virial radii (halo) "
-            "or only the in the core region, meaning within 5%% of the virial "
-            "radius (central)."
+            "gas fraction of the entire cluster out to 2 virial radii (halo), "
+            "only the in the core region, meaning within 5%% of the virial "
+            "radius (central), or within only the virial radius (vr)."
         ),
         dest="gas_domain",
-        choices=["halo", "central"],
+        choices=["halo", "central", "vr"],
         default="halo",
     )
     exclusive_group = parser.add_mutually_exclusive_group(required=False)
@@ -147,7 +151,10 @@ if __name__ == "__main__":
         help=(
             "Force the recalculation of the color data. Gas fraction will "
             "be read from file if available, but if it is not found will be "
-            "recalculated as well."
+            "recalculated as well. If the gas domain is set to the virial "
+            "radius, missing gas fraction data or radial density profile data "
+            "will lead to an exception, as recalculating gas fraction and "
+            "mass from simulation data directly is not currently implemented."
         ),
         dest="force_recalculation",
         action="store_true",

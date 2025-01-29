@@ -55,7 +55,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
     field: str
     color_scale: Literal["log", "linear"] | None
     deviation_scale: Literal["log", "linear"] | None
-    gas_domain: Literal["halo", "central"]
+    gas_domain: Literal["halo", "central", "virial_radius"]
     forbid_recalculation: bool
     force_recalculation: bool
     use_absolute_mass: bool = False  # plot total mass instead of frac?
@@ -69,6 +69,9 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         # file path for gas fraction data ("base data") and particle IDs
         if self.gas_domain == "halo":
             self.base_filename = "mass_trends_clusters_base_data.npz"
+            id_subdir = "particle_ids"
+        elif self.gas_domain == "vr":
+            self.base_filename = "mass_trends_clusters_vr_base_data.npz"
             id_subdir = "particle_ids"
         else:
             self.base_filename = "mass_trends_clusters_core_base_data.npz"
@@ -99,7 +102,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
                 f"automatically."
             )
 
-    def run(self) -> int:
+    def run(self) -> int:  # noqa: C901
         """
         Create plots of cool gas fraction vs. halo mass for all clusters.
 
@@ -137,6 +140,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         self._create_directories()
         if self.gas_domain == "central":
             logging.info("Plotting mass trends for core only.")
+        if self.gas_domain == "central":
+            logging.info("Plotting mass trends for virial radius region only.")
         if self.use_absolute_mass:
             logging.info("Plotting absolute gas mass instead of fraction.")
 
@@ -299,6 +304,17 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         :return: The tuple of arrays of length 632 of the halo masses
             and their corresponding cool gas fraction and cool gas masses.
         """
+        if self.gas_domain == "vr":
+            logging.fatal(
+                "Calculating gas fraction and mass within virial radius "
+                "directly from simulation data is not supported. Please "
+                "disable the `--force-recalculation` flag to instead load "
+                "the data from file."
+            )
+            raise NotImplementedError(
+                "Recalculating gas fraction limited to virial radius not "
+                "supported."
+            )
         logging.info("Loading base data directly from simulation data.")
         tracemalloc.start()
         begin = time.time()
@@ -473,6 +489,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         if self.gas_domain == "central":
             subdir_name += "_core"
             limit = 0.05
+        elif self.gas_domain == "vr":
+            limit = 1.0
         else:
             limit = 2.0
 
@@ -497,16 +515,32 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         for halo_data in halo_loader:
             halo_masses[idx] = halo_data["halo_mass"]
             cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
-            cool_gas = np.sum(cool_profile * shell_pseudo_volumes)
+            cool_mass_profile = cool_profile * shell_pseudo_volumes
+            if self.gas_domain == "vr":
+                # limit to half the domain, equaling distance out to 1R200
+                cool_mass_profile = cool_mass_profile[:25]
+            cool_gas = np.sum(cool_mass_profile)
             total_profile = halo_data["total_inflow"] + halo_data[
                 "total_outflow"]
-            total_gas = np.sum(total_profile * shell_pseudo_volumes)
+            total_mass_profile = total_profile * shell_pseudo_volumes
+            if self.gas_domain == "vr":
+                # limit to 1 virial radius again
+                total_mass_profile = total_mass_profile[:25]
+            total_gas = np.sum(total_mass_profile)
             cool_gas_fracs[idx] = cool_gas / total_gas
             # calculate physical shell volumes
             halo_id = halo_data["halo_id"]
             phye = edges * virial_radii[halo_ids == halo_id]  # edges in kpc
             shell_phys_volumes = 4 / 3 * np.pi * (phye[1:]**3 - phye[:-1]**3)
-            cool_gas_masses[idx] = np.sum(cool_profile * shell_phys_volumes)
+            if self.gas_domain == "vr":
+                # count only mass within R200
+                cool_gas_masses[idx] = np.sum(
+                    cool_profile[:25] * shell_phys_volumes[:25]
+                )
+            else:
+                cool_gas_masses[idx] = np.sum(
+                    cool_profile * shell_phys_volumes
+                )
             idx += 1
 
         # load virial radii for TNG-Cluster
@@ -527,26 +561,40 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         for zoom_id, halo_data in enumerate(halo_loader):
             halo_masses[idx] = halo_data["halo_mass"]
             cool_profile = halo_data["cool_inflow"] + halo_data["cool_outflow"]
-            cool_gas = np.sum(cool_profile * shell_pseudo_volumes)
+            cool_mass_profile = cool_profile * shell_pseudo_volumes
+            if self.gas_domain == "vr":
+                cool_mass_profile = cool_mass_profile[:25]
+            cool_gas = np.sum(cool_mass_profile)
             total_profile = halo_data["total_inflow"] + halo_data[
                 "total_outflow"]
-            total_gas = np.sum(total_profile * shell_pseudo_volumes)
+            total_mass_profile = total_profile * shell_pseudo_volumes
+            if self.gas_domain == "vr":
+                total_mass_profile = total_mass_profile[:25]
+            total_gas = np.sum(total_mass_profile)
             cool_gas_fracs[idx] = cool_gas / total_gas
             # calculate physical shell volumes
             assert halo_data["halo_id"] == halo_ids[zoom_id]
             phye = edges * virial_radii[zoom_id]  # edges in kpc
             shell_phys_volumes = 4 / 3 * np.pi * (phye[1:]**3 - phye[:-1]**3)
-            cool_gas_masses[idx] = np.sum(cool_profile * shell_phys_volumes)
+            if self.gas_domain == "vr":
+                cool_gas_masses[idx] = np.sum(
+                    cool_profile[:25] * shell_phys_volumes[:25]
+                )
+            else:
+                cool_gas_masses[idx] = np.sum(
+                    cool_profile * shell_phys_volumes
+                )
             idx += 1
 
         if self.to_file:
+            base_data_path = self.paths["data_dir"] / self.base_filename
             np.savez(
-                self.paths["data_dir"] / self.base_filename,
+                base_data_path,
                 halo_masses=halo_masses,
                 cool_gas_fracs=cool_gas_fracs,
                 cool_gas_masses=cool_gas_masses,
             )
-            logging.info("Wrote base data to file.")
+            logging.info(f"Wrote base data to file under {base_data_path}.")
 
         return halo_masses, cool_gas_fracs, cool_gas_masses
 
@@ -579,6 +627,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_xlabel(r"Halo mass $M_{200}$ [$\log M_\odot$]")
         axes.set_xlim([13.95, 15.45])
+        # axes.set_ylim([5e6, 1e11])
         axes.set_xticks(np.linspace(14.0, 15.4, num=8))
         if self.use_absolute_mass:
             what = "mass"
@@ -588,6 +637,8 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             sfx = ""
         if self.gas_domain == "central":
             axes.set_ylabel(fr"Cool gas {what} within $0.05R_{{200}}$ {sfx}")
+        elif self.gas_domain == "vr":
+            axes.set_ylabel(fr"Cool gas {what} within $R_{{200}}$ {sfx}")
         else:
             axes.set_ylabel(fr"Cool gas {what} within $2R_{{200}}$ {sfx}")
         axes.set_yscale("log")
