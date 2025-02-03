@@ -126,17 +126,17 @@ def test_custom_config(mocker, mock_sim_home_setup):
 @pytest.mark.skipif(
     platform.system() != "Linux", reason="Test only runs on Linux."
 )
-def test_custom_paths_linux(mocker):
+def test_custom_paths_linux(mocker, mock_sim_home_setup):
     """
     Test the config received when altering the global variables.
     """
     # set global vars to some path
     mock_config = {
         "paths": {
-            "data_home": str(Path().home() / ".local"),
-            "figures_home": str(Path().home() / ".local"),
+            "data_home": str(mock_sim_home),
+            "figures_home": str(mock_sim_home),
             "base_paths": {
-                "TNG300-1": str(Path().home() / ".local"),
+                "TNG300-1": str(mock_sim_home),
             },
             "cool_gas_history_archive":
                 {"TNG300-1": str(Path().home() / "archive.hdf5")}
@@ -160,32 +160,32 @@ def test_custom_paths_linux(mocker):
 @pytest.mark.skipif(
     platform.system() != "Windows", reason="Test only runs on Windows."
 )
-def test_custom_paths_windows(mocker):
+def test_custom_paths_windows(mocker, mock_sim_home_setup):
     """
     Test the config received when altering the global variables.
     """
     # set global vars to some path
-    app_data = Path(os.path.expandvars("%LOCALAPPDATA%"))
     mock_config = {
         "paths": {
-            "data_home": app_data,
-            "figures_home": app_data,
-            "base_paths": {"TNG300-1": app_data},
-            "cool_gas_history_archive": {"TNG300-1": app_data / "archive.hdf5"}
+            "data_home": str(mock_sim_home),
+            "figures_home": str(mock_sim_home),
+            "base_paths": {"TNG300-1": str(mock_sim_home)},
+            "cool_gas_history_archive": {"TNG300-1": str(mock_sim_home / "archive.hdf5")}
         }
     }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     # create and test config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = str(app_data)
-    assert test_cfg.base_path == sim_path
+    assert test_cfg.base_path == str(mock_sim_home)
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
     assert test_cfg.radius_field == "Group_R_Crit200"
-    assert Path(test_cfg.data_home) == app_data
-    assert Path(test_cfg.figures_home) == app_data
-    assert Path(test_cfg.cool_gas_history) == app_data / "archive.hdf5"
+    assert Path(test_cfg.data_home) == str(mock_sim_home)
+    assert Path(test_cfg.figures_home) == str(mock_sim_home)
+    assert Path(test_cfg.cool_gas_history) == str(
+        mock_sim_home / "archive.hdf5"
+    )
 
 
 def test_invalid_paths(mocker):
