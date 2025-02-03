@@ -10,12 +10,27 @@ import pytest
 from library.config import config
 
 if platform.system() == "Windows":
-    mock_sim_home = Path(os.path.expandvars("%LOCALAPPDATA%"))
+    mock_sim_home = Path(os.path.expandvars("%LOCALAPPDATA%\\simulation_test"))
 else:
-    mock_sim_home = Path().home() / ".local"
+    mock_sim_home = Path().home() / ".simulation_test"
 
 
-def test_default_config_generic(mocker):
+@pytest.fixture
+def mock_sim_home_setup() -> None:
+    """Set up the mock simulation home."""
+    needs_cleanup = False
+    if not mock_sim_home.exists():
+        needs_cleanup = True
+        mock_sim_home.mkdir()
+    yield
+    # teardown: remove artificial dir
+    if needs_cleanup:
+        for file in mock_sim_home.iterdir():
+            file.unlink()
+        mock_sim_home.rmdir()
+
+
+def test_default_config_generic(mocker, mock_sim_home_setup):
     """
     Test the default config returned by get_default_config.
     """
@@ -46,7 +61,7 @@ def test_default_config_generic(mocker):
     assert test_cfg.cool_gas_history == expected_file
 
 
-def test_default_config_default(mocker):
+def test_default_config_default(mocker, mock_sim_home_setup):
     """
     Test that when the base paths are set to "default", a valid config is generated.
     """
@@ -77,7 +92,7 @@ def test_default_config_default(mocker):
     assert test_cfg.cool_gas_history == expected_file
 
 
-def test_custom_config(mocker):
+def test_custom_config(mocker, mock_sim_home_setup):
     """
     Test the config received when specifying parameters.
     """
@@ -199,20 +214,20 @@ def test_invalid_paths(mocker):
     assert str(e.value) == expected_msg
 
 
-def test_invalid_simulation_name(mocker):
+def test_invalid_simulation_name(mocker, mock_sim_home_setup):
     """
     Test that an exception is raised when an unknown simulation name is given.
     """
     # set paths to something non-existent and/or invalid
     mock_config = {
         "paths": {
-            "data_home": str(Path().home() / ".local"),
-            "figures_home": str(Path().home() / ".local"),
+            "data_home": str(mock_sim_home),
+            "figures_home": str(mock_sim_home),
             "base_paths": {
-                "TNG300-1": str(Path().home() / ".local"),
-                "TNG100-1": str(Path().home() / ".local"),
-                "TNG50-1": str(Path().home() / ".local"),
-                "TNG-Cluster": str(Path().home() / ".local"),
+                "TNG300-1": str(mock_sim_home),
+                "TNG100-1": str(mock_sim_home),
+                "TNG50-1": str(mock_sim_home),
+                "TNG-Cluster": str(mock_sim_home),
             }
         }
     }  # yapf: disable
@@ -229,18 +244,18 @@ def test_invalid_simulation_name(mocker):
     assert str(e.value) == expected_msg
 
 
-def test_missing_simulation_in_archive_config(mocker):
+def test_missing_simulation_in_archive_config(mocker, mock_sim_home_setup):
     """
     Test that an exception is raised when an unknown simulation name is given.
     """
     # set paths to something non-existent and/or invalid
     mock_config = {
         "paths": {
-            "data_home": str(Path().home() / ".local"),
-            "figures_home": str(Path().home() / ".local"),
+            "data_home": str(mock_sim_home),
+            "figures_home": str(mock_sim_home),
             "base_paths": {
-                "TNG300-1": str(Path().home() / ".local"),
-                "TNG-Cluster": str(Path().home() / ".local"),
+                "TNG300-1": str(mock_sim_home),
+                "TNG-Cluster": str(mock_sim_home),
             },
             "cool_gas_data_archive": {
                 "TNG-Cluster": str(Path().home() / "archive.hdf5")
