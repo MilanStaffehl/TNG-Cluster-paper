@@ -139,22 +139,22 @@ def test_custom_paths_linux(mocker, mock_sim_home_setup):
                 "TNG300-1": str(mock_sim_home),
             },
             "cool_gas_history_archive":
-                {"TNG300-1": str(Path().home() / "archive.hdf5")}
+                {"TNG300-1": str(mock_sim_home / "archive.hdf5")}
         }
     }  # yapf: disable
     mock_load = mocker.patch("yaml.full_load")
     mock_load.return_value = mock_config
     # create and test config
     test_cfg = config.get_default_config("TNG300-1")
-    sim_path = (Path.home() / ".local").resolve()
-    assert test_cfg.base_path == str(sim_path)
+    assert test_cfg.base_path == str(mock_sim_home.resolve())
     assert test_cfg.snap_num == 99
     assert test_cfg.mass_field == "Group_M_Crit200"
     assert test_cfg.radius_field == "Group_R_Crit200"
-    home_dir = Path().home().resolve()
-    assert Path(test_cfg.data_home) == home_dir / ".local"
-    assert Path(test_cfg.figures_home) == home_dir / ".local"
-    assert Path(test_cfg.cool_gas_history) == home_dir / "archive.hdf5"
+    assert Path(test_cfg.data_home) == mock_sim_home.resolve()
+    assert Path(test_cfg.figures_home) == mock_sim_home.resolve()
+    assert Path(test_cfg.cool_gas_history) == (
+        mock_sim_home.resolve() / "archive.hdf5"
+    )
 
 
 @pytest.mark.skipif(
