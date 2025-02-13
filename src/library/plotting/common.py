@@ -11,9 +11,11 @@ import astropy.units
 import cmasher  # noqa: F401
 import matplotlib.cm
 import matplotlib.colors
+import matplotlib.pyplot as plt
 import numpy as np
 
 from library import constants
+from library.plotting import colormaps
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -256,6 +258,207 @@ def plot_scatterplot(
         figure.colorbar(sc, ax=axes, label=cbar_label, extend=cbar_caps)
 
     return figure, axes
+
+
+def plot_4d_histogram(
+    axes: Axes,
+    hues: NDArray,
+    values: NDArray,
+    xedges: NDArray,
+    yedges: NDArray,
+    hmap: str | matplotlib.colors.Colormap | None = None,
+    color_range: Sequence[float] | None = None,
+    hue_label: str | None = None,
+    value_label: str | None = None,
+    cbar_axes: Axes | None = None,
+    cbar_anchor: tuple[float, float] = (0.15, 0.11),
+    cbar_width: float = 0.2,
+    cbar_linecolor: str = "black",
+    cbar_labelsize: str | float = "normal",
+    suppress_colorbar: bool = False,
+    use_saturation: bool = False,
+) -> Axes:
+    """
+    Create a 2D histogram with a two-dimensional colormap.
+
+    The function takes two 2D histograms ``hues`` and ``values`` and
+    combines them by interpreting the value of these histograms as the
+    hue and value of colors on the chosen colorbar respectively. The two
+    histograms must match in bin number, bin width and bin edges.
+
+    The color for each bin is then chosen such that the _hue_ of the bin
+    represents the value of the ``hues`` histogram and the _value_ (i.e.
+    the "darkness" of the color) the value of the ``values`` histogram.
+    The third channel of the HSV color space, the saturation is fixed at
+    100% for every bin to ensure visual clarity.
+
+    .. note:: This also means that colormaps will not look as one might
+        expect: colormaps that make use of dark colors, including
+        especially black, will not represent these dark colors, as value
+        is controlled by the data. Similarly, many standard diverging
+        colormaps will not lead to the desired result, since they are
+        often not continuous in hue, but have two discrete hue values
+        left and right of the center point.
+
+    The function additionally adds a two-dimensional colorbar to the
+    plot, onto a given secondary axes. If no such axes is given, an
+    inset axes will be added to the given ``axes`` and positioned
+    according to the specifications.
+
+    NaN values in either hue or value are marked with white color.
+
+    The range of hues and values can be limited using the ``color_range``
+    parameter. Note that in this scenario, values outside the range are
+    clipped (i.e. mapped to the nearest edge) and not marked with a
+    special color. The colorbar will additionally not indicate possible
+    extent of values beyond its edges (as it would in a 1D colorbar with
+    open-ended caps).
+
+    :param axes: The axes object onto which to draw the histogram.
+    :param hues: The 2D histogram of values that will determine the
+        color hue of the histogram. Must be an array of shape (X, Y),
+        where X denotes the columns and Y the rows of the histogram.
+    :param values: The 2D histogram of values that will determine the
+        color value of the histogram. Must be an array of shape (X, Y),
+        where X denotes the columns and Y the rows of the histogram.
+    :param xedges: A 1D array of the bin edges of the x-values of the
+        ``hue`` and ``value`` histograms. Must have shape (X + 1, ).
+        Required for labeling the axes with the correct tick labels.
+    :param yedges: A 1D array of the bin edges of the y-values of the
+        ``hue`` and ``value`` histograms. Must have shape (Y + 1, ).
+        Required for labeling the axes with the correct tick labels.
+    :param hmap: The colormap to use for the hues. Note that colormaps
+        with varying saturation and values will not look as expected,
+        as this function extracts _exclusively_ the hue of the colormap.
+        Can either be a named colormap or a custom colormap. It is
+        recommended to use custom colormaps at constant value and
+        saturation to ensure a visually pleasing result.
+    :param color_range: A sequence of four floats giving the range of
+        hue and values in the form ``[hmin, hmax, vmin, vmax]``.
+        Values outside the corresponding range are mapped to the end
+        of the range. Each value may be set to None individually, in
+        which case the corresponding value is automatically determined
+        as the min/max of the hue/value. If the parameter is set to
+        None, the entire range is determined automatically. Defaults
+        to None, which means automatic range determination.
+    :param hue_label: The label for the colorbar hue axis, i.e. a
+        description of the quantity in the ``hues`` histogram. Optional,
+        defaults to None, which results in no axis label.
+    :param value_label: The label for the colorbar value axis, i.e. a
+        description of the quantity in the ``values`` histogram. Optional,
+        defaults to None, which results in no axis label.
+    :param cbar_axes: The axes onto which to draw the colorbar. This can
+        be an axis from a completely separate figure, if the colorbar
+        shall be separate from the plot itself. If set to None, an inset
+        axes will be added to ``axes`` and the colorbar will be plotted
+        onto this inset axes. Optional, defaults to None.
+    :param cbar_anchor: When ``cbar_axes`` is set to None, this determines
+        the position of the bottom left corner of the inset axes in
+        relative axes coordinates. Must be a tuple of two floats between
+        0 and 1. Defaults to (0.15, 0.11).
+    :param cbar_width: When ``cbar_axes`` is set to None, this determines
+        the width of the inset axes in relative axes coordinates. Must
+        be a float between 0 and 1. Defaults to 0.2, i.e. 20% width.
+    :param cbar_linecolor: The color to use in the axes ticks, spines,
+        and label text. Can be useful if the colorbar is placed over
+        dark regions of the figure. Defaults to black.
+    :param cbar_labelsize: The size of the tick labels and axes labels
+        of the colorbar. Can either be a float or a fontsize directive
+        from matplotlib (e.g. 'x-small'). Defaults to matplotlib's
+        'normal' font size.
+    :param suppress_colorbar: When set to True, the creation of a colorbar
+        is skipped. Useful for creating many plots that share the same
+        colorbar. Defaults to False.
+    :param use_saturation: When set to True, the function will vary the
+        saturation of the color, instead of its value. In essence, this
+        means that the color will go from fully saturated color to
+        white instead of black. In this case, NaN values are marked as
+        black. Defaults to False.
+    :return: The axes object with the histogram drawn onto it, only for
+        convenience. Axes is altered in place.
+    """
+    # set defaults
+    if hmap is None:
+        # map from red to blue at constant lightness and saturation
+        hmap = colormaps.custom_cmap((255, 0, 0), (0, 0, 255))
+    elif isinstance(hmap, str):
+        hmap = plt.get_cmap(hmap)
+
+    if use_saturation:
+        fixed_channel = 2  # value is fixed
+        value_channel = 1  # saturation is variable
+        fault_color = (0, 0, 0)
+    else:
+        fixed_channel = 1  # saturation is fixed
+        value_channel = 2  # value is variable
+        fault_color = (1, 1, 1)
+
+    # determine value and hue range, clip hues and values accordingly
+    hvrange = [
+        np.nanmin(hues), np.nanmax(hues), np.nanmin(values), np.nanmax(values)
+    ]
+    if color_range is not None:
+        for i in range(4):
+            if color_range[i] is not None:
+                hvrange[i] = color_range[i]
+    hues = np.clip(hues, hvrange[0], hvrange[1])
+    values = np.clip(values, hvrange[2], hvrange[3])
+
+    # extract color from colormap (in HSL space)
+    norm = matplotlib.colors.Normalize(hvrange[0], hvrange[1])
+    color = matplotlib.colors.rgb_to_hsv(hmap(norm(hues))[:, :, :3])
+
+    # normalize colormap to constant saturation/value
+    color[:, :, fixed_channel] = 1  # fix value at maximum
+
+    # turn values into lightness
+    value_range = hvrange[3] - hvrange[2]
+    values_normed = (values - hvrange[2]) / value_range
+    color[:, :, value_channel] = values_normed
+    # return to rgb
+    color_rgb = matplotlib.colors.hsv_to_rgb(color)
+
+    # treat NaN entries
+    where_nan = np.logical_or(np.isnan(hues), np.isnan(values))
+    color_rgb[where_nan] = fault_color
+
+    # create histogram
+    axes.pcolormesh(xedges, yedges, color_rgb, shading="flat", rasterized=True)
+
+    if not suppress_colorbar:
+        # determine axes to place colorbar on and configure it
+        if cbar_axes is None:
+            bounds = (cbar_anchor[0], cbar_anchor[1], cbar_width, cbar_width)
+            cbar_axes = axes.inset_axes(bounds)
+        cbar_axes.tick_params(colors=cbar_linecolor, labelsize=cbar_labelsize)
+        plt.setp(cbar_axes.spines.values(), color=cbar_linecolor)
+        # labels
+        cbar_axes.set_xlabel(hue_label, c=cbar_linecolor, size=cbar_labelsize)
+        cbar_axes.set_ylabel(
+            value_label, c=cbar_linecolor, size=cbar_labelsize
+        )
+
+        # prepare a colorbar; start by creating dummy values
+        cbar_values = np.linspace(0, 1, num=100)
+        cbar_values = np.broadcast_to(cbar_values[:, None], (100, 100))
+
+        # turn values into a colorbar
+        c = cbar_values.transpose()
+        cbar_color = matplotlib.colors.rgb_to_hsv(hmap(c)[:, :, :3])
+        cbar_color[:, :, value_channel] = cbar_values
+        cbar_color[:, :, fixed_channel] = 1
+        cbar_rgb = matplotlib.colors.hsv_to_rgb(cbar_color)
+
+        # colorbar coordinate grid for correct tick labels
+        hedges = np.linspace(hvrange[0], hvrange[1], num=100)
+        vedges = np.linspace(hvrange[2], hvrange[3], num=100)
+
+        # place colorbar
+        cbar_axes.pcolormesh(
+            hedges, vedges, cbar_rgb, shading="gouraud", rasterized=True
+        )
+
+    return axes
 
 
 def make_redshift_plot(
