@@ -4,13 +4,14 @@ Common plotting utilities.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any, Literal, Sequence
+from typing import TYPE_CHECKING, Any, Literal, Sequence, TypeAlias
 
 import astropy.cosmology
 import astropy.units
 import cmasher  # noqa: F401
 import matplotlib.cm
 import matplotlib.colors
+import matplotlib.patches
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
     from matplotlib.figure import Figure
     from numpy.typing import NDArray
+
+RGBColor: TypeAlias = tuple[float, float, float]
+RGBAColor: TypeAlias = tuple[float, float, float, float]
 
 temperature_colors_rgb = {
     "cool": (30, 144, 255),  # dodgerblue
@@ -267,17 +271,19 @@ def plot_4d_histogram(
     xedges: NDArray,
     yedges: NDArray,
     hmap: str | matplotlib.colors.Colormap | None = None,
+    hue_scale: Literal["linear", "log"] = "linear",
+    value_scale: Literal["linear", "log"] = "linear",
     color_range: Sequence[float] | None = None,
     hue_label: str | None = None,
     value_label: str | None = None,
     cbar_axes: Axes | None = None,
     cbar_anchor: tuple[float, float] = (0.15, 0.11),
     cbar_width: float = 0.2,
-    cbar_linecolor: str = "black",
+    cbar_linecolor: str | RGBColor | RGBAColor = "black",
     cbar_labelsize: str | float = "normal",
     suppress_colorbar: bool = False,
     use_saturation: bool = False,
-) -> Axes:
+) -> tuple[Axes, Axes]:
     """
     Create a 2D histogram with a two-dimensional colormap.
 
@@ -333,14 +339,28 @@ def plot_4d_histogram(
         Can either be a named colormap or a custom colormap. It is
         recommended to use custom colormaps at constant value and
         saturation to ensure a visually pleasing result.
+    :param hue_scale: The scale for the hues. Can either be ``linear``
+        for linear scaling or ``log`` for logarithmic scaling. When set
+        to logarithmic scaling, the logarithm will be taken _before_ the
+        hues are clipped to any hue range provided, which can lead to
+        zero-hues turning into NaN. To avoid this, clip the hues
+        manually before calling this function.
+    :param value_scale: The scale for the values. Can either be ``linear``
+        for linear scaling or ``log`` for logarithmic scaling. When set
+        to logarithmic scaling, the logarithm will be taken _before_ the
+        values are clipped to any value range provided, which can lead to
+        zero-values turning into NaN. To avoid this, clip the values
+        manually before calling this function.
     :param color_range: A sequence of four floats giving the range of
         hue and values in the form ``[hmin, hmax, vmin, vmax]``.
         Values outside the corresponding range are mapped to the end
-        of the range. Each value may be set to None individually, in
-        which case the corresponding value is automatically determined
-        as the min/max of the hue/value. If the parameter is set to
-        None, the entire range is determined automatically. Defaults
-        to None, which means automatic range determination.
+        of the range. If the scale of hue or value is set to log, the
+        corresponding range must be given in log scale. Each value may
+        be set to None individually, in which case the corresponding
+        value is automatically determined as the min/max of the hue/value.
+        If the parameter is set to None, the entire range is determined
+        automatically. Defaults to None, which means automatic range
+        determination.
     :param hue_label: The label for the colorbar hue axis, i.e. a
         description of the quantity in the ``hues`` histogram. Optional,
         defaults to None, which results in no axis label.
@@ -374,8 +394,11 @@ def plot_4d_histogram(
         means that the color will go from fully saturated color to
         white instead of black. In this case, NaN values are marked as
         black. Defaults to False.
-    :return: The axes object with the histogram drawn onto it, only for
-        convenience. Axes is altered in place.
+    :return: The axes object with the histogram drawn onto it, and the
+        axes object onto which the colorbar was drawn. The colorbar
+        axes will be the newly created inset axes if no colorbar axes
+        was provided. Both axes are altered in place; manually updating
+        them is not necessary.
     """
     # set defaults
     if hmap is None:
@@ -393,6 +416,14 @@ def plot_4d_histogram(
         value_channel = 2  # value is variable
         fault_color = (1, 1, 1)
 
+    # set scale if desired
+    if hue_scale == "log":
+        with np.errstate(invalid="ignore"):
+            hues = np.log10(hues)
+    if value_scale == "log":
+        with np.errstate(invalid="ignore"):
+            values = np.log10(values)
+
     # determine value and hue range, clip hues and values accordingly
     hvrange = [
         np.nanmin(hues), np.nanmax(hues), np.nanmin(values), np.nanmax(values)
@@ -404,7 +435,7 @@ def plot_4d_histogram(
     hues = np.clip(hues, hvrange[0], hvrange[1])
     values = np.clip(values, hvrange[2], hvrange[3])
 
-    # extract color from colormap (in HSL space)
+    # extract color from colormap (in HSV space)
     norm = matplotlib.colors.Normalize(hvrange[0], hvrange[1])
     color = matplotlib.colors.rgb_to_hsv(hmap(norm(hues))[:, :, :3])
 
@@ -458,7 +489,7 @@ def plot_4d_histogram(
             hedges, vedges, cbar_rgb, shading="gouraud", rasterized=True
         )
 
-    return axes
+    return axes, cbar_axes
 
 
 def make_redshift_plot(
