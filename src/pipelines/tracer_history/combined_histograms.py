@@ -19,6 +19,8 @@ from library.plotting import common
 from pipelines import base
 
 if TYPE_CHECKING:
+    from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
     from numpy.typing import NDArray
 
 
@@ -32,6 +34,8 @@ class PlotStackedHistogramPipeline(base.Pipeline):
     bin decide the value of the HSV color, and temperature decide the
     hue of the color.
     """
+
+    individuals: bool = True  # whether to plot a histogram for every cluster
 
     n_clusters: ClassVar[int] = 352
     n_snaps: ClassVar[int] = 100 - constants.MIN_SNAP
@@ -85,10 +89,36 @@ class PlotStackedHistogramPipeline(base.Pipeline):
         mhist_mean = np.nanmean(mhist, axis=0)
         thist_mean = np.nanmean(thist, axis=0)
 
-        # Step 4: save plot data to file
+        # Step 3: save plot data to file
         # TODO
 
-        # Step 4: plot the figure for the overall mean
+        # Step 4: plot distribution for individual clusters
+        if self.individuals:
+            pass  # TODO
+
+        # Step 5: plot the figure for the overall mean
+        fig, _ = self._plot(mhist_mean, thist_mean, zedges, dedges)
+        self._save_fig(fig)
+        logging.info("Succesfully saved histogram to file!")
+        return 0
+
+    def _plot(
+        self,
+        masses: NDArray,
+        temperatures: NDArray,
+        zedges: NDArray,
+        dedges: NDArray,
+    ) -> tuple[Figure, Axes]:
+        """
+        Plot the 4D histogram of the given masses and temperatures.
+
+        :param masses: Histogram weighted by tracer mass.
+        :param temperatures: Histogram of mean gas temperature.
+        :param zedges: Array of bin edges in redshift.
+        :param dedges: Array of bin edges in distance.
+        :return: Tuple of figure and axes object with the histogram
+            drawn onto them.
+        """
         fig, axes = plt.subplots(figsize=(5, 5))
         y_label = self.y_label
         if self.log:
@@ -96,12 +126,12 @@ class PlotStackedHistogramPipeline(base.Pipeline):
         axes.set_ylabel(y_label)
 
         # clip value and hue range to avoid white spots
-        mhist_mean[np.isnan(mhist_mean)] = 1e7
-        crange = (3, 9, 7, np.log10(np.nanmax(mhist_mean)))  # in log scale
+        masses[np.isnan(masses)] = 1e7
+        crange = (3, 9, 7, np.log10(np.nanmax(masses)))  # in log scale
         common.plot_4d_histogram(
             axes,
-            thist_mean.transpose(),
-            mhist_mean.transpose(),
+            temperatures.transpose(),
+            masses.transpose(),
             zedges,
             dedges,
             hue_scale="log",
@@ -110,7 +140,8 @@ class PlotStackedHistogramPipeline(base.Pipeline):
             hue_label=r"Temperature [$\log_{10} K$]",
             value_label=r"Tracer mass [$\log_{10} M_\odot$]",
             cbar_labelsize="x-small",
-            cbar_anchor=(0.75, 0.75),
+            cbar_linecolor="white",
+            nan_color=(0, 0, 0),
         )
         # label x-axis correctly
         common.label_snapshots_with_redshift(
@@ -120,11 +151,7 @@ class PlotStackedHistogramPipeline(base.Pipeline):
             tick_positions_z=np.array([0, 0.1, 0.5, 1, 2, 5]),
             tick_positions_t=np.array([0, 1, 5, 8, 11, 13]),
         )
-
-        # Step 3: save the figure
-        self._save_fig(fig)
-        logging.info("Succesfully saved histogram to file!")
-        return 0
+        return fig, axes
 
     def _get_hists(
         self, archive_file: h5py.File
