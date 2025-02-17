@@ -282,6 +282,7 @@ def plot_4d_histogram(
     cbar_linecolor: str | RGBColor | RGBAColor = "black",
     cbar_labelsize: str | float = "normal",
     suppress_colorbar: bool = False,
+    nan_color: RGBColor = (1, 1, 1),
     use_saturation: bool = False,
 ) -> tuple[Axes, Axes]:
     """
@@ -389,11 +390,16 @@ def plot_4d_histogram(
     :param suppress_colorbar: When set to True, the creation of a colorbar
         is skipped. Useful for creating many plots that share the same
         colorbar. Defaults to False.
+    :param nan_color: The color to use for NaN values in either ``hues``
+        or ``values``. Must be an RGB color as three-tuple. Defaults to
+        white. When using ``use_saturation`` it is recommended to change
+        the color to black, i.e. ``(0, 0, 0)``.
     :param use_saturation: When set to True, the function will vary the
         saturation of the color, instead of its value. In essence, this
         means that the color will go from fully saturated color to
-        white instead of black. In this case, NaN values are marked as
-        black. Defaults to False.
+        white instead of black. In this case, the color used for NaN
+        hues and values should be changed to differentiate it from low
+        values. Defaults to False.
     :return: The axes object with the histogram drawn onto it, and the
         axes object onto which the colorbar was drawn. The colorbar
         axes will be the newly created inset axes if no colorbar axes
@@ -410,11 +416,9 @@ def plot_4d_histogram(
     if use_saturation:
         fixed_channel = 2  # value is fixed
         value_channel = 1  # saturation is variable
-        fault_color = (0, 0, 0)
     else:
         fixed_channel = 1  # saturation is fixed
         value_channel = 2  # value is variable
-        fault_color = (1, 1, 1)
 
     # set scale if desired
     if hue_scale == "log":
@@ -451,7 +455,7 @@ def plot_4d_histogram(
 
     # treat NaN entries
     where_nan = np.logical_or(np.isnan(hues), np.isnan(values))
-    color_rgb[where_nan] = fault_color
+    color_rgb[where_nan] = nan_color
 
     # create histogram
     axes.pcolormesh(xedges, yedges, color_rgb, shading="flat", rasterized=True)
