@@ -36,6 +36,7 @@ def main(args: argparse.Namespace) -> None:
     elif args.what == "tracer-fraction":
         pipeline = PlotTracerFractionInRadius(**pipeline_config)
     elif args.what == "mass-plot":
+        pipeline_config.update({"combine_panels": args.combine})
         pipeline = ParentCategoryWithClusterMass(**pipeline_config)
     else:
         raise KeyError(f"Unsupported plot type: {args.what}")
@@ -71,6 +72,18 @@ if __name__ == "__main__":
             "on the y-axis. Only has an effect when plotting bar chart."
         ),
         dest="fractions",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--combine",
+        help=(
+            "Combine the three different panels in the mass trend plots into "
+            "one single figure with three panels. If not set, the mass "
+            "dependence of each category with cluster mass at each of the "
+            "three time points will be a separate figure. Only has an "
+            "effect when choosing `mass-plot` as plot type."
+        ),
+        dest="combine",
         action="store_true",
     )
 

@@ -282,10 +282,13 @@ class PlotTracerFractionInRadius(base.Pipeline):
         return 0
 
 
+@dataclasses.dataclass
 class ParentCategoryWithClusterMass(base.Pipeline):
     """
     Plot the parent category gas mass with cluster mass.
     """
+
+    combine_panels: bool = False
 
     n_clusters: ClassVar[int] = 352
 
@@ -352,11 +355,26 @@ class ParentCategoryWithClusterMass(base.Pipeline):
         archive.close()
 
         # Step 5: plot results
+        logging.info("Start plotting mass plots.")
+        parent_categories = [
+            "Unbound",
+            "Other halo",
+            "Primary halo",
+            "Satellite",
+            "Never crossed",
+        ]
+        plot_categories = {
+            "At crossing $2 R_{200c}$": pc_mass_2Rvir,
+            "At crossing $1 R_{200c}$": pc_mass_1Rvir,
+            "At redshift $z = 0$": pc_mass_z0,
+        }
         if self.combine_panels:
-            pass
+            self._plot_combined_panels(
+                masses, plot_categories, parent_categories
+            )
         else:
             self._plot_individual_panels(
-                masses, pc_mass_1Rvir, pc_mass_2Rvir, pc_mass_z0
+                masses, plot_categories, parent_categories
             )
 
         logging.info(
@@ -367,39 +385,24 @@ class ParentCategoryWithClusterMass(base.Pipeline):
     def _plot_individual_panels(
         self,
         masses: NDArray,
-        pc_mass_1Rvir: NDArray,
-        pc_mass_2Rvir: NDArray,
-        pc_mass_z0: NDArray,
+        plot_categories: dict[str:NDArray],
+        parent_categories: list[str],
     ) -> None:
         """
         Plot the mass dependence as three separate figures.
 
         :param masses: List of cluster masses in solar masses (not log!).
             Shape (N, ).
-        :param pc_mass_1Rvir: Parent category mean masses for each
-            cluster at crossing virial radius. Must have shape (N, 5).
-        :param pc_mass_2Rvir: Parent category mean masses for each
-            cluster at crossing 2R_vir. Must have shape (N, 5).
-        :param pc_mass_z0: Parent category mean masses for each
-            cluster at redshift zero. Must have shape (N, 5).
+        :param plot_categories: A dictionary, mapping the title of each
+            panel to the corresponding array of mean tracer mass per
+            category in each halo of shape (N, 5).
+        :param parent_categories: A list of names for each of the five
+            parent categories, used to label the data points.
         :return: None, figures are saved to file.
         """
-        logging.info("Start plotting mass plots.")
-        parent_categories = [
-            "Unbound",
-            "Other halo",
-            "Primary halo",
-            "Satellite",
-            "Never crossed",
-        ]
-        plot_categories = {
-            "At crossing $1 R_{200c}$": pc_mass_1Rvir,
-            "At crossing $2 R_{200c}$": pc_mass_2Rvir,
-            "At redshift $z = 0$": pc_mass_z0,
-        }
         ident_flags = {
-            "At crossing $1 R_{200c}$": "at_crossing_1Rvir",
             "At crossing $2 R_{200c}$": "at_crossing_2Rvir",
+            "At crossing $1 R_{200c}$": "at_crossing_1Rvir",
             "At redshift $z = 0$": "at_redshift_zero",
         }
         cmap = matplotlib.cm.get_cmap("turbo_r")
@@ -438,6 +441,69 @@ class ParentCategoryWithClusterMass(base.Pipeline):
 
             # save figure
             self._save_fig(fig, ident_flag=ident_flags[plot_type])
+
+    def _plot_combined_panels(
+        self,
+        masses: NDArray,
+        plot_categories: dict[str, NDArray],
+        parent_categories: list[str],
+    ) -> None:
+        """
+        Plot the mass dependence as a single three-panel figure.
+
+        :param masses: List of cluster masses in solar masses (not log!).
+            Shape (N, ).
+        :param plot_categories: A dictionary, mapping the title of each
+            panel to the corresponding array of mean tracer mass per
+            category in each halo of shape (N, 5).
+        :param parent_categories: A list of names for each of the five
+            parent categories, used to label the data points.
+        :return: None, figures are saved to file.
+        """
+        cmap = matplotlib.cm.get_cmap("turbo_r")
+        norm = matplotlib.colors.Normalize(vmin=0, vmax=4.2)
+        colors = cmap(norm(np.arange(0, 5, step=1)))
+
+        fig, axes = plt.subplots(ncols=3, figsize=(8, 2.8))
+        fig.set_tight_layout(True)
+        for ax in axes:
+            ax.set_xlabel(r"Halo mass $M_{200c}$ [$\log_{10} M_\odot$]")
+            ax.set_ylabel(r"Tracer mass [$M_\odot$]")
+            ax.set_yscale("log")
+
+        ax_index = 0
+        handles = []
+        for plot_type, data in plot_categories.items():
+            logging.debug(f"Plotting mass plot for {plot_type}.")
+            plot_config = {
+                "linestyle": "none",
+                "markersize": 2.7,
+                "markeredgewidth": 0,
+                "marker": "D",
+                "alpha": 0.8,
+            }
+            axes[ax_index].set_title(plot_type, fontsize=10)
+            handles = []  # reset to empty
+            for i, pc in enumerate(parent_categories):
+                line, = axes[ax_index].plot(
+                    np.log10(masses),
+                    data[:, i],
+                    color=colors[i],
+                    label=pc,
+                    **plot_config,
+                )
+                handles.append(line)
+            ax_index += 1
+        fig.legend(
+            handles=handles,
+            ncols=5,
+            loc="upper center",
+            # fontsize="small",
+            bbox_to_anchor=(0.5, 1.1),
+        )
+
+        # save figure
+        self._save_fig(fig, ident_flag="combined", tight_layout=True)
 
     @staticmethod
     def _sum_masses(category_index: NDArray, counts: NDArray) -> NDArray:
