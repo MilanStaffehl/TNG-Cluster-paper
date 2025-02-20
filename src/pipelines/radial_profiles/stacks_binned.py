@@ -409,7 +409,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         flat_axes = axes.flatten()
         # common axes labels
         if self.normalize:
-            fig.supxlabel(r"Distance from halo center [$R_{200}$]")
+            fig.supxlabel(r"Distance from halo center [$R_{200c}$]")
         else:
             fig.supxlabel("Distance from halo center [kpc]")
         fig.supylabel(r"Temperature [$\log K$]")
@@ -496,7 +496,7 @@ class StackProfilesBinnedPipeline(Pipeline):
         """
         fig, axes = plt.subplots(figsize=(5, 5))
         if self.normalize:
-            axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
+            axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
         else:
             axes.set_xlabel("Distance from halo center [kpc]")
         axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
@@ -733,7 +733,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
             width = 7
         fig, axes = plt.subplots(figsize=(width, 4.5))
         if self.normalize:
-            axes.set_xlabel(r"Distance from halo center [$R_{200}$]")
+            axes.set_xlabel(r"Distance from halo center [$R_{200c}$]")
         else:
             axes.set_xlabel("Distance from halo center [kpc]")
         axes.set_ylabel(r"Gas density [$M_\odot / kpc^3$]")
@@ -753,7 +753,7 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
             if i == len(stacks) - 1:
                 color = "black"
                 label = "Total"
-                linewidth = 2.2
+                linewidth = 1.8
             else:
                 color = colormaps.sample_cmap("jet", len(stacks) - 1, i)
                 label = (
@@ -810,37 +810,38 @@ class StackDensityProfilesCombinedPipeline(StackProfilesBinnedPipeline):
                 suppress_error_region=True,
             )
 
-        # add to artists handles for linestyles
-        handles = [
-            matplotlib.lines.Line2D(
-                [], [],
-                marker="none",
-                color="black",
-                ls="solid",
-                label="All gas"
-            ),
-            matplotlib.lines.Line2D(
-                [], [],
-                marker="none",
-                color="black",
-                ls="dashed",
-                label="Cool gas (mean)"
-            ),
-            matplotlib.lines.Line2D(
-                [], [],
-                marker="none",
-                color="black",
-                ls="dotted",
-                label="Cool gas (median)"
-            ),
-        ]
-        first_legend = axes.legend(
-            handles=handles,
-            loc="upper left",
-            bbox_to_anchor=(0.15, 1.),
-            fontsize="small",
-        )
-        axes.add_artist(first_legend)
+        # add to artists handles for linestyles (full range only)
+        if not self.core_only:
+            handles = [
+                matplotlib.lines.Line2D(
+                    [], [],
+                    marker="none",
+                    color="black",
+                    ls="solid",
+                    label="All gas"
+                ),
+                matplotlib.lines.Line2D(
+                    [], [],
+                    marker="none",
+                    color="black",
+                    ls="dashed",
+                    label="Cool gas (mean)"
+                ),
+                matplotlib.lines.Line2D(
+                    [], [],
+                    marker="none",
+                    color="black",
+                    ls="dotted",
+                    label="Cool gas (median)"
+                ),
+            ]
+            first_legend = axes.legend(
+                handles=handles,
+                loc="upper left",
+                bbox_to_anchor=(0.15, 1.),
+                fontsize="small",
+            )
+            axes.add_artist(first_legend)
 
         axes.legend(
             loc="upper right",
@@ -1082,7 +1083,7 @@ class StackDensityProfilesByVelocityPipeline(
         )
         fig.set_tight_layout(True)
         if self.normalize:
-            xlabel = r"Distance from halo center [$R_{200}$]"
+            xlabel = r"Distance from halo center [$R_{200c}$]"
         else:
             xlabel = "Distance from halo center [kpc]"
         axes[0].set_xlabel(xlabel)

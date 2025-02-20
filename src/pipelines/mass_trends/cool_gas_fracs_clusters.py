@@ -625,7 +625,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
         """
         logging.info("Plotting cool gas fraction mass trend for clusters.")
         fig, axes = plt.subplots(figsize=(5, 4))
-        axes.set_xlabel(r"Halo mass $M_{200}$ [$\log M_\odot$]")
+        axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log M_\odot$]")
         axes.set_xlim([13.95, 15.45])
         # axes.set_ylim([5e6, 1e11])
         axes.set_xticks(np.linspace(14.0, 15.4, num=8))
@@ -636,11 +636,11 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             what = "fraction"
             sfx = ""
         if self.gas_domain == "central":
-            axes.set_ylabel(fr"Cool gas {what} within $0.05R_{{200}}$ {sfx}")
+            axes.set_ylabel(fr"Cool gas {what} within $0.05R_{{200c}}$ {sfx}")
         elif self.gas_domain == "vr":
-            axes.set_ylabel(fr"Cool gas {what} within $R_{{200}}$ {sfx}")
+            axes.set_ylabel(fr"Cool gas {what} within $R_{{200c}}$ {sfx}")
         else:
-            axes.set_ylabel(fr"Cool gas {what} within $2R_{{200}}$ {sfx}")
+            axes.set_ylabel(fr"Cool gas {what} within $2R_{{200c}}$ {sfx}")
         axes.set_yscale("log")
 
         logging.debug(f"Smallest gas {what} value: {np.min(gas_fraction):e}")

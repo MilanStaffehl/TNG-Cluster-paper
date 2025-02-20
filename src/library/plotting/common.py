@@ -743,7 +743,7 @@ def plot_cluster_line_plot(
         matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap),
         ax=axes,
         location="right",
-        label="$log_{10} M_{200}$ at z = 0",
+        label="$log_{10} M_{200c}$ at z = 0",
     )
 
     # plot mean and median
