@@ -163,13 +163,13 @@ class ParentCategoryBarPlotPipeline(base.Pipeline):
                 **patch_config,
                 facecolor="none",
                 hatch=r"\\\\\\",
-                label=r"At crossing $2 R_{200}$",
+                label=r"At crossing $2 R_{200c}$",
             ),
             matplotlib.patches.Patch(
                 **patch_config,
                 facecolor="none",
                 hatch="......",
-                label=r"At crossing $1 R_{200}$",
+                label=r"At crossing $1 R_{200c}$",
             ),
             matplotlib.patches.Patch(
                 **patch_config,
@@ -266,7 +266,7 @@ class PlotTracerFractionInRadius(base.Pipeline):
         for ident_flag, fractions in mapping.items():
             logging.info(f"Plotting fraction {ident_flag.replace('_', ' ')}.")
             fig, axes = plt.subplots(figsize=(5, 4))
-            threshold = r"$R_{200}$"
+            threshold = r"$R_{200c}$"
             if ident_flag == "within_2Rvir":
                 threshold = threshold.replace("$R", "$2R")
             axes.set_ylabel(f"Tracer fraction within {threshold}")
@@ -352,6 +352,38 @@ class ParentCategoryWithClusterMass(base.Pipeline):
         archive.close()
 
         # Step 5: plot results
+        if self.combine_panels:
+            pass
+        else:
+            self._plot_individual_panels(
+                masses, pc_mass_1Rvir, pc_mass_2Rvir, pc_mass_z0
+            )
+
+        logging.info(
+            "Done! Successfully plotted mass dependence of parent category!"
+        )
+        return 0
+
+    def _plot_individual_panels(
+        self,
+        masses: NDArray,
+        pc_mass_1Rvir: NDArray,
+        pc_mass_2Rvir: NDArray,
+        pc_mass_z0: NDArray,
+    ) -> None:
+        """
+        Plot the mass dependence as three separate figures.
+
+        :param masses: List of cluster masses in solar masses (not log!).
+            Shape (N, ).
+        :param pc_mass_1Rvir: Parent category mean masses for each
+            cluster at crossing virial radius. Must have shape (N, 5).
+        :param pc_mass_2Rvir: Parent category mean masses for each
+            cluster at crossing 2R_vir. Must have shape (N, 5).
+        :param pc_mass_z0: Parent category mean masses for each
+            cluster at redshift zero. Must have shape (N, 5).
+        :return: None, figures are saved to file.
+        """
         logging.info("Start plotting mass plots.")
         parent_categories = [
             "Unbound",
@@ -361,13 +393,13 @@ class ParentCategoryWithClusterMass(base.Pipeline):
             "Never crossed",
         ]
         plot_categories = {
-            "At crossing $1 R_{200}$": pc_mass_1Rvir,
-            "At crossing $2 R_{200}$": pc_mass_2Rvir,
+            "At crossing $1 R_{200c}$": pc_mass_1Rvir,
+            "At crossing $2 R_{200c}$": pc_mass_2Rvir,
             "At redshift $z = 0$": pc_mass_z0,
         }
         ident_flags = {
-            "At crossing $1 R_{200}$": "at_crossing_1Rvir",
-            "At crossing $2 R_{200}$": "at_crossing_2Rvir",
+            "At crossing $1 R_{200c}$": "at_crossing_1Rvir",
+            "At crossing $2 R_{200c}$": "at_crossing_2Rvir",
             "At redshift $z = 0$": "at_redshift_zero",
         }
         cmap = matplotlib.cm.get_cmap("turbo_r")
@@ -377,7 +409,7 @@ class ParentCategoryWithClusterMass(base.Pipeline):
         for plot_type, data in plot_categories.items():
             logging.debug(f"Plotting mass plot for {plot_type}.")
             fig, axes = plt.subplots(figsize=(4, 4))
-            axes.set_xlabel(r"Halo mass $M_{200}$ [$\log_{10} M_\odot$]")
+            axes.set_xlabel(r"Halo mass $M_{200c}$ [$\log_{10} M_\odot$]")
             axes.set_ylabel(r"Tracer mass [$M_\odot$]")
             axes.set_yscale("log")
 
@@ -406,11 +438,6 @@ class ParentCategoryWithClusterMass(base.Pipeline):
 
             # save figure
             self._save_fig(fig, ident_flag=ident_flags[plot_type])
-
-        logging.info(
-            "Done! Successfully plotted mass dependence of parent category!"
-        )
-        return 0
 
     @staticmethod
     def _sum_masses(category_index: NDArray, counts: NDArray) -> NDArray:
