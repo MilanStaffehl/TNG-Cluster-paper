@@ -639,7 +639,7 @@ def label_snapshots_with_redshift(
 
     # zip args
     args = (
-        (axes, tick_positions_z, zs, "Redshift z"),
+        (axes, tick_positions_z, zs, "Redshift"),
         (sec_axes, tick_positions_t, ts, "Lookback time [Gyr]")
     )
 

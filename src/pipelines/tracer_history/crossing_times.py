@@ -47,6 +47,7 @@ class CommonPlotMixin:
         legend_title: str,
         ident_flag: str,
         subdir: str | None,
+        xlabel: str = "Crossing redshift",
         color_first: str = "teal",
         color_last: str = "purple",
         label_first: str = "First crossing",
@@ -60,6 +61,7 @@ class CommonPlotMixin:
         :param legend_title: Title for the legend.
         :param ident_flag: Ident flag for the figure.
         :param subdir: Subdir for the figure.
+        :param xlabel: x-axis label.
         :param color_first: Color for first crossing lines.
         :param color_last: Color for last crossing lines.
         :param label_first: Label for the legend of the first crossing.
@@ -69,7 +71,7 @@ class CommonPlotMixin:
         # create and configure a figure
         fig, axes = plt.subplots(figsize=(4, 4))
         zs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
-        axes.set_xlabel("Estimated crossing redshift [z]")
+        axes.set_xlabel(xlabel)
         axes.set_ylabel(r"Tracer mass [$\log_{10} M_\odot$]")
         axes.set_yscale("log")
 
@@ -676,6 +678,7 @@ class PlotCoolingTimesPlots(CommonPlotMixin, base.Pipeline):
                 title,
                 f"distribution_z{zoom_id:03d}",
                 f"individuals/zoom_in_{zoom_id}",
+                xlabel="Cooling redshift",
                 color_first="orange",
                 color_last="navy",
                 label_first="First cooling",
@@ -708,7 +711,8 @@ class PlotCoolingTimesPlots(CommonPlotMixin, base.Pipeline):
             all_last_coolings,
             title,
             "distribution_unweighted",
-            None,
+            subdir=None,
+            xlabel="Cooling redshift",
             color_first="orange",
             color_last="navy",
             label_first="First cooling",

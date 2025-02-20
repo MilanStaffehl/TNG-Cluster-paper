@@ -26,7 +26,7 @@ DistanceToMP:
   normalized:
     min: -2.5
     max: 2.5
-    label: "Distance from cluster center [$R_{vir}$]"
+    label: "Distance from cluster center [$R_{200c}$]"
     log: true
   individual-log: false
   zoomed:

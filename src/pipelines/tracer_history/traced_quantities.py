@@ -193,7 +193,7 @@ class HistogramMixin:
                 mpb_data[self.config.radius_field] * a,  # physical kpc
             )
         elif self.quantity == "DistanceToMP":
-            label = r"$R_{200}$"
+            label = r"$R_{200c}$"
             mpb_data = sublink_daq.get_mpb_properties(
                 self.config.base_path,
                 self.config.snap_num,

@@ -77,35 +77,46 @@ class PlotParentCategoryPlots(base.Pipeline):
         radii = cluster_data[self.config.radius_field]
 
         category_map = {
-            "with no host": 0,
-            "in other halos": 1,
-            "in inner fuzz": 2,
-            "in primaries": 3,
-            "in satellites": 4,
+            "with no host": (0, "Unbound"),
+            "in other halos": (1, "Other halo"),
+            "in inner fuzz": (2, "Inner fuzz"),
+            "in primaries": (3, "Primary"),
+            "in satellites": (4, "Satellite"),
         }
 
         # Step 3: plot fraction of tracers at current redshift
         if PlotType.FRACTION_PLOT in self.plot_types:
-            for name, num in category_map.items():
+            for name, cat in category_map.items():
                 logging.info(f"Plotting fraction of tracers {name}.")
-                self._plot_category_fractions(num, name, masses, archive_file)
+                self._plot_category_fractions(
+                    cat[0], name, cat[1], masses, archive_file
+                )
             # additional plots not containing a single category
             self._plot_category_fractions_multiple(
-                [2, 3], "in primary halo", masses, archive_file
+                [2, 3],
+                "in primary halo",
+                "Primary halo",
+                masses,
+                archive_file
             )
 
         # Step 4: plot fraction of tracers within R_vir
         if PlotType.FRACTION_PLOT_RVIR in self.plot_types:
-            for name, num in category_map.items():
+            for name, cat in category_map.items():
                 logging.info(
                     f"Plotting fraction of tracers within R_vir {name}."
                 )
                 self._plot_category_fractions(
-                    num, name, masses, archive_file, radii
+                    cat[0], name, cat[1], masses, archive_file, radii
                 )
             # additional plots not containing a single category
             self._plot_category_fractions_multiple(
-                [2, 3], "in primary halo", masses, archive_file, radii
+                [2, 3],
+                "in primary halo",
+                "Primary halo",
+                masses,
+                archive_file,
+                radii,
             )
 
         # Step 5: plot cumulative fraction of tracers in satellites
@@ -145,6 +156,7 @@ class PlotParentCategoryPlots(base.Pipeline):
         self,
         category: int,
         category_name: str,
+        category_boxlabel: str,
         masses: NDArray,
         archive_file: h5py.File,
         virial_radii: NDArray | None = None,
@@ -154,7 +166,12 @@ class PlotParentCategoryPlots(base.Pipeline):
 
         :param category: The index of the category. Can be 0, 1, 2, 3, 4.
         :param category_name: The name of the category as it should appear
-            in the axes labels and file ident flag.
+            in the y-axes labels and file ident flag. This should be a
+            descriptor that can be placed into the label "Fraction of
+            tracers _", e.g. "in satellites".
+        :param category_boxlabel: The name of the category as it should
+            appear on the small text box label in the figure. This should
+            be the actual name of the category, capitalized.
         :param archive_file: The opened archive file.
         :param virial_radii: Either an array of radii of shape (352, ),
             giving a (virial) radius for every cluster in ckpc, or None.
@@ -184,12 +201,22 @@ class PlotParentCategoryPlots(base.Pipeline):
         # Step 3: figure and axis setup
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_ylabel(f"Fraction of tracers {category_name}")
+        axes.set_ylim((-0.03, 1.03))
         xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
 
         # Step 4: plot lines and mean/median
         common.plot_cluster_line_plot(fig, axes, xs, current_fraction, masses)
 
-        # Step 5: save figure
+        # Step 5: add a label for the category name
+        bbox_config = {
+            "alpha": 0.7,
+            "facecolor": "white",
+            "edgecolor": "black",
+            "boxstyle": "round,pad=0.5",
+        }
+        axes.text(0.002, 0.92, category_boxlabel, bbox=bbox_config)
+
+        # Step 6: save figure
         category_file = category_name.replace(" ", "_")
         sfx = "" if virial_radii is None else "_within_1Rvir"
         self._save_fig(
@@ -199,10 +226,12 @@ class PlotParentCategoryPlots(base.Pipeline):
             f"Finished saving plot for {category_name} fraction to file."
         )
 
+    # TODO: large overlap with previous method; combine!
     def _plot_category_fractions_multiple(
         self,
         categories: list[int],
         category_name: str,
+        category_boxlabel: str,
         masses: NDArray,
         archive_file: h5py.File,
         virial_radii: NDArray | None = None,
@@ -215,7 +244,12 @@ class PlotParentCategoryPlots(base.Pipeline):
         :param categories: List of parent categories to include. Can
             include 0, 1, 2, 3, 4.
         :param category_name: The name of the category as it should appear
-            in the axes labels and file ident flag.
+            in the y-axes labels and file ident flag. This should be a
+            descriptor that can be placed into the label "Fraction of
+            tracers _", e.g. "in satellites".
+        :param category_boxlabel: The name of the category as it should
+            appear on the small text box label in the figure. This should
+            be the actual name of the category, capitalized.
         :param archive_file: The opened archive file.
         :param virial_radii: Either an array of radii of shape (352, ),
             giving a (virial) radius for every cluster in ckpc, or None.
@@ -248,12 +282,22 @@ class PlotParentCategoryPlots(base.Pipeline):
         # Step 3: figure and axis setup
         fig, axes = plt.subplots(figsize=(5, 4))
         axes.set_ylabel(f"Fraction of tracers in {category_name}")
+        axes.set_ylim((-0.03, 1.03))
         xs = common.make_redshift_plot(axes, start=constants.MIN_SNAP)
 
         # Step 4: plot lines and mean/median
         common.plot_cluster_line_plot(fig, axes, xs, current_fraction, masses)
 
-        # Step 5: save figure
+        # Step 5: add a label for the category name
+        bbox_config = {
+            "alpha": 0.7,
+            "facecolor": "white",
+            "edgecolor": "black",
+            "boxstyle": "round,pad=0.5",
+        }
+        axes.text(0.002, 0.92, category_boxlabel, bbox=bbox_config)
+
+        # Step 6: save figure
         category_file = category_name.replace(" ", "_")
         sfx = "" if virial_radii is None else "_within_1Rvir"
         self._save_fig(
