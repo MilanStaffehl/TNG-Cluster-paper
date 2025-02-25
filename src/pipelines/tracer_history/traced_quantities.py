@@ -931,7 +931,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                         **plot_config,
                     )
                 if need_legend:
-                    axes.legend()
+                    axes.legend(frameon=False, labelcolor="white")
 
             # Step 4: save figure
             norm_flag = "_normalized" if self.normalize else ""
@@ -1032,8 +1032,13 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
                             **plot_config
                         )
                     axes.legend(
-                        title=f"Category: {category.replace('_', ' ')}"
+                        title=f"Category: {category.replace('_', ' ')}",
+                        frameon=False,
+                        labelcolor="white",
                     )
+                    # manually set title color because of course mpl just
+                    # cannot do it itself properly.... Geez, this library...
+                    axes.get_legend().get_title().set_color("white")
 
                 # Step 5: save figure
                 norm_flag = "_normalized" if self.normalize else ""
