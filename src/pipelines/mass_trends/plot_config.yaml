@@ -310,9 +310,9 @@ bh-progenitors:
   default-scale: log
   daq-field-name: BHProgenitors
   label:
-    log: "Number of progenitors [$\\log_{10}$]"
-    linear: "Number of progenitors"
-    dev: ["N_{prog}", "Progenitors of SMBH"]
+    log: "Number of SMBH progenitors [$\\log_{10}$]"
+    linear: "Number of SMBH progenitors"
+    dev: ["N_{SMBH, prog}", "Progenitors of SMBH"]
   cbar-config:
     norm: default
     cmap: cmr.chroma
