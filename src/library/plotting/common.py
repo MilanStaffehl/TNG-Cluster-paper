@@ -586,6 +586,7 @@ def label_snapshots_with_redshift(
     which_axis: Literal["x", "y"] = "x",
     tick_positions_z: NDArray = np.array([0.01, 0.1, 0.5, 1, 2, 5]),
     tick_positions_t: NDArray = np.array([0.1, 1, 5, 8, 11, 13]),
+    flip_axes: bool = True,
 ) -> NDArray | None:
     """
     Label an axis with snapshot numbers with redshift instead.
@@ -597,6 +598,13 @@ def label_snapshots_with_redshift(
     snapshots.
 
     Function also adds a secondary axis showing the lookback time.
+
+    .. note:: To enable redshift axes that go from low to high redshift,
+        the redshift axis is by default flipped. Note however that the
+        returned snapshot numbers, which can be used to add additional
+        data onto the plot, are still in ascending order and should be
+        used as if the axes were not yet flipped. Flipping the redshift
+        axis can be disabled by setting ``flip_axes=False``.
 
     :param axes: The figure axes object for which to label the snapshot
         axes with redshifts.
@@ -615,6 +623,15 @@ def label_snapshots_with_redshift(
         place a major tick and a corresponding label. Defaults to
         numbered ticks at lookback times 0.1 Gyr, 1 Gyr, 5 Gyr, 8 Gyr,
         11 Gyr, and 13 Gyr.
+    :param flip_axes: Whether to flip the redshift axes. Typically,
+        data is plotted in ordering of snapshots, i.e. from low snapshot
+        and high redshift to high snapshots and low redshift. This can
+        cause the axes to counterintuitively go from high redshift and
+        high lookback time to low redshift and low lookback time. This
+        is especially jarring when plotting on the x-axis. To invert the
+        redshift axis, this is set to True by default, but can be
+        disabled again to keep the redshift axis ordered by snapshot
+        order.
     :return: The array of snapshots, evenly spaced between ``start`` and
         ``stop``, to use as values for the transformed axis.
     """
@@ -664,6 +681,9 @@ def label_snapshots_with_redshift(
         getattr(ax, f"set_{which_axis}ticks")(minor_ticks_s, minor=True)
         # set axis limits
         getattr(ax, f"set_{which_axis}lim")(axis_limits)
+        if flip_axes:
+            # flip axes so they go from lower redshift to higher redshift
+            getattr(ax, f"invert_{which_axis}axis")()
 
     return np.arange(start, stop + 1, step=1)
 

@@ -820,7 +820,7 @@ class PlotSimpleQuantityWithTimePipeline(HistogramMixin, base.Pipeline):
 
             # Step 4: set up y-values and y-axis ticks and labels
             y_base = common.label_snapshots_with_redshift(
-                axes, constants.MIN_SNAP, 99, (5, 115), "y"
+                axes, constants.MIN_SNAP, 99, (5, 115), "y", flip_axes=False
             )
 
             # Step 5: plot baselines
