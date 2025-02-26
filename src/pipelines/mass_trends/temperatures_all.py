@@ -362,8 +362,37 @@ class IndividualsMassTrendPipeline(base.Pipeline):
             axes=a[2][1],
         )
 
+        # add text labels for temperature range
+        a[0][1].text(
+            8.5,
+            3e13,
+            r"Cool ($T \leq 10^{4.5}\,\rm K$)",
+            color=common.temperature_colors_named["cool"],
+            fontsize="small",
+        )
+        a[1][1].text(
+            8.5,
+            3e13,
+            r"Warm",
+            color=common.temperature_colors_named["warm"],
+            fontsize="small",
+        )
+        a[1][1].text(
+            8.5,
+            5e12,
+            r"($10^{4.5}\,\rm K < T \leq 10^{5.5}\,\rm K$)",
+            color=common.temperature_colors_named["warm"],
+            fontsize=8,
+        )
+        a[2][1].text(
+            8.5,
+            3e13,
+            r"Hot ($> 10^{5.5}\,\rm K$)",
+            color=common.temperature_colors_named["hot"],
+            fontsize="small",
+        )
+
         # save figure
-        logging.info(type(f))
         self._save_fig(f, tight_layout=False)
         logging.info("Successfully saved mass trend plot to file!")
         return
