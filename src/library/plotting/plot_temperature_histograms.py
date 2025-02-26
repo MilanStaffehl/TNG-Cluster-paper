@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.ma as ma
 
-from library.plotting import colormaps
+from library.plotting import colormaps, common
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -160,6 +160,7 @@ def overplot_virial_temperatures(
     mass_bin_mask: NDArray,
     color: str = "blue",
     omit_ranges: bool = False,
+    linewidth: float = 1.0,
 ) -> tuple[Figure, Axes]:
     """
     Overplot the range of virial temperatures onto the given axes.
@@ -188,6 +189,8 @@ def overplot_virial_temperatures(
         color name. Defaults to 'blue'.
     :param omit_ranges: Whether to plot the ranges or leave them out.
         Defaults to False (i.e. plotting ranges).
+    :param linewidth: The width of the line for the virial temperature
+        in points. Defaults to 1.0.
     :return: Tuple of figure and axes, updated for overplot.
     """
     # find virial temperatures, only for current bin
@@ -205,8 +208,8 @@ def overplot_virial_temperatures(
     logging.debug("Overplotting virial temperatures.")
     plot_config = {
         "color": color,
-        "linewidth": 1.0,
-        "alpha": 0.6,
+        "linewidth": linewidth,
+        "alpha": 1,
     }
     axes.axvline(np.log10(mean_temp), linestyle="dashed", **plot_config)
 
@@ -226,26 +229,54 @@ def overplot_virial_temperatures(
 
 
 def overplot_temperature_divisions(
-    fig: Figure, axes: Axes, divisions: tuple[float, float]
-) -> tuple[Figure, Axes]:
+    axes: Axes,
+    divisions: tuple[float, float],
+    temperature_range: tuple[float, float],
+) -> Axes:
     """
     Add vertical lines at the specified temperatures to the plot.
 
-    :param fig: The figure object, returned as-is.
     :param axes: The axis onto which to plot the temperature divisions.
     :param divisions: The temperature divisions to plot onto the axes.
         Must be in the unit of the temperature axis (i.e. log K or
         log T_vir).
+    :param temperature_range: Minimum and maximum temperature, equal to
+        the min and max x-axis values.
     :return: Figure and axes objects as tuple.
     """
+    logging.info("Adding temperature regime divisions.")
+    div_config = {
+        "y1": [1e-8, 1e-8],
+        "y2": [1.0, 1.0],
+        "step": "pre",
+        "edgecolor": "none",
+        "alpha": 0.1,
+        "zorder": 1,
+    }
+    axes.fill_between(
+        [temperature_range[0] - 0.1, divisions[0]],
+        color=common.temperature_colors_named["cool"],
+        **div_config
+    )
+    axes.fill_between(
+        divisions, color=common.temperature_colors_named["warm"], **div_config
+    )
+    axes.fill_between(
+        [divisions[1], temperature_range[1] + 0.1],
+        color=common.temperature_colors_named["hot"],
+        **div_config
+    )
+
     line_config = {
-        "linestyle": "dashdot",
+        "linestyle": "solid",
         "color": "black",
         "linewidth": 1,
+        "alpha": 0.2,
+        "zorder": 2,
     }
     axes.axvline(divisions[0], **line_config)
     axes.axvline(divisions[1], **line_config)
-    return fig, axes
+    return axes
 
 
 def plot_td_gallery(
@@ -400,8 +431,10 @@ def plot_tds_in_one(
             "histtype": "step",
             "label":
                 (
-                    rf"${np.log10(mass_bin_edges[idx]):.0f} < \log \ M_\odot "
-                    rf"< {np.log10(mass_bin_edges[idx + 1]):.0f}$"
+                    rf"$10^{{{np.log10(mass_bin_edges[idx]):.0f}}} "
+                    rf"\rm{{M_\odot}} < M_{{200c}} \leq "
+                    rf"10^{{{np.log10(mass_bin_edges[idx + 1]):.0f}}} "
+                    rf"\rm{{M_\odot}}$"
                 ),
             "edgecolor": color,
             "log": log,
@@ -419,6 +452,7 @@ def plot_tds_in_one(
         loc="lower center",
         # bbox_to_anchor=(0.5, 1.1),
         ncol=2,  # len(means) // 2,
+        fontsize="small",
     )
     return fig, axes
 

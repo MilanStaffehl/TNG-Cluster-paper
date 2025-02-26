@@ -287,7 +287,7 @@ class TemperatureHistogramsPipeline(base.Pipeline):
                 )
             if self.temperature_divisions:
                 plot_temperature_histograms.overplot_temperature_divisions(
-                    f, a, self.temperature_divisions
+                    a, self.temperature_divisions, self.temperature_range
                 )
             # save figure
 
@@ -422,11 +422,17 @@ class CombinedPlotsPipeline(TemperatureHistogramsPipeline):
             for mass_bin in range(len(self.mass_bin_edges) - 1):
                 c = colormaps.sample_cmap(colormap, 1 / len(mean), mass_bin)
                 plot_temperature_histograms.overplot_virial_temperatures(
-                    fig, axes, virial_temperatures, mass_bin, mass_bin_mask, c
+                    fig,
+                    axes,
+                    virial_temperatures,
+                    mass_bin,
+                    mass_bin_mask,
+                    c,
+                    linewidth=1.4,
                 )
-        if self.temperature_divisions:
+        if self.temperature_divisions is not None:
             plot_temperature_histograms.overplot_temperature_divisions(
-                fig, axes, self.temperature_divisions
+                axes, self.temperature_divisions, self.temperature_range
             )
 
         # save figure
@@ -506,11 +512,13 @@ class CombinedPlotsFromFilePipeline(FromFilePipeline):
                     mass_bin,
                     mass_bin_mask,
                     c,
-                    True
+                    True,
+                    linewidth=1.5,
                 )
         if self.temperature_divisions:
+            axes.set_xlim((2.9, 8.1))
             plot_temperature_histograms.overplot_temperature_divisions(
-                fig, axes, self.temperature_divisions
+                axes, self.temperature_divisions, self.temperature_range
             )
 
         # save figure
@@ -592,7 +600,7 @@ class PlotGridPipeline(FromFilePipeline):
                 )
             if self.temperature_divisions:
                 plot_temperature_histograms.overplot_temperature_divisions(
-                    f, axes, self.temperature_divisions
+                    axes, self.temperature_divisions, self.temperature_range
                 )
 
         # save figure
