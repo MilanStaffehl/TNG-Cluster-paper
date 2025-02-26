@@ -83,7 +83,11 @@ class CommonPlotMixin:
 
         # plot histograms
         logbins = np.geomspace(zs[-1], zs[0], 21)
-        weights = constants.TRACER_MASS * np.ones_like(first_crossing)
+        # normalize by number of clusters by dividing by 352
+        weights = (
+            constants.TRACER_MASS * np.ones_like(first_crossing)
+            / self.n_clusters
+        )
         axes.hist(
             first_crossing,
             bins=logbins,
