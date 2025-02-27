@@ -50,6 +50,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
     n_clusters: ClassVar[int] = 632  # total number of clusters
     n300: ClassVar[int] = 280  # number of clusters in TNG300-1
     nclstr: ClassVar[int] = 352  # number of clusters in TNG-Cluster
+    cmap: ClassVar[str] = "plasma"  # colorbar for individual curves
 
     def __post_init__(self):
         super().__post_init__()
@@ -314,6 +315,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 current_masses,
                 i,
                 i + 1,
+                alpha=0.05
             )
             # add a label describing the mass bin edges
             label = (
@@ -330,11 +332,9 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
                 verticalalignment="top",
             )
             # add a line at zero and at mean virial velocity
-            axes.axvline(0, alpha=1, color="grey", linestyle="solid")
+            axes.axvline(0, alpha=1, color="dimgrey", linestyle="solid")
             axes.axvline(
-                -np.mean(current_vir_vel),
-                color="darkgrey",
-                linestyle="dashed"
+                -np.mean(current_vir_vel), color="dimgrey", linestyle="dashed"
             )
             # add a label for the fraction left and right of zero
             self._add_fraction_labels(axes, current_mean)
@@ -363,6 +363,34 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         # add label for fractions left and right of zero
         self._add_fraction_labels(axes, total_mean)
         self._save_fig(fig, ident_flag="total")
+
+        # plot colorbar separately
+        self._plot_colorbar()
+
+    def _plot_colorbar(self) -> None:
+        """
+        Plot a colorbar for all eight panels combined as separate figure.
+
+        :return: None.
+        """
+        fig, axes = plt.subplots(figsize=(5, 0.2), layout="constrained")
+        cmap = matplotlib.cm.get_cmap(self.cmap)
+        norm = matplotlib.colors.Normalize(-0.5, 0.5)
+        cbar = fig.colorbar(
+            matplotlib.cm.ScalarMappable(norm=norm, cmap=cmap),
+            cax=axes,
+            orientation="horizontal",
+            label=r"$\Delta M$"
+        )
+        cbar.set_ticks(
+            [-0.5, 0, 0.5],
+            labels=[
+                r"$M_{\rm bin, min}$",
+                r"$M_{\rm bin, center}$",
+                r"$M_{\rm bin, max}$",
+            ],
+        )
+        self._save_fig(fig, ident_flag="colorbar")
 
     def _prepare_figure(self) -> tuple[Figure, Axes]:
         """
@@ -407,7 +435,7 @@ class MassBinnedVelocityDistributionPipeline(DiagnosticsPipeline):
         :return: The mean and median histograms respectively.
         """
         # create a colormap for the current mass range
-        cmap = matplotlib.cm.get_cmap("plasma")
+        cmap = matplotlib.cm.get_cmap(self.cmap)
         norm = matplotlib.colors.Normalize(
             vmin=self.mass_bin_edges[vmin_idx],
             vmax=self.mass_bin_edges[vmax_idx]
