@@ -166,33 +166,7 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             ident_flag = ""
 
         # Step 2: acquire data to color the points with
-        try:
-            field_name = self.plot_config[self.field]["daq-field-name"]
-        except KeyError:
-            logging.fatal(
-                f"Unsupported field name {self.field}. Config file contains "
-                f"no such field or has no field name for the data acquisition "
-                f"function available."
-            )
-            raise
-        try:
-            color_quantity = clusters_daq.get_cluster_property(
-                field_name, self.config.snap_num, self.config.mass_field
-            )
-        except clusters_daq.UnsupportedFieldError as exc:
-            logging.error(
-                f"Unknown or unsupported field name {self.field}. Tried to "
-                f"load field with name {field_name}, but encountered an "
-                f"exception:\n\n{exc}"
-            )
-            raise
-        else:
-            # since there is color data, save it to file
-            if self.to_file:
-                logging.info(f"Writing color data {self.field} to file.")
-                filename = f"clusters_color_{self.field.replace('-', '_')}.npy"
-                filepath = self.paths["data_dir"] / "color_data"
-                np.save(filepath / filename, color_quantity)
+        color_quantity = self._get_color_quantity()
 
         # Step 3: plot data, save figure
         kwargs = self._get_plot_kwargs()
@@ -597,6 +571,41 @@ class ClusterCoolGasMassTrendPipeline(DiagnosticsPipeline):
             logging.info(f"Wrote base data to file under {base_data_path}.")
 
         return halo_masses, cool_gas_fracs, cool_gas_masses
+
+    def _get_color_quantity(self) -> NDArray:
+        """
+        Acquire and return the quantity by which to color the data points.
+
+        :return: An array of the selected quantity,of shape (632, ).
+        """
+        try:
+            field_name = self.plot_config[self.field]["daq-field-name"]
+        except KeyError:
+            logging.fatal(
+                f"Unsupported field name {self.field}. Config file contains "
+                f"no such field or has no field name for the data acquisition "
+                f"function available."
+            )
+            raise
+        try:
+            color_quantity = clusters_daq.get_cluster_property(
+                field_name, self.config.snap_num, self.config.mass_field
+            )
+        except clusters_daq.UnsupportedFieldError as exc:
+            logging.error(
+                f"Unknown or unsupported field name {self.field}. Tried to "
+                f"load field with name {field_name}, but encountered an "
+                f"exception:\n\n{exc}"
+            )
+            raise
+        else:
+            # since there is color data, save it to file
+            if self.to_file:
+                logging.info(f"Writing color data {self.field} to file.")
+                filename = f"clusters_color_{self.field.replace('-', '_')}.npy"
+                filepath = self.paths["data_dir"] / "color_data"
+                np.save(filepath / filename, color_quantity)
+        return color_quantity
 
     def _plot(
         self,

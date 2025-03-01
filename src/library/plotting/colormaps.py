@@ -31,6 +31,7 @@ _color_dict = {
 BlackSeismic = cl.LinearSegmentedColormap("BlackSeismic", _color_dict)
 
 
+# DEPRECATE: cmasher has a function like this: take_cmap_colors()
 def sample_cmap(
     colormap: str,
     samples: int,
