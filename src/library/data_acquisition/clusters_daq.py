@@ -253,8 +253,8 @@ def _get_number_of_massive_satellites(
     # load mass for all subhalos in TNG300-1
     logging.info("Loading subhalo masses for TNG300-1 subhalos.")
     satellite_masses = il.groupcat.loadSubhalos(
-        tng_300_base_path, snap_num, fields=["SubhaloMass"]
-    )
+        tng_300_base_path, snap_num, fields=["SubhaloMassType"]
+    )[:, 4]  # stars only
     satellite_masses = units.UnitConverter.convert(
         satellite_masses, "SubhaloMass"
     )
@@ -284,8 +284,8 @@ def _get_number_of_massive_satellites(
     # load mass for all subhalos in TNG-Cluster
     logging.info("Loading subhalo masses for TNG-Cluster subhalos.")
     satellite_masses = il.groupcat.loadSubhalos(
-        tng_cluster_basepath, snap_num, fields=["SubhaloMass"]
-    )
+        tng_cluster_basepath, snap_num, fields=["SubhaloMassType"]
+    )[:, 4]
     satellite_masses = units.UnitConverter.convert(
         satellite_masses, "SubhaloMass"
     )

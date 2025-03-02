@@ -4,7 +4,7 @@ sfr:
   label:
     log: "SFR [$\\log(M_\\odot / yr)$]"
     linear: "SFR [$M_\\odot / yr$]"
-    dev: ["SFR", "Total SFR in halo"]
+    dev: ["\\rm SFR", "Total SFR in halo"]
   cbar-config:
     norm: default
     vmin:
@@ -24,7 +24,7 @@ sfr-central:
   label:
     log: "Central SFR [$\\log(M_\\odot / yr)$]"
     linear: "Central SFR [$M_\\odot / yr$]"
-    dev: ["SFR_c", "SFR in central galaxy"]
+    dev: ["\\rm SFR_c", "SFR in central galaxy"]
   cbar-config:
     norm: default
     vmin:
@@ -59,7 +59,7 @@ gas-metallicity-central:
   label:
     log: "Central gas metallicity [$\\log Z_\\odot$]"
     linear: "Central gas metallicity [$Z_\\odot$]"
-    dev: ["Z_c", "Gas metallicity in central galaxy"]
+    dev: ["Z_{\\rm c}", "Gas metallicity in central galaxy"]
   cbar-config:
     norm: default
     cmap: cividis
@@ -75,8 +75,8 @@ massive-satellites:
   default-scale: log
   daq-field-name: MassiveSatellites
   label:
-    log: "Number of satellites with $M > 10^{9} M_\\odot$ [$\\log_{10}$]"
-    linear: "Number of satellites with $M > 10^{9} M_\\odot$"
+    log: "Number of satellites with $M_* > 10^{9} M_\\odot$ [$\\log_{10}$]"
+    linear: "Number of satellites with $M_* > 10^{9} M_\\odot$"
     dev: ["N_{\\rm sat}", "Number of massive satellites"]
   cbar-config:
     norm: default
@@ -92,7 +92,7 @@ stellar-mass:
   label:
     log: "Stellar mass of FoF group [$\\log_{10} M_\\odot$]"
     linear: "Stellar mass of FoF group [$M_\\odot$]"
-    dev: ["M_{\\ast, halo}", "Stellar mass in cluster"]
+    dev: ["M_{\\ast,\\rm halo}", "Stellar mass in cluster"]
   cbar-config:
     norm: default
     cmap: cmr.eclipse
@@ -107,7 +107,7 @@ stellar-mass-central:
   label:
     log: "Stellar mass of central galaxy [$\\log_{10} M_\\odot$]"
     linear: "Stellar mass of central galaxy [$M_\\odot$]"
-    dev: ["M_{\\ast, central}", "Stellar mass in central galaxy"]
+    dev: ["M_{\\ast,\\rm central}", "Stellar mass in central galaxy"]
   cbar-config:
     norm: default
     cmap: cmr.eclipse
@@ -120,9 +120,9 @@ total-bh-mass:
   default-scale: log
   daq-field-name: TotalBHMass
   label:
-    log: "Total BH mass [$\\log M_\\odot$]"
-    linear: "Total BH mass [$M_\\odot$]"
-    dev: ["M_{BH, tot}", "Total mass of all BH"]
+    log: "Total SMBH mass [$\\log M_\\odot$]"
+    linear: "Total SMBH mass [$M_\\odot$]"
+    dev: ["M_{\\rm SMBH, tot}", "Total mass of all SMBHs"]
   cbar-config:
     norm: default
     cmap: plasma
@@ -135,9 +135,9 @@ bh-mass:
   default-scale: log
   daq-field-name: CentralBHMass
   label:
-    log: "Most massive BH mass [$\\log M_\\odot$]"
-    linear: "Most massive BH mass [$M_\\odot$]"
-    dev: ["M_{SMBH}", "Mass of most massive BH"]
+    log: "Most massive SMBH mass [$\\log M_\\odot$]"
+    linear: "Most massive SMBH mass [$M_\\odot$]"
+    dev: ["M_{\\rm SMBH}", "Mass of most massive SMBH"]
   cbar-config:
     norm: default
     cmap: plasma
@@ -150,9 +150,9 @@ total-bh-mdot:
   default-scale: log
   daq-field-name: TotalBHMdot
   label:
-    log: "BH accretion rate [$\\log (M_\\odot / Gyr)$]"
-    linear: "BH accretion rate [$M_\\odot / Gyr$]"
-    dev: ["\\dot{M}_{BH, tot}", "Total BH accretion rate"]
+    log: "SMBH accretion rate [$\\log (M_\\odot / Gyr)$]"
+    linear: "SMBH accretion rate [$M_\\odot / Gyr$]"
+    dev: ["\\dot{M}_{\\rm SMBH, tot}", "Total SMBH accretion rate"]
   cbar-config:
     norm: default
     cmap: magma
@@ -165,9 +165,9 @@ bh-mode:
   default-scale: log
   daq-field-name: CentralBHMode
   label:
-    log: "BH mode [$\\log_{10}(\\mu = (\\dot{M} / \\dot{M}_{Edd}) / \\chi)$]"
-    linear: "BH mode [$\\mu = (\\dot{M} / \\dot{M}_{Edd}) / \\chi$]"
-    dev: ["\\mu_{\\rm mode}", "Black hole mode index"]
+    log: "SMBH mode [$\\log_{10}(\\mu = (\\dot{M} / \\dot{M}_{Edd}) / \\chi)$]"
+    linear: "SMBH mode [$\\mu = (\\dot{M} / \\dot{M}_{Edd}) / \\chi$]"
+    dev: ["\\mu_{\\rm mode}", "SMBH mode index"]
   cbar-config:
     norm: twoslope
     cmap: ["winter", "autumn"]
@@ -192,7 +192,7 @@ bh-cumulative-energy-frac:
   label:
     log: "Cumulative kinetic energy fraction [$\\log_{10}$]"
     linear: "Cumulative kinetic energy fraction"
-    dev: ["E_{kin} / E_{tot}", "Energy fraction"]
+    dev: ["E_{\\rm kin} / E_{\\rm tot}", "Energy fraction"]
   cbar-config:
     norm: default
     cmap: cmr.emerald
@@ -207,7 +207,7 @@ bh-cumulative-energy-total:
   label:
     log: "Cumulative energy [$\\log(M_\\odot kpc^2 / Gyr^2)$]"
     linear: "Cumulative energy [$M_\\odot kpc^2 / Gyr^2$]"
-    dev: ["E_{cum,tot}", "Injected central BH energy"]
+    dev: ["E_{\\rm cum,tot}", "Injected central SMBH energy"]
   cbar-config:
     norm: default
     cmap: cmr.dusk
@@ -222,7 +222,7 @@ bh-cumulative-energy-kinetic:
   label:
     log: "Cumulative kinetic energy [$\\log(M_\\odot kpc^2 / Gyr^2)$]"
     linear: "Cumulative kinetic energy [$M_\\odot kpc^2 / Gyr^2$]"
-    dev: ["E_{cum,kin}", "Injected kinetic energy"]
+    dev: ["E_{\\rm cum,kin}", "Injected kinetic energy"]
   cbar-config:
     norm: default
     cmap: cmr.cosmic
@@ -237,7 +237,7 @@ bh-cumulative-energy-thermal:
   label:
     log: "Cumulative thermal energy [$\\log(M_\\odot kpc^2 / Gyr^2)$]"
     linear: "Cumulative thermal energy [$M_\\odot kpc^2 / Gyr^2$]"
-    dev: ["E_{cum,th}", "Injected thermal energy"]
+    dev: ["E_{\\rm cum,th}", "Injected thermal energy"]
   cbar-config:
     norm: default
     cmap: cmr.ember
@@ -252,7 +252,7 @@ bh-cumulative-mass-frac:
   label:
     log: "Cumulative accreted mass fraction [$\\log_{10}$]"
     linear: "Cumulative accreted mass fraction"
-    dev: ["M_{kin} / M_{tot}", "Accreted mass ratio"]
+    dev: ["M_{\\rm kin} / M_{\\rm tot}", "Accreted mass ratio"]
   cbar-config:
     norm: default
     cmap: magma
@@ -267,7 +267,7 @@ bh-cumulative-mass-total:
   label:
     log: "Cumulative accreted mass [$\\log_{10}(M_\\odot)$]"
     linear: "Cumulative accreted mass [$M_\\odot$]"
-    dev: ["M_{cum,tot}", "Accreted mass"]
+    dev: ["M_{\\rm cum,tot}", "Accreted mass"]
   cbar-config:
     norm: default
     cmap: cmr.tree
@@ -282,7 +282,7 @@ bh-cumulative-mass-kinetic:
   label:
     log: "Accreted mass (kinetic mode) [$\\log_{10}(M_\\odot)$]"
     linear: "Accreted mass (kinetic mode) [$M_\\odot$]"
-    dev: ["M_{cum,kin}", "Accreted mass kin. mode"]
+    dev: ["M_{\\rm cum,kin}", "Accreted mass kin. mode"]
   cbar-config:
     norm: default
     cmap: cmr.sapphire
@@ -297,7 +297,7 @@ bh-cumulative-mass-thermal:
   label:
     log: "Accreted mass (thermal mode) [$\\log_{10}(M_\\odot)$]"
     linear: "Accreted mass (thermal mode) [$M_\\odot$]"
-    dev: ["M_{cum,th}", "Accreted mass th. mode"]
+    dev: ["M_{\\rm cum,th}", "Accreted mass th. mode"]
   cbar-config:
     norm: default
     cmap: cmr.amber
@@ -312,7 +312,7 @@ bh-progenitors:
   label:
     log: "Number of SMBH progenitors [$\\log_{10}$]"
     linear: "Number of SMBH progenitors"
-    dev: ["N_{SMBH, prog}", "Progenitors of SMBH"]
+    dev: ["N_{\\rm SMBH, prog}", "Progenitors of SMBH"]
   cbar-config:
     norm: default
     cmap: cmr.chroma
@@ -355,7 +355,7 @@ relaxedness-by-mass:
   label:
     log: "$\\log_{10} (M_{central} / M_{tot})$"
     linear: "$M_{central} / M_{tot}$"
-    dev: ["M_{central} / M_{tot}", "relaxedness by mass"]
+    dev: ["M_{\\rm central} / M_{\\rm tot}", "relaxedness by mass"]
   cbar-config:
     norm: twoslope
     cmap: ["gray_r", "autumn"]
@@ -395,7 +395,7 @@ central-cooling-time:
   label:
     log: "Central cooling time [$\\log_{10} Gyr$]"
     linear: "Central cooling time [$Gyr$]"
-    dev: ["CCT", "central cooling time"]
+    dev: ["\\rm CCT", "central cooling time"]
   cbar-config:
     norm: default
     cmap: cmr.cosmic

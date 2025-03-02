@@ -147,7 +147,7 @@ def main(args: argparse.Namespace) -> None:
         )
 
     figurepath = cfg.figures_home / "mass_trends" / "clusters"
-    mass_suffix = "absolute_gas_mass" if args.use_mass else ""
+    mass_suffix = "_absolute_gas_mass" if args.use_mass else ""
     sfx = f"{key}{addin}{mass_suffix}"
     filename = f"mass_trends_statistical_measure_{sfx}.{args.fig_ext}"
     if not figurepath.exists():
