@@ -168,7 +168,8 @@ def plot_scatterplot(
     cbar_label: str = "Color",
     cbar_range: Sequence[float, float] | None = None,
     cbar_caps: str = "neither",
-    suppress_colorbar: bool = False
+    suppress_colorbar: bool = False,
+    zorder: float = 10,
 ) -> tuple[Figure, Axes]:
     """
     Plot a scatterplot of the given values, optionally colored by a third.
@@ -213,6 +214,7 @@ def plot_scatterplot(
         of the colorbar. Must be one of the following: 'neither', 'both',
         'min', 'max'.
     :param suppress_colorbar: Set to True to not add a colorbar.
+    :param zorder: z-order of the scatterplot points. Defaults to 10.
     :return: The tuple of the figure and the axes object, with the plot
         drawn onto them. Returned for convenience, the objects are
         altered in place.
@@ -229,7 +231,7 @@ def plot_scatterplot(
         "s": marker_size,
         "marker": marker_style,
         "alpha": alpha,
-        "zorder": 10,
+        "zorder": zorder,
     }
     # overwrite color if a color quantity is given
     if color_quantity is not None:
