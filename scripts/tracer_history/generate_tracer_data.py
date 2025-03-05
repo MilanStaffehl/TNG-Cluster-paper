@@ -57,6 +57,7 @@ if __name__ == "__main__":
     parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
         description="Generate tracer data for scripts of cool gas origin.",
+        allowed_sims=["TNG-Cluster"],
     )
     parser.remove_argument("to_file")
     parser.remove_argument("from_file")
@@ -66,11 +67,11 @@ if __name__ == "__main__":
         "runtype",
         help=(
             "The type of pipeline to run. Options are `identify` to "
-            "find the tracer IDs of tracers in cool gas at redshift zero,"
-            "`trace-back` to save to file the indices of particles in a"
-            "specified snapshot that end up in cool gas at redshift zero,"
-            "or `archive` to combine all data files into one h5f5 archive "
-            "and optionally clean up intermediate files. The `test-archive`"
+            "find the tracer IDs of tracers in cool gas at redshift zero, "
+            "`trace-back` to save to file the indices of particles in a "
+            "specified snapshot that end up in cool gas at redshift zero, "
+            "or `archive` to combine all data files into one hdf5 archive "
+            "and optionally clean up intermediate files. The `test-archive` "
             "option runs a test on the archived data to ensure it is correct."
         ),
         choices=["identify", "trace-back", "archive", "test-archive"],
