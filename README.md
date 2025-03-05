@@ -1,248 +1,365 @@
-# Master thesis: cool gas in galaxy clusters
+# Cool gas in galaxy clusters in TNG-Cluster
 
-![Tests status badge](https://github.com/MilanStaffehl/thesisProject/actions/workflows/testing.yml/badge.svg)
+![Tests status badge](https://github.com/MilanStaffehl/thesisProject/actions/workflows/testing.yml/badge.svg) ![Static Badge](https://img.shields.io/badge/Python-3.10%2B-%233776AB?style=flat&logo=Python&logoColor=yellow)
 
-> [!CAUTION]
-> 
-> This `README` is in parts outdated. It will be updated in the future to be
-> more accurate.
+This repository hosts the code for the master thesis of Milan Staffehl and the subsequent paper by Staffehl et al. (2025) _The abundance and origin of cool gas in galaxy clusters in the TNG-Cluster simulation_ [[arxiv](https://arxiv.org/abs/2503.01960) | [ADS]()].
 
-This repository contains the source code for my master thesis about cool gas in
-galaxy clusters at the ITA (University Heidelberg).
+| <img src="./distribution_example.png" alt="Distribution of cool gas in halo 1431487 of TNG-Cluster" style="max-width:577px" /> |
+| :----------------------------------------------------------: |
+| Distribution of cool gas in one of the simulated clusters of TNG-Cluster (zoom-in region 7, halo ID 1431487). Only gas within twice the virial radius is shown. The projection depth is one virial radius. |
 
-> [!WARNING]
-> 
-> This project is still in development. Expect drastic changes to occur 
-> between commits.
+------
+
+Paper abstract:
+
+> In addition to the hot intracluster medium, massive galaxy clusters host complex, multi-phase gaseous halos. In this work, we quantify the abundance, spatial distribution, and origin of the cool ($T\leq10^{4.5}\,\rm{K}$) gas within clusters. To do so, we combine the TNG-Cluster and TNG300 cosmological magnetohydrodynamical simulations, yielding a sample of 632 simulated galaxy clusters at $z=0$ with masses $M_{200c} \sim 10^{14-15.4}\,\rm{M_\odot}$. We find that cool gas is present in every cluster at $z=0$, although it constitutes only a small fraction of the total gas mass within twice the virial radius, ranging from $\sim 10^{-4}$ to a few per cent. The majority of cool gas resides in the cluster outskirts in infalling satellites and other halos. More rarely, cool gas can also be present in the central regions of clusters. More massive halos contain larger amounts (but not fractions) of cool gas ($\sim 10^{10-12}\,\rm{M_\odot}$), and we identify correlations between cluster cool gas fraction and several global halo and galaxy properties at fixed halo mass. Using Monte-Carlo Lagrangian tracer particles, we then track the origin of cool gas in present-day clusters. We find that the primary source is recent accretion at $z \lesssim 0.1$, predominantly in the form of pre-cooled gas carried by infalling satellite galaxies and other halos. However, in-situ cooling of the hot intracluster medium gas accreted at earlier epochs also contributes, especially in present-day cool-core clusters.
+
+------
+
+## Table of contents
+
+- [Prerequisites](#prerequisites)
+- [First steps](#first-steps)
+  - [Create a config file](#create-a-config-file)
+  - [Install `illustris_python`](#install-illustris-python)
+  - [Install requirements](#install-requirements)
+
+- [Configuration](#configuration)
+- [Running the code](#running-the-code)
+  - [Scripts](#scripts)
+  - [Topics](#topics)
+  - [slurm batch scripts](#slurm-batch-scripts)
+- [Data generation](#data-generation)
+- [Recreating figures](#recreating-figures)
+- [Repository structure](#repository-structure)
+  - [Where do I find...?](#where-do-i-find)
+
+- [Development](#development)
+- [License](#license)
 
 ## Prerequisites
 
-The code in this repository requires Python 3.10 or higher to run.
+The code in this repository requires Python 3.10 or higher to run. Additionally, to create figures, the simulation data of at least the [TNG300](https://www.tng-project.org/) simulation and the TNG-Cluster simulation must be available. You can find them on the official IllustrisTNG [data release page](https://www.tng-project.org/data/). 
 
-You need access to the simulation data of the IllustrisTNG simulation.
-Visit the [TNG website](https://www.tng-project.org/) for details.
+## First steps
 
+To be able to use the code, you must follow these steps:
 
-## Installation
+1. Create a config file
+2. Install the `illustris_python` package
+3. Install remaining requirements
 
-Technically speaking, the code base can be used by simply cloning it onto any
-local machine. However, there are three major obstacles to using it this way:
+The following sections guide you through the process.
 
-1. The code expects certain subdirectories to exist that are not tracked by VC.
-2. The code has third-party dependencies that are not available on PyPI or conda.
-3. The code is written for execution on clusters, not PCs. 
+### Create a config file
 
-The first two problems can be remedied by "installing" the repository. This 
-repository comes with an installation Python script that will set up the 
-expected directories. By default, it will place these directories inside the 
-project directory (they are ignored by git by default). Alternatively, you can 
-specify the location of the required directories manually. 
+In order for the code to locate the simulation data, you must create a configuration file. You can do this one of two ways:
 
-### Using the install script
+1. **Create config file manually:** Copy the content of the file from below into a new file named `config.yaml` and place it at the project root directory (i.e. where this README is located).
 
-Simply run `install.py` from the root directory of the project. You do not need
-to run it from a dedicated Python environment as it does not alter any env vars
-nor does it require any third-party dependencies.
+   ```YAML
+   paths:
+     base_paths:
+       TNG300-1: /virgotng/universe/IllustrisTNG/TNG300-1/output
+       TNG50-4: /virgotng/universe/IllustrisTNG/TNG50-4/output
+       TNG50-3: /virgotng/universe/IllustrisTNG/TNG50-3/output
+       TNG-Cluster: /virgotng/mpia/TNG-Cluster/TNG-Cluster/output
+     data_home: default
+     figures_home: default
+     cool_gas_history_archive:
+       TNG300-1: default
+       TNG-Cluster: default
+   ```
 
-After running the install script, install the dependencies (ideally inside of a
-new venv). Start by installing the Illustris helper scripts using
+2. **Run the install script:** The install script has no requirements and creates the config file automatically for you. Simply run the following command with Python 3.10+ from the project root:
+
+   ```bash
+   python install.py
+   ```
+   
+
+Once you have created the config file, replace the paths according to your environment. You can find a detailed description of the paths below in the section on [configuration](#configuration). 
+
+>  [!TIP]
+>
+> If you manually create a config file, it is recommended to still run the installation script afterwards. This creates the directories for data and figures if they don't already exist, and an `/external` directory in the project directory, under which you can clone the `illustris_python` repository (see below). If you opt for the default directories, these will also be created accordingly. 
+
+### Install `illustris_python`
+
+The code relies on the Illustris Python helper scripts. You can install them by cloning the `illustris_python` repository anywhere on your machine and installing them. If you have run the installation script, a dedicated `external` directory in the project was created for this purpose. Installation inside of a clean venv, conda environment, or uv project is recommended. 
 
 ```bash
-cd external/illustris_python
 git clone git@github.com:illustristng/illustris_python.git
 cd illustris_python
-pip install -e .
+pip install .
 ```
 
-This installs the helper scripts inside the current environment in editable mode. 
-Then install the remaining dependencies from PyPI using
+### Install requirements
+
+Finally install all remaining requirements from the project root and inside your dedicated Python environment:
 
 ```bash
-cd ../../  # return to project root
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
-if you only want to use the code as-is. If you wish to contribute to the code
-base, use of pre-commit and the related pre-commit hooks is recommended. Run
+## Configuration
+
+The configuration file allows you to specify the paths under which the simulation data is located, where generated data is stored, and where the final figures will be placed. The following is a description of all paths and what they do.
+
+- `base_paths`: The base paths of the simulations. These must be mappings of the simulation name, including potential resolution suffix (e.g. TNG50-1 instead of just TNG50), to the base path of the simulation. The base path of a TNG simulation is typically the `output` directory, containing the `snapdir_XYZ` and `groupcat_XYZ` directories of the simulation. You can add additional TNG simulations if they are available to you.
+- `data_home`: The directory where generated data files will be stored. Within the given directory, the code will place its own substructure of subdirectories. Whenever data is loaded from file, the code will query this location as well. When set to `default`, the data home directory will be placed at the project root in a subdirectory named `data`.
+- `figures_home`: The directory where generated figures will be stored. As with the data home, the code will will create its own substructure in the given directory. When set to `default`, the figures home directory will be placed at the project root in a subdirectory named `figures`.
+- `cool_gas_history_archive`: The code tracks the development of cool gas in clusters from redshift zero back to redshift eight. At every snapshot in between, it saves various data for all the traced particles in a hdf5 archive. This path specifies the location of this archive. Not that the archive file created will be relatively large (~57 GB).
+
+> [!Tip]
+>
+> If you work on the VERA cluster, the default settings should work "out-of-the-box".
+
+## Running the code
+
+The code in this repository was written for execution on computational clusters. Most of it cannot be run on personal machines, both due to memory requirements and due to computation time. 
+
+The code was written for execution on the VERA cluster of the Max Planck Institute for Astrophysics. As such, it may have certain things hard-coded that only work on the cluster. 
+
+### Scripts
+
+The code is executed using Python scripts located in the `scripts` directory of this project. Every script has a command-line interface and most scripts are highly customizable. Each script comes with an extensive help text that explains its exact purpose and lists the plots it can produce. To view the help text, use the `--help` or `-h` argument like so:
 
 ```bash
-cd ../../  # return to project root
-pip install -r requirements-dev.txt
-pre-commit install
+python <name_of_script>.py --help
 ```
 
-instead. This installs and sets up pre-commit and dependencies. 
+### Topics
 
-### Specifying custom directories
+The scripts are divided into different topics. Each topic gathers code to create figures that are aimed at a similar question or a common goal. A topic can contain multiple scripts, and each script may generate multiple different figures. 
 
-The install script will create the directories that are specified inside the
-[`config.yaml`](./config.yaml) configuration file. They will be used as the root directory
-for saving data files and figures respectively by the scripts. The default
-location for these directories is within the project directory.
+Below is a list of topics:
 
-If you wish to place the figures and data home directories elsewhere, you can 
-specify your own directories for data and figures. To do so, set the `data_home` 
-and `figures_home` directory paths inside the [`config.yaml`](./config.yaml) file to the 
-desired location, before running the install script.
+- `auxiliary`: Auxiliary scripts, most prominently a script to catalog particle indices and properties for all particles in clusters of TNG300-1.
+- `gas_flow`: Velocity distribution of cool gas in clusters. 
+- `images`: Images of the cool gas distribution in clusters (such as the example above).
+- `mass_trends`: Trends of cool gas mass and cool gas mass fraction with halo mass, both across all halos of TNG300 and only clusters; correlation of cool gas mass and cool gas fraction with cluster properties.
+- `merger_tree`: Diagnostic tools to examine and explore the merger trees of TNG300 and TNG-Cluster.
+- `radial_profiles`: Radial density and temperature profiles of cool gas in clusters.
+- `temperature_distributions`: Temperature distribution across all halos of TNG300-1.
+- `tracer_history`: All scripts concerning the tracking of cool gas predecessors back to z = 8. This includes tracking properties of the eventual cool gas, exploration of its physical origin, and assembly history.
 
-Please note that this will still create the given home directories if they do
-not yet exist. These directories will also be populated with a substructure of
-subdirectories when running the scripts. Therefore, it is recommended to use
-new directories to avoid conflicts with existing files.
+The `scripts` directory also contains a shell script to run all plotting jobs. However, this only works if all data has previously been generated and is available on file. Despite the name, it may also not plot _all_ possible figures. It is therefore recommended to always use the corresponding script directly. 
 
+### slurm batch scripts
 
-## Executing code
+Many of the scripts in this project require significant computation time and resources. These scripts are accompanied by batch scripts that allow submitting them as slurm jobs on a cluster. These batch scripts are located inside a separate `batch` subdirectory of the corresponding topic. 
 
-The code is written to be executed on clusters. Execution on PCs is not
-recommended and in some cases impossible: some scripts may use up to 1 TB of 
-memory!
+Since they are explicitly designed for the VERA cluster of the MPIA, you might have to adapt them to your requirements before using. 
 
-The intended way for this code to be executed is by using the Python scripts
-inside the `scripts` directory. They come alongside batch scripts for submission
-to slurm, in order to make use of the full computational power of the cluster.
-Use either the Python scripts (be careful with RAM and CPU cores usage!) or 
-submit batch jobs using the batch scripts. Note that the batch scripts are
-adapted to the Vera cluster of the MPIA and not all of them will work on any
-arbitrary cluster "out of the box".
+## Data generation
 
-If you want to know more about one of the Python scripts, use it together with
-the `-h` flag:
+In order to be able to generate figures, certain data needs to be generated first. This concerns primarily the identification of cool gas cells around z = 0 clusters in TNG300 and tracing back redshift zero cool gas using the Lagrangian Monte-Carlo tracer particles in TNG-Cluster. Both of these processes take considerable time and computational resources. Always run the corresponding batch jobs or submit the script for execution on your cluster of choice yourself. Even so, expect the process to take multiple hours.
 
-```shell
-python <name_of_the_script>.py -h
+> [!NOTE] 
+>
+> The examples below use the environment variable `N_PROCESSES` as a placeholder for the number of processes you wish to use. Replace it with the number of cores available to you, or with the `$SLURM_CPUS_PER_TASK` variable for execution with slurm.
+>
+> All commands show the full path to the script from the project root.
+
+### Identifying cluster gas in TNG300
+
+This step is required to identify all gas cells within $2R_{200c}$ of TNG300 clusters: 
+
+```bash
+python ./scripts/auxiliary/tabulate_cluster_data.py --processes $N_PROCESSES --force-tree
 ```
 
-### Customizing simulation base paths
+Corresponding batch script: `./scripts/auxiliary/batch/tabulateclusterdata.sh`
 
-If you want to use this code outside the Vera cluster of the MPIA, you will
-need to update the `base_paths` dictionary of the simulation data inside 
-the [`config.yaml`](./config.yaml) module to wherever the simulation data of the 
-different simulations are stored. Each entry of the `base_path` dictionary
-should be a key-value pair, with the key being the name of the simulation as, 
-and the value being the full path to the directory in which the `snapdir_XYZ` 
-and `groups_XYZ` snapshot directories are located. Note that the name you give
-to each simulation path can be arbitrary and does not need to match anything
-in particular; it is merely the name by which you can select the simulation
-in most scripts (via the `--sim` flag).
+### Creating the cool gas history archive
 
-If you are using this code on the Vera cluster, the default settings should 
-work "out of the box".
+All plotting jobs of the `tracer_history` topic require tracing back the origins of redshift zero cool gas and the tabulation of properties of the traced gas cells. The corresponding data will be saved in a hdf5 archive under the directory specified in your [config file](#configuration). 
 
+> [!CAUTION]
+>
+> Recreating the archive file takes a considerable amount of time. Expect multiple hours, potentially days, for a full recreation run.
 
-## Organization
+The following steps must be performed in the order listed in order to create the archive and populate it with the required data:
 
-The repository is organized into the following directories:
+1. Identify tracers in redshift zero cool gas of TNG-Cluster clusters:
 
-- `notebooks`: The notebooks directory contains Jupyter notebooks. The notebooks
-  contain primarily test code, some on-the-side experiments and probing plots
-  (that is, plots that are meant to get an overview over simulation data). 
-- `scripts:` The scripts directory contains executable Python scripts that
-  can be used to create plots. It also contains batch job scripts for use with
-  slurm. The directory is organized into subdirectories. These subdirectories 
-  are roughly divided by the plot type the scripts inside them are meant to
-  produce. The names of the directories correspond to those of the project
-  [milestones](#milestones). You can find out more about what each of these 
-  milestones and subdirectories contain by reading the [Milestones](#milestones)
-  or the GitHub milestones. 
-- `src`: The source directory bundles all code that is used to generate plots
-  and data for this project. Itis structured into three main packages:
+   ```bash
+   python ./scripts/tracer_history/generate_tracer_data.py identify -s TNG-Cluster 
+   ```
 
-  - `library`: The library directory contains the logic of this project, organized 
-    into modules and packages. It is the heart of the project, containing all
-    code that performs actual work, calculations and tasks. It is further
-    subdivided:
+2. Trace back identified tracers to redshift $z = 8$. This command must be executed separately for every snapshot. Replace `<SNAP>` with the snapshot number you wish to process. 
 
-    - `library.config`: This package contains modules that are used to set up the
-      environment for pipelines and to create containers for globally required
-      variables. It also contains modules to set up logging.
-    - `library.data_acquisition`: This package contains modules whose purpose 
-      it is to load simulation data directly from the simulation hdf5 files. 
-      The functions in these modules can act as a simple wrapper to `illustris_python`
-      functions, but some may also pre-process data. 
-    - `library.loading`: As opposed to `data_acquisition`, the `loading` package
-      contains modules that support loading processed data from file that was
-      previously saved by a pipeline job (i.e. data from which a plot was created).
-      It implicitly also defines the format in which pipelines must save the data.
-    - `library.plotting`: This package contains modules that provide utilities for
-      plotting data. 
-    - `library.processing`: This is the largest package and contains various 
-      modules for data processing. Data loaded with `data_acquisition` can be 
-      further processed with code from this package. It also contains utilities 
-      for parallelization and statistics.
+   ```bash
+   python ./scripts/tracer_history/generate_tracer_data.py trace-back -s TNG-Cluster -p $N_PROCESSES -n <SNAP>
+   ```
 
-  - `pipelines`: The pipelines directory contains modules with pipeline classes.
-    These classes are used to bundle together code from `library` in a sensible 
-    order to achieve the task of loading, processing, saving to file and plotting 
-    data from the simulations. They are also solely responsible for file IO. 
-    Similar to the `scripts` directory, this directory is divided into topics 
-    that match the milestones of this project.
+   Corresponding batch script: `./scripts/tracer_history/batch/generate_tracer_data_all.sh`
 
-Alongside these directories tracked by the VC, the install script will also
-create directories that will be populated by the Python and/or batch scripts:
+3. Archive generated data and create the cool gas history hdf5 archive file:
 
-- `data`: The data directory holds processed data produced by the scripts. It
-  is organised into milestones. If you change its location in the `config.yaml`
-  it ight not be inside the project directory.
-- `external`: The external directory is used to install external dependencies
-  locally, most noticeably the Illustris Python helper package.
-- `figures`: The figures directory holds the finished plots produced by the
-  scripts. It is organised into milestones. As with the `data` directory, you
-  can change its location by setting it in the `config.yaml`. 
+   ```bash
+   python ./scripts/tracer_history/generate_tracer_data.py archive -s TNG-Cluster --unlink
+   ```
+
+4. (Optional) Test archived data for completeness and validity:
+
+   ```bash
+   python ./scripts/tracer_history/generate_tracer_data.py test-archive -s TNG-Cluster
+   ```
+
+5. Tabulate distance, temperature, density, and mass of the traced particles:
+   ```bash
+   python ./scripts/tracer_history/plot_quantity_with_time.py distance -p $N_PROCESSES --unlink --force-overwrite --no-plots --to-file
+   python ./scripts/tracer_history/plot_quantity_with_time.py temperature -p $N_PROCESSES --unlink --force-overwrite --no-plots --to-file
+   python ./scripts/tracer_history/plot_quantity_with_time.py density -p $N_PROCESSES --unlink --force-overwrite --no-plots --to-file
+   python ./scripts/tracer_history/plot_quantity_with_time.py mass -p $N_PROCESSES --unlink --force-overwrite --no-plots --to-file
+   ```
+
+   Corresponding batch scripts: `./scripts/tracer_history/batch/generate_particle_data_distance.sh`, `generate_particle_data_temperature.sh`, `generate_particle_data_density.sh`, and `generate_particle_data_mass.sh`.
+
+6. Identify, for every traced particle, their parent halo and parent subhalo:
+   ```bash
+   python ./scripts/tracer_history/plot_quantity_with_time.py parent-halo -p $N_PROCESSES --unlink --force-overwrite --no-plots --to-file
+   python ./scripts/tracer_history/plot_quantity_with_time.py parent-subhalo -p $N_PROCESSES --unlink --force-overwrite --no-plots --to-file
+   ```
+
+   Corresponding batch scripts: `./scripts/tracer_history/batch/generate_particle_data_parent_halo_index.sh` and `generate_particle_data_parent_subhalo_index.sh`.
+
+7. Generate post-processing data (crossing times, cooling times, parent category):
+   ```bash
+   python ./scripts/tracer_history/generate_postprocessed_particle_data.py crossing-times
+   python ./scripts/tracer_history/generate_postprocessed_particle_data.py crossing-times-1rvir
+   python ./scripts/tracer_history/generate_postprocessed_particle_data.py cooling-times
+   python ./scripts/tracer_history/generate_postprocessed_particle_data.py parent-category
+   ```
+
+8. (Optional) Test archived data. This requires `pytest` to be installed.
+   ```bash
+   pytest ./scripts/tracer_history/tests/test_archived_data.py
+   ```
+
+## Recreating figures
+
+Below is a list of commands to fully recreate all figures of Staffehl et al. (2025), provided the corresponding data has been generated previously.
+
+> [!TIP]
+>
+> If you have created a figure previously and just wish to re-plot it with the same data (for example because you made visual changes), use the `--load-data` argument of the script instead of the `--to-file` argument to skip re-generating the plot data and instead load existing data from file.
+
+- **Fig. 1:** gas mass and gas fraction vs. halo mass.
+
+  ```bash
+  python ./scripts/mass_trends/plot_mass_trends.py -s TNG300-1 -p $N_PROCESSES --to-file
+  ```
+
+- **Fig. 2:** temperature distribution across halos of TNG300.
+
+  ```bash
+  python ./scripts/temperature_distributions/plot_temperature_distribution.py -s TNG300-1 -p $N_PROCESSES --to-file -c -d
+  ```
+
+- **Fig. 3:** Figure 3 cannot be recreated with the code of this repository.
+
+- **Fig. 4:** cool gas mass and gas fraction vs. cluster mass, correlation with cluster properties.
+
+  ```bash
+  python ./scripts/mass_trends/plot_extended_cool_gas_mass_trends.py --to-file --field sfr -fr
+  python ./scripts/mass_trends/plot_all_mass_trends.py --no-plots
+  python ./scripts/mass_trends/plot_statistical_measures.py -w pcc
+  ```
+
+- **Fig. 5:** Correlation of cool gas fraction in innermost 5% of virial radius.
+
+  ```bash
+  python ./scripts/mass_trends/plot_statistical_measures.py -w pcc -cc
+  ```
+
+- **Fig. 6:** Radial temperature profile of clusters.
+
+  ```bash
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG300-1 -p $N_PROCESSES -w temperature --to-file -x -t
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG-Cluster -p $N_PROCESSES -w temperature --to-file -x -t
+  python ./scripts/radial_profiles/stackbin_radial_profiles.py -w temperature -m mean --log
+  ```
+
+  If you get an error about construction of a KDTree being required, either drop the `-t` option, or create the missing particle data by following the instructions in the corresponding [data generation section](#identifying-cluster-gas-in-tng300).
+
+- **Fig. 7:** Radial temperature profile of clusters, center only.
+
+  ```bash
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG300-1 -p $N_PROCESSES -w temperature --to-file -cc -x -t
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG-Cluster -p $N_PROCESSES -w temperature --to-file -cc -x -t
+  python ./scripts/radial_profiles/stackbin_radial_profiles.py -w temperature -m mean --log -cc
+  ```
+
+- **Fig. 8:** Radial density profiles of cool gas.
+
+  ```bash
+  # Top panel
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG300-1 -p $N_PROCESSES -w density --to-file -x -t
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG-Cluster -p $N_PROCESSES -w density --to-file -x -t
+  python ./scripts/radial_profiles/stackbin_radial_profiles.py -w density --log --combined
+  # Bottom left panel
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG300-1 -p $N_PROCESSES -w density --to-file -x -t -cc
+  python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG-Cluster -p $N_PROCESSES -w density --to-file -x -t -cc
+  python ./scripts/radial_profiles/stackbin_radial_profiles.py -w density --log --combined -cc
+  # Bottom right panel
+  python ./scripts/radial_profiles/plot_density_profiles_split_by_velocity.py -r cool --vmax 0.1 --log -uv
+  ```
+
+- **Fig. 9:** Velocity distribution of cool gas.
+
+  ```bash
+  python ./scripts/gas_flow/plot_velocity_distribution.py --regime cool --log --to-file
+  ```
+
+- **Fig. 10:** 
+
+## Repository structure
+
+Below is an explanation of the structure of the code in this repository. Refer to it to more easily find what you need, or see if your question is answered below in the section ["Where do I find...?"](#where-do-i-find).
+
+- `notebooks`: Jupyter notebooks, mostly containing diagnostic scripts and temporary test code.
+
+- `scripts`: Scripts used to execute code and create figures. See section on [scripts](#scripts) for details. This directory is sorted by topic.
+
+- `src`: The source directory contains all actual source code for the project. It is organized as a Python package and divided into two sub-packages.
+
+  - `library`: The library package contains general-purpose code, re-usable functions, and most of the logic of the code. It is divided into sub-packages:
+
+    - `config`: Set up configuration and environment, logging config.
+    - `data_acquisition`: Helper functions for loading simulation data.
+    - `loading`: Functions to load data previously created by the code of this project.
+    - `plotting`: Plotting utilities and abstractions, using matplotlib.
+    - `processing`: Functionality for data processing, such as statistics functions, parallelization utilities, etc.
+
+    In addition to these sub-packages, there are five top-level modules in the library package:
+
+    - `cgh_archive`: Helper functions for working with the cool gas history hdf5 archive.
+    - `compute`: Functions to compute physical quantities, accelerated using numpy.
+    - `constants`: Module for physical and simulation-related constants.
+    - `scriptparse`: Helper functions for parsing script arguments and input.
+    - `units`: Utilities for unit conversion.
+
+  - `pipelines`: The pipeline package is divided into the same topics as the scripts. Pipelines themselves are classes that are constructed by the scripts according to the arguments received from the command line. They define a `run` method which strings together code to load and process data and create figures. Pipelines are derived from a common base class and offer a more or less convenient interface for working with the code.
+
+Unit test suites exist for some of the library modules. Where they exist, they are placed in a `tests` subdirectory located at the directory of the module itself. Additionally, some of the pipelines are accompanied with test suites in the same way as well.
 
 ### Where do I find...?
 
-The stucture of the repository might be a little confusing until one has 
-familiarized oneself with it. If you just want to find something specific 
-quickly, you can find some guidance here:
+Looking for something in particular? Here is a list of common things you might be looking for and where to find them:
 
-- **Re-usable code snippets:** You are most likely to find code that you might 
-  wish to re-use inside the `src.library` directory. The modules and packages 
-  therein are more or less intuitively named. Look for the module/package that 
-  closest describes what you are looking for!
-- **Batch scripts for slurm:** Batch scripts for the different tasks are 
-  situated in the `scripts` directory. Consult the [Milestones](#milestones) to find 
-  out what job you are looking for and then select the corresponding subdir
-  of `scripts`. Here you will then find the scripts in the `batch` directory.
-  Note that outside of the MPIA Vera cluster, you will most likely have to
-  adapt the scripts to your clusters environment.
-- **Scripts to reproduce plots:** Use the Python scripts under `scripts`.
-  Consult the [Milestones](#milestones) to find out which of the subdirectories
-  you need to look into. All the Python scripts in `scripts` have a CLI, so
-  to find out how to use them, simply run `python <script name>.py -h`.
-- **Code for topic X:** If you are looking for code (or output) of a specific
-  topic, search the `library` directory for the package whose name sounds most 
-  like what you need. Inside of it, you can go through the modules that are 
-  related to the topic.
-- **The finished plots:** If you installed the code using the `install.py`
-  script, you will find the figures under the `figures` directory in the
-  subdirectory of the milestone they belong to. If you cannot find them there,
-  check the [`config.yaml`](./config.yaml) file for the `figures_home` path.
-  You will find your figures under this path.
+- **Commands to recreate figures:** There is a dedicated section for [recreating plots](#recreating-figures) from the paper.
+- **Explanation what each script does:** Use the `--help` command of the scripts to learn what they do. See also the [scripts](#scripts) section of this README.
+- **That one script that makes this one plot I need:** Look into the scripts and find the topic that best describes what you are looking for. Consult also the [scripts](#scripts) section of this README for hints. Then use the `--help` command on the scripts to find the one you are looking for. 
+- **Helpful code to handle simulation data:** For loading data directly from TNG simulations, look at the `library.data_acquisition` package. For visualization, the `library.plotting` package is the best starting point, especially the `common` module. If you look for a more general-purpose and optimized solution, check out [`scida`](https://github.com/cbyrohl/scida).
+- **Data documentation:** For some topics, the `library.loading` modules act as make-shift documentation, offering an interface for working with data derived from this code. For the cool gas history hdf5 archive, a [separate README](./docs/CGH_README.md) exists in this project. 
+- **The finished plots:** The finished plots are placed in the figures home directory you specify in the `config.yaml` of the project. In there, it is under the same topic as the script that generated it. You might have to navigate further subdirectories to find it, though. If your figures home is set to "default", the figures are located in the project directory under `/figures`.
+- **The paper/the master thesis:** The paper is available on [arxiv](https://arxiv.org/abs/2503.01960). The master thesis is available upon request.
 
+## Development
 
-## Milestones
+## License
 
-You will notice that the directories for figures, data and scripts are divided
-into certain topics such as `temperature_histograms`. These topics are the topics
-of a project milestone. A milestone in the context of this project is a smaller 
-task, usually consisting of a single type of plot to produce. Every milestone 
-aims to answer a small scientific question: how is the temperature in halo gas 
-distributed? How does the cool gas mass change with halo mass? At what radius 
-of a halo can we find most cool gas?
-
-The following is a list of existing and tentative milestones:
-
-- `temperature_distributions`: The distribution of gas temperatures in halos of
-  the entire TNG300-1 mass range. These are plotted as 1D-histograms of gas
-  mass fraction vs. temperature.
-- `mass_trends`: The trend of gas fraction with halo mass, split by temperature
-  regime (hot, warm, cool gas).
-- `radial_profiles`: The trend of temperature and density of different gas
-  components with halocentric distance. For temperature, these are shown as a
-  2D histogram temperature vs. halocentric distance out to two times the virial
-  radius. Gor density, these are simple density profiles. 
-
-
-## Metadata
-
-**Author:** Milan Staffehl
+TBD
