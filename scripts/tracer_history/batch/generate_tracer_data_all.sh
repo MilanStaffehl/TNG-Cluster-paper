@@ -20,7 +20,7 @@ source ~/venvs/illustris/bin/activate
 which python3
 
 # Launch individual jobs
-for i in $(seq 0 351)
+for i in $(seq 0 99)
 do
   srun --ntasks-per-node=1 \
        --partition=p.large \

@@ -1,3 +1,4 @@
+import argparse
 import logging
 import logging.config
 import sys
@@ -85,6 +86,20 @@ def main() -> None:
 
 if __name__ == "__main__":
     # parse arguments
+    parser = argparse.ArgumentParser(
+        prog=f"python {Path(__file__).name}",
+        description="Plot mass trends for all selected properties.",
+    )
+    parser.add_argument(
+        "-x",
+        "--no-plots",
+        help=(
+            "Suppresses creation of plots. Useful to prevent overwriting "
+            "of existing figure files."
+        ),
+        dest="no_plots",
+        action="store_true",
+    )
     try:
         main()
     except KeyboardInterrupt:

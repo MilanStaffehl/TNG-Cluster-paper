@@ -6,7 +6,7 @@
 #SBATCH -J TABCLSTR
 #SBATCH --partition=p.huge
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task=72
 #SBATCH --mem=900GB
 #SBATCH --time=3:00:00
 
@@ -24,4 +24,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/aux/tabulate_cluster_data.py --forbid-tree -vv
+srun python3 ~/thesisProject/scripts/auxiliary/tabulate_cluster_data.py --processes $SLURM_CPUS_PER_TASK --force-tree
