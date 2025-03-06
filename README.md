@@ -92,7 +92,7 @@ Once you have created the config file, replace the paths according to your envir
 
 ### Install `illustris_python`
 
-The code relies on the Illustris Python helper scripts. You can install them by cloning the `illustris_python` repository anywhere on your machine and installing them. If you have run the installation script, a dedicated `external` directory in the project was created for this purpose. Installation inside of a clean venv, conda environment, or uv project is recommended. 
+The code relies on the [Illustris Python helper scripts](https://github.com/illustristng/illustris_python). You can install them by cloning the `illustris_python` repository anywhere on your machine and installing them. If you have run the installation script, a dedicated `external` directory in the project was created for this purpose. Installation inside of a clean venv, conda environment, or uv project is recommended. 
 
 ```bash
 git clone git@github.com:illustristng/illustris_python.git
@@ -194,7 +194,7 @@ The following steps must be performed in the order listed in order to create the
    python ./scripts/tracer_history/generate_tracer_data.py identify -s TNG-Cluster 
    ```
 
-2. Trace back identified tracers to redshift $z = 8$. This command must be executed separately for every snapshot. Replace `<SNAP>` with the snapshot number you wish to process. 
+2. Trace back identified tracers. This command must be executed separately for every snapshot. Replace `<SNAP>` with the snapshot number you wish to process. 
 
    ```bash
    python ./scripts/tracer_history/generate_tracer_data.py trace-back -s TNG-Cluster -p $N_PROCESSES -n <SNAP>
@@ -404,7 +404,7 @@ pip install -r requirements-dev.txt
 pre-commit install
 ```
 
-This install the pytest framework, dev tools, and especially `pre-commit`, which is already configured for the project.
+This installs the pytest framework, dev tools, and especially `pre-commit`, which is already configured for the project.
 
 ## License
 
