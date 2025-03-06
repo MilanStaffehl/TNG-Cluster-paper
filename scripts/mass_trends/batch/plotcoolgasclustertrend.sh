@@ -25,4 +25,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/mass_trends/plot_cool_gas_mass_trends.py --field sfr --to-file --force-recalculation
+srun python3 ~/thesisProject/scripts/mass_trends/plot_extended_cool_gas_mass_trends.py --field sfr --to-file --force-recalculation
