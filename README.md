@@ -6,7 +6,7 @@ This repository hosts the code for the master thesis of Milan Staffehl and the s
 
 | <img src="./distribution_example.png" alt="Distribution of cool gas in halo 1431487 of TNG-Cluster" style="max-width:577px" /> |
 | :----------------------------------------------------------: |
-| Distribution of cool gas in one of the simulated clusters of TNG-Cluster (zoom-in region 7, halo ID 1431487). Only gas within twice the virial radius is shown. The projection depth is one virial radius. |
+| Distribution of cool ($T \leq 10^{4.5}\,\rm K$) gas in one of the simulated clusters of TNG-Cluster (zoom-in region 7, halo ID 1431487). Only gas within twice the virial radius is shown. The projection depth is one virial radius. |
 
 ------
 
@@ -18,24 +18,30 @@ Paper abstract:
 
 ## Table of contents
 
+- [Where do I find...?](#where-do-i-find)
 - [Prerequisites](#prerequisites)
 - [First steps](#first-steps)
-  - [Create a config file](#create-a-config-file)
-  - [Install `illustris_python`](#install-illustris-python)
-  - [Install requirements](#install-requirements)
-
+  
 - [Configuration](#configuration)
 - [Running the code](#running-the-code)
-  - [Scripts](#scripts)
-  - [Topics](#topics)
-  - [slurm batch scripts](#slurm-batch-scripts)
 - [Data generation](#data-generation)
 - [Recreating figures](#recreating-figures)
 - [Repository structure](#repository-structure)
-  - [Where do I find...?](#where-do-i-find)
-
+  
 - [Development](#development)
 - [License](#license)
+
+## Where do I find...?
+
+Looking for something in particular? Here is a list of common things you might be looking for and where to find them:
+
+- **Commands to recreate figures:** There is a dedicated section for [recreating plots](#recreating-figures) from the paper.
+- **Explanation what each script does:** Use the `--help` command of the scripts to learn what they do. See also the [scripts](#scripts) section of this README.
+- **That one script that makes this one plot I need:** Look into the scripts and find the topic that best describes what you are looking for. Consult also the [scripts](#scripts) section of this README for hints. Then use the `--help` command on the scripts to find the one you are looking for. 
+- **Helpful code to handle TNG simulation data:** For loading data directly from TNG simulations, look at the `library.data_acquisition` package in the `src` directory. For visualization, the `library.plotting` package is the best starting point, especially the `common` module. If you look for a more general-purpose and optimized solution, check out [`scida`](https://github.com/cbyrohl/scida).
+- **Data documentation:** For some [topics](#topics), the `library.loading` modules act as make-shift documentation, offering an interface for working with data derived from this code. For the cool gas history hdf5 archive, a [separate README](./docs/CGH_README.md) exists in this project. 
+- **The finished plots after running a script:** The finished plots are placed in the figures home directory you specify in the `config.yaml` of the project (see section [configuration](#configuration)). In there, it is under the same topic as the script that generated it. You might have to navigate further subdirectories to find it, though. If your figures home is set to "default", the figures are located in the project directory under `/figures`.
+- **The paper/the master thesis:** The paper is available on [arxiv](https://arxiv.org/abs/2503.01960). The master thesis can be made available upon reasonable request.
 
 ## Prerequisites
 
@@ -241,19 +247,21 @@ The following steps must be performed in the order listed in order to create the
 
 ## Recreating figures
 
-Below is a list of commands to fully recreate all figures of Staffehl et al. (2025), provided the corresponding data has been generated previously.
+Below is a list of commands to fully recreate all figures of Staffehl et al. (2025), provided the corresponding data has been generated previously. 
+
+Alongside the Python command to run the script, the slurm job submission batch scripts are provided. They are always located in the directory of the script in a `batch` subdirectory. Not every script requires execution on clusters, so not every command is accompanied by a batch script.
 
 > [!TIP]
 >
-> If you have created a figure previously and just wish to re-plot it with the same data (for example because you made visual changes), use the `--load-data` argument of the script instead of the `--to-file` argument to skip re-generating the plot data and instead load existing data from file.
+> If you have created a figure previously and just wish to re-plot it with the same data (for example because you made visual changes), use the `--load-data` argument of the script instead of the `--to-file` argument to skip re-generating the plot data and instead load existing data from file. When using the `--load-data` option, no execution on clusters is required.
 
-- **Fig. 1:** gas mass and gas fraction vs. halo mass.
+- **Fig. 1:** Gas mass and gas fraction vs. halo mass. (batch script: `plotmasstrends.sh`)
 
   ```bash
   python ./scripts/mass_trends/plot_mass_trends.py -s TNG300-1 -p $N_PROCESSES --to-file
   ```
 
-- **Fig. 2:** temperature distribution across halos of TNG300.
+- **Fig. 2:** Temperature distribution across halos of TNG300. (batch script: `plothistfrac.sh`)
 
   ```bash
   python ./scripts/temperature_distributions/plot_temperature_distribution.py -s TNG300-1 -p $N_PROCESSES --to-file -c -d
@@ -261,7 +269,7 @@ Below is a list of commands to fully recreate all figures of Staffehl et al. (20
 
 - **Fig. 3:** Figure 3 cannot be recreated with the code of this repository.
 
-- **Fig. 4:** cool gas mass and gas fraction vs. cluster mass, correlation with cluster properties.
+- **Fig. 4:** Cool gas mass and gas fraction vs. cluster mass, correlation with cluster properties. (batch script: `plotcoolgasclustertrend.sh`)
 
   ```bash
   python ./scripts/mass_trends/plot_extended_cool_gas_mass_trends.py --to-file --field sfr -fr
@@ -269,13 +277,13 @@ Below is a list of commands to fully recreate all figures of Staffehl et al. (20
   python ./scripts/mass_trends/plot_statistical_measures.py -w pcc
   ```
 
-- **Fig. 5:** Correlation of cool gas fraction in innermost 5% of virial radius.
+- **Fig. 5:** Correlation of cool gas fraction in innermost 5% of virial radius with cluster properties.
 
   ```bash
   python ./scripts/mass_trends/plot_statistical_measures.py -w pcc -cc
   ```
 
-- **Fig. 6:** Radial temperature profile of clusters.
+- **Fig. 6:** Radial temperature profile of clusters. (batch scripts: `no_tree/TNG300_1/individual_temperature.sh`, `no_tree/TNG_Cluster/individual_temperature.sh`)
 
   ```bash
   python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG300-1 -p $N_PROCESSES -w temperature --to-file -x -t
@@ -283,9 +291,9 @@ Below is a list of commands to fully recreate all figures of Staffehl et al. (20
   python ./scripts/radial_profiles/stackbin_radial_profiles.py -w temperature -m mean --log
   ```
 
-  If you get an error about construction of a KDTree being required, either drop the `-t` option, or create the missing particle data by following the instructions in the corresponding [data generation section](#identifying-cluster-gas-in-tng300).
+  If you get an error about construction of a KDTree being required, either drop the `-t` option, or create the missing particle data by following the instructions in the corresponding [data generation section](#identifying-cluster-gas-in-tng300). If you opt for dropping the `-t` option, you can use the batch scripts located under the `with_tree` directory.
 
-- **Fig. 7:** Radial temperature profile of clusters, center only.
+- **Fig. 7:** Radial temperature profile of clusters, center only. (batch scripts: `no_tree/TNG300_1/individual_temperature_core.sh`, `no_tree/TNG_Cluster/individual_temperature_core.sh`)
 
   ```bash
   python ./scripts/radial_profiles/plot_individual_radial_profiles.py -s TNG300-1 -p $N_PROCESSES -w temperature --to-file -cc -x -t
@@ -293,7 +301,7 @@ Below is a list of commands to fully recreate all figures of Staffehl et al. (20
   python ./scripts/radial_profiles/stackbin_radial_profiles.py -w temperature -m mean --log -cc
   ```
 
-- **Fig. 8:** Radial density profiles of cool gas.
+- **Fig. 8:** Radial density profiles of cool gas. (batch scripts: `no_tree/TNG300_1/individual_density.sh`, `no_tree/TNG_Cluster/individual_density.sh`, `no_tree/TNG300_1/individual_density_core.sh`, `no_tree/TNG_Cluster/individual_density_core.sh`)
 
   ```bash
   # Top panel
@@ -308,17 +316,58 @@ Below is a list of commands to fully recreate all figures of Staffehl et al. (20
   python ./scripts/radial_profiles/plot_density_profiles_split_by_velocity.py -r cool --vmax 0.1 --log -uv
   ```
 
-- **Fig. 9:** Velocity distribution of cool gas.
+- **Fig. 9:** Velocity distribution of cool gas. 
 
   ```bash
   python ./scripts/gas_flow/plot_velocity_distribution.py --regime cool --log --to-file
   ```
 
-- **Fig. 10:** 
+- **Fig. 10:** Evolution of spatial distribution of traced particles.
+
+  ```bash
+  python ./scripts/tracer_history/plot_final_figures.py tracer-fraction
+  python ./scripts/tracer_history/plot_crossing_time_plots.py crossing-times -pt 0,6
+  python ./scripts/tracer_history/plot_quantity_with_time.py distance --load-data -pt 1
+  ```
+
+  These commands and all following ones assume the cool gas history archive has been created as described [above](#creating-the-cool-gas-history-archive).
+
+- **Fig. 11:** Cooling time plots.
+
+  ```bash
+  python ./scripts/tracer_history/plot_crossing_time_plots.py cooling-times -pt 0,6
+  ```
+
+- **Fig. 12:** Temperature evolution of traced particles.
+
+  ```bash
+  python ./scripts/tracer_history/plot_quantity_with_time.py temperature --load-data -pt 0,1
+  ```
+
+- **Fig. 13:** Evolution of parent category of tracers.
+
+  ```bash
+  python ./scripts/tracer_history/plot_parent_category_plots.py -pt 0
+  ```
+
+- **Fig. 14:** Temperature evolution, split by parent category of the tracers.
+
+  ```bash
+  python ./scripts/tracer_history/plot_quantity_with_time.py temperature --load-data -pt 1 --split-by reduced-parent-category
+  ```
+
+- **Fig. 15:** Origin of cool gas by host structure.
+
+  ```bash
+  python ./scripts/tracer_history/plot_final_figures.py bar-chart
+  python ./scripts/tracer_history/plot_final_figures.py mass-plot --combine
+  ```
 
 ## Repository structure
 
-Below is an explanation of the structure of the code in this repository. Refer to it to more easily find what you need, or see if your question is answered below in the section ["Where do I find...?"](#where-do-i-find).
+Below is an explanation of the structure of the code in this repository. Refer to it to more easily find what you need.
+
+- `docs`: Data documentation files.
 
 - `notebooks`: Jupyter notebooks, mostly containing diagnostic scripts and temporary test code.
 
@@ -346,19 +395,16 @@ Below is an explanation of the structure of the code in this repository. Refer t
 
 Unit test suites exist for some of the library modules. Where they exist, they are placed in a `tests` subdirectory located at the directory of the module itself. Additionally, some of the pipelines are accompanied with test suites in the same way as well.
 
-### Where do I find...?
-
-Looking for something in particular? Here is a list of common things you might be looking for and where to find them:
-
-- **Commands to recreate figures:** There is a dedicated section for [recreating plots](#recreating-figures) from the paper.
-- **Explanation what each script does:** Use the `--help` command of the scripts to learn what they do. See also the [scripts](#scripts) section of this README.
-- **That one script that makes this one plot I need:** Look into the scripts and find the topic that best describes what you are looking for. Consult also the [scripts](#scripts) section of this README for hints. Then use the `--help` command on the scripts to find the one you are looking for. 
-- **Helpful code to handle simulation data:** For loading data directly from TNG simulations, look at the `library.data_acquisition` package. For visualization, the `library.plotting` package is the best starting point, especially the `common` module. If you look for a more general-purpose and optimized solution, check out [`scida`](https://github.com/cbyrohl/scida).
-- **Data documentation:** For some topics, the `library.loading` modules act as make-shift documentation, offering an interface for working with data derived from this code. For the cool gas history hdf5 archive, a [separate README](./docs/CGH_README.md) exists in this project. 
-- **The finished plots:** The finished plots are placed in the figures home directory you specify in the `config.yaml` of the project. In there, it is under the same topic as the script that generated it. You might have to navigate further subdirectories to find it, though. If your figures home is set to "default", the figures are located in the project directory under `/figures`.
-- **The paper/the master thesis:** The paper is available on [arxiv](https://arxiv.org/abs/2503.01960). The master thesis is available upon request.
-
 ## Development
+
+If you wish to work on the code yourself, you may find it beneficial to install the development requirements for the project:
+
+```bash
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
+This install the pytest framework, dev tools, and especially `pre-commit`, which is already configured for the project.
 
 ## License
 
