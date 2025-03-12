@@ -58,22 +58,50 @@ def main(args: argparse.Namespace) -> None:
     sys.exit(pipeline.run())
 
 
+DESCRIPTION = """Plot mass trends of gas of halos in a TNG simulation.
+
+Script plots the relationship of gas mass and gas mass fraction of gas
+in three phases (cool, warm, and hot gas, divided at 10^4.5 K and 10^5.5 K
+respectively) with the mass M_200c of the corresponding halos that host
+the gas. Only gas that is part of the halo FoF is considered. The script
+creates a figure consisting of six panels, with three rows showing the
+trends for hot, warm, and cool gas respectively, and the columns showing
+gas mass fraction and total gas mass respectively. All halos down to a
+mass of 10^8 solar masses are considered.
+
+To indicate general trends, the median gas mass/gas fraction is marked
+in bins of 1 dex halo mass, with error bars showing the 16th and 84th
+percentiles in both halo mass and gas mass/fraction. Optionally, this can
+also be replaced by a running median line with an error region, or the
+median can be replaced by a mean.
+
+Note that empty mass bins can lead to exceptions, i.e. simulations without
+cluster-mass halos might cause failure of the script. This is chiefly the
+case for certain lower resolution runs of TNG50.
+"""
+
 if __name__ == "__main__":
     parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
-        description="Plot mass trends of gas of halos in TNG",
+        description=DESCRIPTION,
+        required_memory=220,
+        requires_parallel=True,
     )
     parser.add_argument(
         "-n",
         "--normalize-temperatures",
-        help="Normalize temperatures to virial temperature",
+        help=(
+            "Normalize temperatures to virial temperature and apply a "
+            "division between the temperature regimes based on virial "
+            "temperature rather than using absolute temperatures."
+        ),
         dest="normalize",
         action="store_true",
     )
     parser.add_argument(
         "-a",
         "--use-average",
-        help="Plot averages instead of medians in the plot",
+        help="Plot averages instead of medians in the plot.",
         dest="average",
         action="store_true",
     )

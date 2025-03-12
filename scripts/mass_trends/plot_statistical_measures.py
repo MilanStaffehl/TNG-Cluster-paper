@@ -236,11 +236,38 @@ def _create_legend_handles(
     return handles
 
 
+DESCRIPTION = """Plot statistical measures of the cool gas in clusters.
+
+Script plots the selected statistical measure (Pearson correlation
+coefficient or a ratio, see below) of every selected cluster property
+with either cool gas mass fraction or absolute cool gas mass in seven
+mass bins of 0.2 dex from 10^14 to 10^15.4 solar masses, i.e. it shows
+how much each of the selected properties correlates with the cool gas
+mass or cool gas fraction. The plot consists of a single panel showing,
+for every one of the cluster properties described in
+`src/pipelines/mass_trends/plot_config.yaml`, how the cool gas mass/fraction
+in each of the cluster mass bins correlates with that property.
+
+The options are the normal linear Pearson correlation coefficient
+(`--what pcc`), the Pearson correlation coefficient taken on a semi-log
+scale, i.e. with the cool gas fraction/mass in log scale, but the cluster
+property in linear scale (`--what pcc-log`), the Pearson correlation
+coefficient taken on a double-log scale, i.e. with both cool gas
+mass/fraction and cluster property in loga scale (`--what pcc-loglog`),
+or the ratio of mean value above bin median to mean value below bin
+median (`--what ratio`).
+
+This script requires that the statistical measure under scrutiny has
+been written to file previously by running the `plot_cool_gas_mass_trends.py`
+script for the corresponding property at least once, using the `--to-file`
+option.
+"""
+
 if __name__ == "__main__":
     # construct parser
     parser = argparse.ArgumentParser(
         prog=f"python {Path(__file__).name}",
-        description="Plot mass trends of gas of halos in TNG",
+        description=DESCRIPTION,
     )
     parser.add_argument(
         "-w",

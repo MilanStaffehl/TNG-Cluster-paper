@@ -45,14 +45,20 @@ def main(args: argparse.Namespace) -> None:
     sys.exit(pipeline.run())
 
 
+DESCRIPTION = """Plot the distribution of cool gas at redshift zero.
+
+Script creates a 2D histogram of the projected cool gas surface density
+of all gas in TNG-Cluster clusters. This includes both individual clusters
+as well as an overall mean distribution. Only gas within a projection
+depth specified by `--max-width` and within twice the virial radius R_200c
+will be considered.
+"""
+
 if __name__ == "__main__":
     parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
-        description=(
-            "Plot the distribution of cool gas at redshift zero for all "
-            "clusters as a 2D histogram of column density."
-        ),
-        allowed_sims=["TNG300", "TNG-Cluster"],
+        description=DESCRIPTION,
+        allowed_sims=["TNG-Cluster"],
     )
     # remove unnecessary args
     parser.remove_argument("sim")
@@ -73,7 +79,7 @@ if __name__ == "__main__":
         "--max-depth",
         help=(
             "The maximum absolute z-value that will be considered in the "
-            "plot. Equivalent to half the projection depth, i.e. the "
+            "plot. Equivalent to half the projection depth, i.e. half the "
             "thickness of the slice that will be projected onto the "
             "x-y-plane. Must be given in units of virial radii. Defaults to "
             "0.5, which is equivalent to a projection depth of 1 virial "

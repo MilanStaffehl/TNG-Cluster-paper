@@ -50,10 +50,32 @@ def main(args: argparse.Namespace) -> None:
     sys.exit(pipeline.run())
 
 
+DESCRIPTION = """Tabulate particle data for TNG300-1 clusters.
+
+Script identifies all particles around halos in TNG300-1 which have a
+mass M_200c of more than 10^14 solar masses and saves their indices to
+file. It additionally then saves properties of the particles to file as
+well (velocities, temperatures, temperature regime flag, distance to
+cluster center, particle mass).
+
+These files are saved under the data home directory specified in the
+config file, with each property being assigned its own subdirectory
+(e.g. particle indices are saved under a `particle_indices` subdir).
+
+If particle indices already exist, for example because they have been
+previously saved to file by the radial profile scripts, the process of
+identifying and tabulating particle data is sped up considerably. If
+they have not previously been saved, the indices must first be found by
+creating a KDTree of all particles in the TNG300-1 volume. Consequently,
+this will take considerable time and memory.
+"""
+
 if __name__ == "__main__":
     parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
-        description="Tabulate data for TNG300-1 clusters."
+        description=DESCRIPTION,
+        requires_parallel=True,
+        required_memory=900,
     )
     parser.remove_argument("sim")
     parser.remove_argument("to_file")

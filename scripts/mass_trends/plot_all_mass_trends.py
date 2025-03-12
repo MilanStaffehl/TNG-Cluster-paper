@@ -16,7 +16,7 @@ from pipelines.mass_trends.cool_gas_fracs_clusters import (
 )
 
 
-def main() -> None:
+def main(create_plots: bool) -> None:
     """Create plots of gas mass trends for individual halos"""
     # set up logging
     log_config = logging_config.get_logging_config(logging.INFO)
@@ -35,7 +35,7 @@ def main() -> None:
         "config": config.get_default_config("TNG-Cluster"),
         "processes": 0,
         "to_file": True,  # we want files to be saved
-        "no_plots": False,
+        "no_plots": create_plots,
         "fig_ext": "pdf",
         "color_scale": None,  # use default
         "deviation_scale": None,  # use default
@@ -84,11 +84,32 @@ def main() -> None:
                 print("\n")
 
 
+DESCRIPTION = """Plot mass trends for all selected properties.
+
+Script runs the plotting pipeline for the mass trend figures of cool gas
+mass fraction and cool gas mass vs. cluster mass for all properties under
+consideration, and for both cool gas mass and cool gas fraction on the
+y-axis, and for both the entire two virial radii sphere and only the
+central region of the cluster, effectively going through all different
+possible combinations of arguments in the `plot_cool_gas_mass_trends.py`
+script.
+
+It uses the default configuration for the plots, specified under the
+`src/pipelines/mass_trends/plot_config.yaml` file. Data for the cool gas
+mass and cool gas mass fraction as well as cluster mass (i.e. values for
+the y- and x-axis) must either already exist from previous runs of the
+`plot_cool_gas_mass_trends.py` script, or the radial density profiles of
+individual clusters and their data must have already been saved to file
+using the `radial_profiles/plot_individual_radial_profiles.py` script.
+This is necessary as this script explicitly forbids recalculating the
+cool gas fraction and mass directly from the simulation.
+"""
+
 if __name__ == "__main__":
     # parse arguments
     parser = argparse.ArgumentParser(
         prog=f"python {Path(__file__).name}",
-        description="Plot mass trends for all selected properties.",
+        description=DESCRIPTION,
     )
     parser.add_argument(
         "-x",
@@ -100,8 +121,9 @@ if __name__ == "__main__":
         dest="no_plots",
         action="store_true",
     )
+    args_ = parser.parse_args()
     try:
-        main()
+        main(args_.no_plots)
     except KeyboardInterrupt:
         print("Execution forcefully stopped.")
         sys.exit(1)

@@ -24,6 +24,8 @@ class BaseScriptParser(argparse.ArgumentParser):
         usage=None,
         description=None,
         epilog=None,
+        requires_parallel=False,
+        required_memory=None,
     ):
         """
         :param allowed_sims: List of the names of simulations that the
@@ -35,7 +37,30 @@ class BaseScriptParser(argparse.ArgumentParser):
         :param usage: Usage description.
         :param description: Description of what the program does.
         :param epilog: Epilog to print after usage.
+        :param requires_parallel: If True, the description will include
+            a note that execution of the script requires parallel execution.
+        :param required_memory: If set to a number, the description will
+            include a note that execution of the script requires the given
+            amount of memory in gigabyte and that it should be executed
+            on a cluster. If set to None, no such note is added and it
+            is assumed execution on a typical desktop machine is possible.
         """
+        # set up description
+        parallel_note = (
+            "This script is CPU resource-intensive (unless data is loaded "
+            "from file using the `--load-data` option) and should be executed "
+            "in parallel using the `-p` argument. "
+        )
+        if requires_parallel:
+            description += parallel_note
+        if required_memory is not None:
+            memory_note = (
+                f"This script is memory-intensive, requiring up to "
+                f"{required_memory} GB of memory (unless data is loaded from "
+                f"file using the `--load-data` option) and should be executed "
+                f"on a dedicated cluster node with sufficient memory. "
+            )
+            description += memory_note
         super().__init__(
             prog=prog,
             usage=usage,

@@ -63,6 +63,42 @@ def main(args: argparse.Namespace) -> None:
     sys.exit(pipeline.run())
 
 
+DESCRIPTION = """Plot mass trends of cool gas in clusters.
+
+Script plots the cool gas mass fraction of clusters in both TNG300-1
+and TNG-Cluster vs. the mass M_200c of the cluster at redshift zero,
+colored by a property of the cluster halo or central galaxy, specified
+by the `--field` argument.
+
+Optionally, the y-axis can also show the absolute cool gas mass in the
+clusters (`--absolute-mass` option). What gas is considered is set by
+the `--gas-domain` option, which can be used to limit the gas to all cool
+gas within two virial radii ("halo"), only the innermost 5% of the
+virial radius ("central") or only cool gas within the virial radius ("vr").
+
+In addition to the plot itself, so called "deviation plots" are made,
+which show the same cool gas mass fraction vs. cluster mass relation, but
+colored by how strongly the color of the main plot deviates from the
+median color in mass bins of 0.2 dex. This is useful to visually study
+whether the quantity chosen with `--field` shows any discernible trend
+with cool gas mass fraction at fixed cluster mass.
+
+Whether this script is resource intensive depends on whether the cool
+gas mass fraction (or absolute cool gas mass) has to be calculated from
+scratch. If it has been written to file by a previous run, it is loaded
+from there (even if the `--load-data` option is not used). Otherwise,
+the script will attempt to reconstruct it from the individual radial
+density profiles created with the
+`radial_profiles/plot_individual_radial_profiles.py` script. If this is
+not possible either, the cool gas mass/fraction is calculated from the
+simulation data, which in turn requires the particle indices of gas in
+TNG300-1 clusters to exist on file (as previously tabulated using
+`auxiliary/tabulate_cluster_data.py`).
+
+In any case, if you require recalculation of the cool gas mass fraction,
+expect significant execution time and memory demands (up to 400 GB).
+"""
+
 if __name__ == "__main__":
     # get list of available fields
     config_file = root_dir / "src/pipelines/mass_trends/plot_config.yaml"
@@ -74,7 +110,7 @@ if __name__ == "__main__":
     # construct parser
     parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
-        description="Plot mass trends of gas of halos in TNG",
+        description=DESCRIPTION,
     )
     parser.remove_argument("sim")
     parser.remove_argument("processes")
@@ -137,10 +173,13 @@ if __name__ == "__main__":
         "-xr",
         "--forbid-recalculation",
         help=(
-            "Forbid the recalculation of gas fractions and the color data. If "
-            "color data is not available on file, the pipeline will fail. If "
-            "the base data (cool gas fractions/masses) are not available on "
-            "file, they will be loaded from the radial profile data files."
+            "Forbid the recalculation of cool gas fractions. Color data is"
+            "not affected by this option (i.e. whether color data is loaded "
+            "from file or recalculated from simulation data is not controlled "
+            "by this option). If the base data (cool gas fractions/masses) "
+            "are not available on file, they will be loaded from the radial "
+            "profile data files instead. If they do not exist either, script "
+            "execution fails."
         ),
         dest="forbid_recalculation",
         action="store_true",
@@ -149,12 +188,11 @@ if __name__ == "__main__":
         "-fr",
         "--force-recalculation",
         help=(
-            "Force the recalculation of the color data. Gas fraction will "
-            "be read from file if available, but if it is not found will be "
-            "recalculated as well. If the gas domain is set to the virial "
-            "radius, missing gas fraction data or radial density profile data "
-            "will lead to an exception, as recalculating gas fraction and "
-            "mass from simulation data directly is not currently implemented."
+            "Force the recalculation of cool gas fraction data. Cannot be "
+            "used together with `--gas-domain vr`, as recalculating gas "
+            "fraction and mass from simulation data directly is not currently "
+            "implemented. Has no effect on the color data specified with the "
+            "`--field` option, which is independently loaded or recalculated."
         ),
         dest="force_recalculation",
         action="store_true",
