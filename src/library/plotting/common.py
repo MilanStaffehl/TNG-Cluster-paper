@@ -27,15 +27,9 @@ RGBColor: TypeAlias = tuple[float, float, float]
 RGBAColor: TypeAlias = tuple[float, float, float, float]
 
 temperature_colors_rgb = {
-    "cool": (30, 144, 255),  # dodgerblue
-    "warm": (128, 0, 128),  # purple
-    "hot": (220, 20, 60),  # crimson
-}
-
-temperature_colors_named = {
-    "cool": "dodgerblue",
-    "warm": "purple",
-    "hot": "crimson",
+    "cool": np.array([30, 144, 255]) / 255,  # dodgerblue
+    "warm": np.array([96, 0, 96]) / 255,  # muted purple
+    "hot": np.array([255, 140, 0]) / 255,  # darkorange
 }
 
 
@@ -411,7 +405,7 @@ def plot_4d_histogram(
     # set defaults
     if hmap is None:
         # map from red to blue at constant lightness and saturation
-        hmap = colormaps.custom_cmap((255, 0, 0), (0, 0, 255))
+        hmap = colormaps.custom_cmap((1, 0, 0), (0, 0, 1))
     elif isinstance(hmap, str):
         hmap = plt.get_cmap(hmap)
 

@@ -896,7 +896,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             xlims=ranges,
             log=self.log,
             label=r"Warm ($10^{4.5} - 10^{5.5} K$)",
-            color=common.temperature_colors_named["warm"],
+            color=common.temperature_colors_rgb["warm"],
         )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
@@ -904,7 +904,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             edges,
             xlims=ranges,
             log=self.log,
-            color=common.temperature_colors_named["warm"],
+            color=common.temperature_colors_rgb["warm"],
             linestyle="dotted",
         )
         plot_radial_profiles.plot_1d_radial_profile(
@@ -913,7 +913,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             edges,
             xlims=ranges,
             log=self.log,
-            color=common.temperature_colors_named["warm"],
+            color=common.temperature_colors_rgb["warm"],
             linestyle="dashed"
         )
 
@@ -925,7 +925,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             xlims=ranges,
             log=self.log,
             label=r"Cool ($< 10^{4.5} K$)",
-            color=common.temperature_colors_named["cool"],
+            color=common.temperature_colors_rgb["cool"],
         )
         plot_radial_profiles.plot_1d_radial_profile(
             axes,
@@ -933,7 +933,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             edges,
             xlims=ranges,
             log=self.log,
-            color=common.temperature_colors_named["cool"],
+            color=common.temperature_colors_rgb["cool"],
             linestyle="dotted",
         )
         plot_radial_profiles.plot_1d_radial_profile(
@@ -942,7 +942,7 @@ class IndividualRadialProfilePipeline(DiagnosticsPipeline):
             edges,
             xlims=ranges,
             log=self.log,
-            color=common.temperature_colors_named["cool"],
+            color=common.temperature_colors_rgb["cool"],
             xlabel=xlabel,
             linestyle="dashed",
         )

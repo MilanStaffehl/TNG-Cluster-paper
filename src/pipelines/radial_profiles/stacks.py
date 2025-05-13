@@ -302,7 +302,7 @@ class StackProfilesPipeline(Pipeline):
             if label == "total":
                 color = "black"
             else:
-                color = common.temperature_colors_named[label]
+                color = common.temperature_colors_rgb[label]
 
             # plot
             common.plot_curve_with_error_region(

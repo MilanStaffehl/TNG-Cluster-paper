@@ -367,28 +367,28 @@ class IndividualsMassTrendPipeline(base.Pipeline):
             8.5,
             3e13,
             r"Cool ($T \leq 10^{4.5}\,\rm K$)",
-            color=common.temperature_colors_named["cool"],
+            color=common.temperature_colors_rgb["cool"],
             fontsize="small",
         )
         a[1][1].text(
             8.5,
             3e13,
             r"Warm",
-            color=common.temperature_colors_named["warm"],
+            color=common.temperature_colors_rgb["warm"],
             fontsize="small",
         )
         a[1][1].text(
             8.5,
             5e12,
             r"($10^{4.5}\,\rm K < T \leq 10^{5.5}\,\rm K$)",
-            color=common.temperature_colors_named["warm"],
+            color=common.temperature_colors_rgb["warm"],
             fontsize=8,
         )
         a[2][1].text(
             8.5,
             3e13,
             r"Hot ($> 10^{5.5}\,\rm K$)",
-            color=common.temperature_colors_named["hot"],
+            color=common.temperature_colors_rgb["hot"],
             fontsize="small",
         )
 

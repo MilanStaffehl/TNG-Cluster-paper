@@ -9,7 +9,8 @@ from matplotlib import cm as cm
 from matplotlib import colors as cl
 
 # types
-RGBAColor: TypeAlias = Sequence[float]
+RGBColor: TypeAlias = tuple[float, float, float]
+RGBAColor: TypeAlias = tuple[float, float, float, float]
 
 # custom colormap
 _color_dict = {
@@ -70,7 +71,8 @@ def sample_cmap(
 
 
 def custom_cmap(
-    color_end: RGBAColor, color_start: RGBAColor = (256, 256, 256)
+    color_end: RGBColor | RGBAColor,
+    color_start: RGBColor | RGBAColor = (1., 1., 1.),
 ) -> cl.ListedColormap:
     """
     Return a colormap going to the specified color.
@@ -81,6 +83,9 @@ def custom_cmap(
     maps between two colors. The color always uniformly transforms in
     each channel separately.
 
+    .. warning:: The color must be given as either RGB or RGBA,
+        represented by floating point values for each channel.
+
     :param color_end: The end color of the colormap in RGB. The colormap
         will go uniformly from to this color.
     :param color_start: The start color of the colormap in RGB. The
@@ -88,11 +93,11 @@ def custom_cmap(
         the end color. Defaults to white.
     :return: Uniform colormap from white to the specified color.
     """
-    N = 256
-    vals = np.ones((N, 4))
-    vals[:, 0] = np.linspace(color_start[0] / 256, color_end[0] / 256, N)
-    vals[:, 1] = np.linspace(color_start[1] / 256, color_end[1] / 256, N)
-    vals[:, 2] = np.linspace(color_start[2] / 256, color_end[2] / 256, N)
+    n = 256
+    vals = np.ones((n, 4))
+    vals[:, 0] = np.linspace(color_start[0], color_end[0], n)
+    vals[:, 1] = np.linspace(color_start[1], color_end[1], n)
+    vals[:, 2] = np.linspace(color_start[2], color_end[2], n)
     return cl.ListedColormap(vals)
 
 

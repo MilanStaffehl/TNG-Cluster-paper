@@ -250,20 +250,20 @@ def overplot_temperature_divisions(
         "y2": [1.0, 1.0],
         "step": "pre",
         "edgecolor": "none",
-        "alpha": 0.1,
+        "alpha": 0.11,
         "zorder": 1,
     }
     axes.fill_between(
         [temperature_range[0] - 0.1, divisions[0]],
-        color=common.temperature_colors_named["cool"],
+        color=common.temperature_colors_rgb["cool"],
         **div_config
     )
     axes.fill_between(
-        divisions, color=common.temperature_colors_named["warm"], **div_config
+        divisions, color=common.temperature_colors_rgb["warm"], **div_config
     )
     axes.fill_between(
         [divisions[1], temperature_range[1] + 0.1],
-        color=common.temperature_colors_named["hot"],
+        color=common.temperature_colors_rgb["hot"],
         **div_config
     )
 
