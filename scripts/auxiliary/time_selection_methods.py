@@ -16,7 +16,7 @@ is_subset = True
 
 
 def main():
-    global is_subset
+    # global is_subset
     sample_sizes = np.arange(2, 10, 1, dtype=int)
     selection_sizes = [0.01, 0.1, 0.3, 0.5, 0.9]
     # axes: sample size (0), selection size (1)
