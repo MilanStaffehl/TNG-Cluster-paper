@@ -296,11 +296,13 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
                 self.config.snap_num,
                 fields=["Coordinates"],
             )
+            logging.info("Starting KDTree construction.")
             tree = KDTree(
                 gas_data["Coordinates"],
                 balanced_tree=True,
                 compact_nodes=True,
             )
+            logging.info("Successfully constructed KDTree for all particles.")
             position_data = gas_data["Coordinates"]
 
         return position_data, tree
