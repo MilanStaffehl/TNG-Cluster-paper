@@ -9,15 +9,22 @@ import numpy as np
 # simulation-specific
 HUBBLE = 0.6774
 X_H = 0.76
-MIN_SNAP = 8
-"""First snapshot at which all clusters progenitors exist"""
+MIN_SNAP = 8  # First snapshot at which all clusters progenitors exist
+# Size of simulation box in ckpc
 BOX_SIZES = {
     "TNG300-1": 205000.0 / HUBBLE,
     "TNG-Cluster": 680000.0 / HUBBLE,
 }
-"""Size of simulation box in ckpc"""
+# Mass that a single tracer particle represents in solar masses
 TRACER_MASS = .0007714972250575949 * 1e10 / HUBBLE
-"""Mass that a single tracer particle represents in solar masses"""
+# Number of halos with masses > 10^14 solar masses in each simulation
+N_CLUSTERS = {
+    "TNG-Cluster": 352,
+    "TNG300-1": 280,
+    "TNG300-2": 278,
+    "TNG100-1": 14,
+    "TNG100-2": 14,
+}
 
 # physical constants (copied to minimize lookup time)
 G = copy.copy(astropy.constants.G.cgs.value)

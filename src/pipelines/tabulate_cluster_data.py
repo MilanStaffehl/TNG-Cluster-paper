@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.spatial import KDTree
 
-from library import compute
+from library import compute, constants
 from library.data_acquisition import gas_daq, halos_daq
 from library.processing import selection
 from pipelines.base import DiagnosticsPipeline
@@ -28,7 +28,7 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
     Create files containing particle data for clusters.
 
     Pipeline will tabulate the following data for every particle
-    belonging to a TNG300-1 cluster (i.e. a halo with log M > 14.0):
+    belonging to a cluster (i.e. a halo with log M > 14.0):
 
     - Particle ID
     - Radial velocity w.r.t the cluster position in km/s
@@ -45,7 +45,7 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
     its task without construction of a KDTree over all particles in the
     TNG300-1 simulation volume, which speeds up calculation considerably.
     This might be the case if the pipeline for individual radial profiles
-    has alrady been run before.
+    has already been run before.
     """
 
     forbid_tree: bool = True  # whether KDTree construction is allowed
@@ -62,22 +62,24 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
 
         # particle id directory and file suffix
         self.particle_id_dir = (
-            self.config.data_home / "particle_ids" / "TNG300_1"
+            self.config.data_home / "particle_ids" / self.config.sim_path
         )
         self.velocity_dir = (
-            self.config.data_home / "particle_velocities" / "TNG300_1"
+            self.config.data_home / "particle_velocities"
+            / self.config.sim_path
         )
         self.temperature_dir = (
-            self.config.data_home / "particle_temperatures" / "TNG300_1"
+            self.config.data_home / "particle_temperatures"
+            / self.config.sim_path
         )
         self.regime_dir = (
-            self.config.data_home / "particle_regimes" / "TNG300_1"
+            self.config.data_home / "particle_regimes" / self.config.sim_path
         )
         self.distances_dir = (
-            self.config.data_home / "particle_distances" / "TNG300_1"
+            self.config.data_home / "particle_distances" / self.config.sim_path
         )
         self.gas_mass_dir = (
-            self.config.data_home / "particle_masses" / "TNG300_1"
+            self.config.data_home / "particle_masses" / self.config.sim_path
         )
 
         self.dir_list = [
@@ -97,7 +99,7 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
 
     def run(self) -> int:
         """
-        Create data files for TNG300-1.
+        Create data files for clusters in the given simulation.
 
         Steps:
 
@@ -138,7 +140,9 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
         # Step 2: select only halos above threshold mass
         logging.info("Restricting halo data to log(M) > 14.")
         selected_halos = selection.select_clusters(
-            halo_data, self.config.mass_field, expected_number=280
+            halo_data,
+            self.config.mass_field,
+            expected_number=constants.N_CLUSTERS[self.config.sim_name],
         )
         del halo_data
         mem = tracemalloc.get_traced_memory()
@@ -384,6 +388,13 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
             no tree is used, this can be arbitrarily set to 1.
         :return: None
         """
+        if positions_tree is None:
+            logging.warning(
+                "Was asked to tabulate particle IDs but not given a KDTree. "
+                "This should not happen and means that no particle IDs can be "
+                "tabulated!"
+            )
+            return
         for i, halo_id in enumerate(selected_halos["IDs"]):
             # find all particles within 2 * R_vir
             virial_radius = selected_halos[self.config.radius_field][i]

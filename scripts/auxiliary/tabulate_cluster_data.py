@@ -14,7 +14,7 @@ from pipelines.tabulate_cluster_data import TabulateClusterDataPipeline
 def main(args: argparse.Namespace) -> None:
     """Write data for TNG300-1 clusters to file"""
     # config
-    cfg = config.get_default_config("TNG300-1")
+    cfg = config.get_default_config(args.sim)
 
     # logging
     log_level = scriptparse.parse_verbosity(args)
@@ -24,10 +24,7 @@ def main(args: argparse.Namespace) -> None:
 
     # paths
     figure_path = cfg.figures_home / "radial_profiles"
-    if args.datapath:
-        data_path = Path(args.datapath)
-    else:
-        data_path = cfg.data_home / "radial_profiles" / "individuals"
+    data_path = cfg.data_home / "radial_profiles" / "individuals"
 
     file_data = {
         "figures_dir": figure_path.resolve(),
@@ -41,7 +38,7 @@ def main(args: argparse.Namespace) -> None:
         "paths": file_data,
         "processes": args.processes,
         "to_file": True,
-        "no_plots": False,
+        "no_plots": True,
         "fig_ext": "png",
         "forbid_tree": args.forbid_tree,
         "force_tree": args.force_tree,
@@ -74,15 +71,16 @@ if __name__ == "__main__":
     parser = scriptparse.BaseScriptParser(
         prog=f"python {Path(__file__).name}",
         description=DESCRIPTION,
+        allowed_sims=["TNG300", "TNG100"],
         requires_parallel=True,
         required_memory=900,
     )
-    parser.remove_argument("sim")
     parser.remove_argument("to_file")
     parser.remove_argument("from_file")
     parser.remove_argument("no_plots")
     parser.remove_argument("fig_ext")
     parser.remove_argument("figurespath")
+    parser.remove_argument("datapath")
     exclusive_group = parser.add_mutually_exclusive_group(required=False)
     exclusive_group.add_argument(
         "--force-tree",

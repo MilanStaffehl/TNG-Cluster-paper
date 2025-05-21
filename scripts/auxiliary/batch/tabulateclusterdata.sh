@@ -24,4 +24,4 @@ which python3
 
 # Use the environment variable SLURM_CPUS_PER_TASK to have multiprocessing
 # spawn exactly as many processes as the node has CPUs available:
-srun python3 ~/thesisProject/scripts/auxiliary/tabulate_cluster_data.py --processes $SLURM_CPUS_PER_TASK --force-tree
+srun python3 ~/thesisProject/scripts/auxiliary/tabulate_cluster_data.py --sim TNG100-1 --processes $SLURM_CPUS_PER_TASK --force-tree
