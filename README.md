@@ -2,7 +2,7 @@
 
 ![Tests status badge](https://github.com/MilanStaffehl/thesisProject/actions/workflows/testing.yml/badge.svg) ![Static Badge](https://img.shields.io/badge/Python-3.10%2B-%233776AB?style=flat&logo=Python&logoColor=yellow)
 
-This repository hosts the code for the master thesis of Milan Staffehl and the subsequent paper by Staffehl et al. (2025) _The abundance and origin of cool gas in galaxy clusters in the TNG-Cluster simulation_ [[arxiv](https://arxiv.org/abs/2503.01960) | [ADS]()].
+This repository hosts the code for the master thesis of Milan Staffehl and the subsequent paper by Staffehl et al. (2025) _The abundance and origin of cool gas in galaxy clusters in the TNG-Cluster simulation_ [[arxiv](https://arxiv.org/abs/2503.01960) | [ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250301960S/abstract)].
 
 | <img src="./distribution_example.png" alt="Distribution of cool gas in halo 1431487 of TNG-Cluster" style="max-width:577px" /> |
 | :----------------------------------------------------------: |
@@ -41,7 +41,7 @@ Looking for something in particular? Here is a list of common things you might b
 - **Helpful code to handle TNG simulation data:** For loading data directly from TNG simulations, look at the `library.data_acquisition` package in the `src` directory. For visualization, the `library.plotting` package is the best starting point, especially the `common` module. If you look for a more general-purpose and optimized solution, check out [`scida`](https://github.com/cbyrohl/scida).
 - **Data documentation:** For some [topics](#topics), the `library.loading` modules act as make-shift documentation, offering an interface for working with data derived from this code. For the cool gas history hdf5 archive, a [separate README](./docs/CGH_README.md) exists in this project. 
 - **The finished plots after running a script:** The finished plots are placed in the figures home directory you specify in the `config.yaml` of the project (see section [configuration](#configuration)). In there, it is under the same topic as the script that generated it. You might have to navigate further subdirectories to find it, though. If your figures home is set to "default", the figures are located in the project directory under `/figures`.
-- **The paper/the master thesis:** The paper is available on [arxiv](https://arxiv.org/abs/2503.01960). The master thesis can be made available upon reasonable request.
+- **The paper/the master thesis:** The paper is available on [arxiv](https://arxiv.org/abs/2503.01960) and [ADS](https://ui.adsabs.harvard.edu/abs/2025arXiv250301960S/abstract). The master thesis can be made available upon reasonable request.
 
 ## Prerequisites
 
