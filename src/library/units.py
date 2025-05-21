@@ -87,6 +87,7 @@ class UnitConverter:
                 "SubhaloGrNr",
                 "FirstSubhaloInFOFGroupID",
                 "NextSubhaloInFOFGroupID",
+                "GroupOrigHaloID",
             ],  # noqa: E123
     }
 
@@ -219,7 +220,7 @@ class UnitConverter:
     @staticmethod
     def convert_metallicitylike(quantity: N) -> N:
         """
-        Retrun the metallicity-like quantity in solar metallicities (Z_sol).
+        Return the metallicity-like quantity in solar metallicities (Z_sol).
 
         :param quantity: Metallicity-like (unit-less; M_Z / M_tot)
         :return: Metallicity in solar units (Z)
