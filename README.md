@@ -173,7 +173,7 @@ In order to be able to generate figures, certain data needs to be generated firs
 This step is required to identify all gas cells within $2R_{200c}$ of TNG300 clusters: 
 
 ```bash
-python ./scripts/auxiliary/tabulate_cluster_data.py --processes $N_PROCESSES --force-tree
+python ./scripts/auxiliary/tabulate_cluster_data.py -s TNG300-1 --processes $N_PROCESSES --force-tree
 ```
 
 Corresponding batch script: `./scripts/auxiliary/batch/tabulateclusterdata.sh`
@@ -186,7 +186,7 @@ All plotting jobs of the `tracer_history` topic require tracing back the origins
 >
 > Recreating the archive file takes a considerable amount of time. Expect multiple hours, potentially days, for a full recreation run.
 
-The following steps must be performed in the order listed in order to create the archive and populate it with the required data:
+The following steps must be performed in the order listed to create the archive and populate it with the required data:
 
 1. Identify tracers in redshift zero cool gas of TNG-Cluster clusters:
 
@@ -247,7 +247,7 @@ The following steps must be performed in the order listed in order to create the
 
 ## Recreating figures
 
-Below is a list of commands to fully recreate all figures of Staffehl et al. (2025), provided the corresponding data has been generated previously. 
+Below is a list of commands to fully recreate all figures of Staffehl et al. (2025), provided the base data has been generated as described in the preceding section.
 
 Alongside the Python command to run the script, the slurm job submission batch scripts are provided. They are always located in the directory of the script in a `batch` subdirectory. Not every script requires execution on clusters, so not every command is accompanied by a batch script.
 
