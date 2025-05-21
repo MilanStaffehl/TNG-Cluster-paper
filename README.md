@@ -45,7 +45,7 @@ Looking for something in particular? Here is a list of common things you might b
 
 ## Prerequisites
 
-The code in this repository requires Python 3.10 or higher to run. Additionally, to create figures, the simulation data of at least the [TNG300](https://www.tng-project.org/) simulation and the TNG-Cluster simulation must be available. You can find them on the official IllustrisTNG [data release page](https://www.tng-project.org/data/). 
+The code in this repository requires Python 3.10 or higher to run. Additionally, to create figures, the simulation data of at least the [TNG300](https://www.tng-project.org/data/downloads/TNG300-1/) simulation and the [TNG-Cluster](https://www.tng-project.org/data/downloads/TNG-Cluster/) simulation must be available. You can find them on the official IllustrisTNG [data release page](https://www.tng-project.org/data/). 
 
 ## First steps
 
