@@ -265,11 +265,7 @@ def startup(
         dictionary can be updated with additional information required
         for other subclasses of pipelines afterward.
     """
-    # set up logging
-    log_level = parse_verbosity(namespace)
-    log_config = logging_config.get_logging_config(log_level)
-    logging.config.dictConfig(log_config)
-    logging.addLevelName(18, "DIAGNOSTIC")  # custom level
+    set_up_logging(namespace)
     # parse namespace for initial kwargs dictionary for pipelines
     return parse_namespace(
         namespace,
@@ -280,6 +276,31 @@ def startup(
         data_subdirectory,
         suppress_sim_name_in_files,
     )
+
+
+def set_up_logging(
+    namespace: argparse.Namespace,
+    log_level: int | None = None,
+) -> None:
+    """
+    Set up the logging for the given level.
+
+    If the level is not explicitly given as integer (or the corresponding
+    logging name macro), the namespace is queried for the logging level.
+    In this case, the namespace must be one produced by
+    :py:``BaseScriptParser``.
+
+    :param namespace: The namespace object created by an argument parser.
+        If ``log_level`` is explicitly specified, this may be None.
+    :param log_level: The logging level as integer. Optional.
+    :return: None
+    """
+    # set up logging
+    if log_level is None:
+        log_level = parse_verbosity(namespace)
+    log_config = logging_config.get_logging_config(log_level)
+    logging.config.dictConfig(log_config)
+    logging.addLevelName(18, "DIAGNOSTIC")  # custom level
 
 
 def parse_verbosity(namespace: argparse.Namespace) -> int:
