@@ -6,6 +6,7 @@ import logging
 import sys
 from pathlib import Path
 
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import yaml
@@ -44,7 +45,6 @@ def main(args: argparse.Namespace) -> None:
     fig, axes = plt.subplots(ncols=2, figsize=(10, 5))
     for ax in axes:
         ax.set_xlabel(r"Halo mass [$M_\odot$]")
-        ax.set_xscale("log")
     axes[0].set_ylabel("Cool gas mass fraction")
     axes[1].set_ylabel(r"Cool gas mass [$M_\odot$]")
     axes[1].set_yscale("log")
@@ -102,18 +102,54 @@ def main(args: argparse.Namespace) -> None:
         logging.info("Plotting data points onto figure.")
         halo_masses = cluster_data["Group_M_Crit200"]
         axes[0].plot(
-            halo_masses,
+            np.log10(halo_masses),
             np.log10(cool_fractions),
             linestyle="none",
+            alpha=0.6,
             label=sim,
             **plot_config,
         )
         axes[1].plot(
-            halo_masses,
+            np.log10(halo_masses),
             cool_masses,
             linestyle="none",
+            alpha=0.6,
             label=sim,
             **plot_config
+        )
+
+        # Step 5: Overplot running average
+        left_bin_edges = np.linspace(14.0, 15.3, num=14)
+        frac_means = np.zeros_like(left_bin_edges, dtype=np.float64)
+        mass_means = np.zeros_like(frac_means)
+        for i, left_bin_edge in enumerate(left_bin_edges):
+            right_bin_edge = left_bin_edge + 0.2
+            where = np.logical_and(
+                np.log10(halo_masses) >= left_bin_edge,
+                np.log10(halo_masses) < right_bin_edge
+            )
+            frac_means[i] = np.nanmean(cool_fractions[where])
+            mass_means[i] = np.nanmean(cool_masses[where])
+
+        # Step 2: overplot running mean
+        outline = [pe.Stroke(linewidth=5, foreground="white"), pe.Normal()]
+        axes[0].plot(
+            left_bin_edges + 0.05,
+            np.log10(frac_means),
+            linestyle="solid",
+            color=plot_config["color"],
+            zorder=20,
+            lw=2,
+            path_effects=outline,
+        )
+        axes[1].plot(
+            left_bin_edges + 0.05,
+            mass_means,
+            linestyle="solid",
+            color=plot_config["color"],
+            zorder=20,
+            lw=2,
+            path_effects=outline,
         )
 
     # Step 3: save the figure to file
