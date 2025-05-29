@@ -41,25 +41,32 @@ def main(args: argparse.Namespace) -> None:
     figures_home = cfg_obj.figures_home
 
     # Step 1: prepare figure
+    limits_frac = (-4.5, -1.5)
+    limits_mass = (1e9, 2e12)
     logging.info("Preparing figure.")
-    fig, axes = plt.subplots(ncols=2, figsize=(10, 5))
+    fig, axes = plt.subplots(ncols=2, figsize=(10, 4.5))
     for ax in axes:
-        ax.set_xlabel(r"Halo mass [$M_\odot$]")
-    axes[0].set_ylabel("Cool gas mass fraction")
+        ax.set_xlabel(r"Halo mass [$\log_{10} M_\odot$]")
+    axes[0].set_ylabel(r"Cool gas mass fraction [$\log_{10}$]")
+    axes[0].set_ylim(limits_frac)
     axes[1].set_ylabel(r"Cool gas mass [$M_\odot$]")
+    axes[1].set_ylim(limits_mass)
     axes[1].set_yscale("log")
 
     # Step 2: go through the simulations and load their data
     resolution_mapping = {
-        "TNG300-2": {
-            "marker": "d", "color": "blue"
-        },
-        "TNG300-1": {
-            "marker": "o", "color": "black"
-        },
-        "TNG100-1": {
-            "marker": "^", "color": "purple"
-        },
+        "TNG300-2":
+            {
+                "marker": "d", "color": "blue", "res": r"$8.8 \times 10^7$"
+            },
+        "TNG300-1":
+            {
+                "marker": "o", "color": "black", "res": r"$1.1 \times 10^7$"
+            },
+        "TNG100-1":
+            {
+                "marker": "^", "color": "purple", "res": r"$1.4 \times 10^6$"
+            },
     }
     logging.info("Starting process of going through resolutions.")
     for sim, plot_config in resolution_mapping.items():
@@ -100,13 +107,14 @@ def main(args: argparse.Namespace) -> None:
 
         # Step 4: plot onto the figure
         logging.info("Plotting data points onto figure.")
+        resolution = plot_config.pop("res")
         halo_masses = cluster_data["Group_M_Crit200"]
         axes[0].plot(
             np.log10(halo_masses),
             np.log10(cool_fractions),
             linestyle="none",
             alpha=0.6,
-            label=sim,
+            label=rf"{sim} ({resolution} $\rm M_\odot$)",
             **plot_config,
         )
         axes[1].plot(
@@ -114,9 +122,31 @@ def main(args: argparse.Namespace) -> None:
             cool_masses,
             linestyle="none",
             alpha=0.6,
-            label=sim,
+            label=rf"{sim} ({resolution} $\rm M_\odot$)",
             **plot_config
         )
+        # mark values below min
+        mark_frac = np.nonzero(np.log10(cool_fractions) <= limits_frac[0])[0]
+        mark_mass = np.nonzero(cool_masses <= limits_mass[0])[0]
+        arrowstyle = {"arrowstyle": "simple", "color": plot_config["color"]}
+        for index in mark_frac:
+            x = np.log10(halo_masses[index])
+            axes[0].annotate(
+                "",
+                (x, limits_frac[0] + 0.05),
+                (0, 20),  # offset in pt
+                textcoords="offset points",
+                arrowprops=arrowstyle,
+            )
+        for index in mark_mass:
+            x = np.log10(halo_masses[index])
+            axes[1].annotate(
+                "",
+                (x, limits_mass[0] + 1e8),
+                (0, 20),  # offset in pt
+                textcoords="offset points",
+                arrowprops=arrowstyle,
+            )
 
         # Step 5: Overplot running average
         left_bin_edges = np.linspace(14.0, 15.3, num=14)
@@ -153,8 +183,8 @@ def main(args: argparse.Namespace) -> None:
         )
 
     # Step 3: save the figure to file
-    axes[0].legend()
-    axes[1].legend()
+    axes[0].legend(loc="lower right", fontsize=9)
+    axes[1].legend(loc="lower right", fontsize=9)
     filepath = figures_home / f"resolution_effects.{args.fig_ext}"
     fig.savefig(filepath, bbox_inches="tight")
     # close figure
