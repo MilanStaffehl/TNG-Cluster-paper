@@ -123,6 +123,9 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
         """
         tracemalloc.start()
         begin = time.time()
+        logging.info(
+            f"Beginning tabulation of data for {self.config.sim_name}."
+        )
 
         # Step 1: acquire halo data
         fields = [
@@ -221,7 +224,9 @@ class TabulateClusterDataPipeline(DiagnosticsPipeline):
             np.save(self.regime_dir / filename, mask.astype(np.uint8))
 
         self._diagnostics(timepoint, "masking and saving cluster data")
-        logging.info("Successfully tabulated cluster data for TNG300-1.")
+        logging.info(
+            f"Successfully tabulated cluster data for {self.config.sim_name}."
+        )
 
         return 0
 

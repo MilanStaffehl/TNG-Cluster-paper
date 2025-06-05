@@ -55,6 +55,10 @@ def main(args: argparse.Namespace) -> None:
 
     # Step 2: go through the simulations and load their data
     resolution_mapping = {
+        "TNG100-3":
+            {
+                "marker": "s", "color": "crimson", "res": r"$8.9 \times 10^7$"
+            },
         "TNG300-2":
             {
                 "marker": "d", "color": "blue", "res": r"$8.8 \times 10^7$"
@@ -62,6 +66,10 @@ def main(args: argparse.Namespace) -> None:
         "TNG300-1":
             {
                 "marker": "o", "color": "black", "res": r"$1.1 \times 10^7$"
+            },
+        "TNG100-2":
+            {
+                "marker": "v", "color": "orange", "res": r"$1.1 \times 10^7$"
             },
         "TNG100-1":
             {
@@ -84,7 +92,8 @@ def main(args: argparse.Namespace) -> None:
         del halo_data
 
         # Step 2: allocate memory for cool gas data
-        cool_fractions = np.zeros_like(cluster_data["Group_M_Crit200"])
+        halo_masses = cluster_data["Group_M_Crit200"]
+        cool_fractions = np.zeros_like(halo_masses)
         cool_masses = np.zeros_like(cool_fractions)
 
         # Step 3: Go through clusters and save masses and fractions
@@ -104,27 +113,29 @@ def main(args: argparse.Namespace) -> None:
             # assign to allocated memory
             cool_masses[i] = np.sum(gas_masses[gas_regime == 1])
             cool_fractions[i] = cool_masses[i] / np.sum(gas_masses)
+        # Output average up to 10^14.6 M_sol
+        where = np.log10(halo_masses) <= 14.6
+        avg_mass = np.log10(np.mean(cool_masses[where]))
+        avg_frac = np.mean(cool_fractions[where])
+        logging.info(f"Average gas fraction up to log M 14.6: {avg_frac}")
+        logging.info(f"Average gas mass up to log M 14.6: 10^{avg_mass}")
 
         # Step 4: plot onto the figure
         logging.info("Plotting data points onto figure.")
         resolution = plot_config.pop("res")
-        halo_masses = cluster_data["Group_M_Crit200"]
+        marker_style = {
+            "linestyle": "none",
+            "alpha": 0.6,
+            "markersize": 5,
+            "label": rf"{sim} ({resolution} $\rm M_\odot$)",
+        }
+        plot_config.update(marker_style)
         axes[0].plot(
             np.log10(halo_masses),
             np.log10(cool_fractions),
-            linestyle="none",
-            alpha=0.6,
-            label=rf"{sim} ({resolution} $\rm M_\odot$)",
             **plot_config,
         )
-        axes[1].plot(
-            np.log10(halo_masses),
-            cool_masses,
-            linestyle="none",
-            alpha=0.6,
-            label=rf"{sim} ({resolution} $\rm M_\odot$)",
-            **plot_config
-        )
+        axes[1].plot(np.log10(halo_masses), cool_masses, **plot_config)
         # mark values below min
         mark_frac = np.nonzero(np.log10(cool_fractions) <= limits_frac[0])[0]
         mark_mass = np.nonzero(cool_masses <= limits_mass[0])[0]
@@ -148,8 +159,8 @@ def main(args: argparse.Namespace) -> None:
                 arrowprops=arrowstyle,
             )
 
-        # Step 5: Overplot running average
-        left_bin_edges = np.linspace(14.0, 15.3, num=14)
+        # Step 5: Calculate running average
+        left_bin_edges = np.linspace(14.0, 15.2, num=7)
         frac_means = np.zeros_like(left_bin_edges, dtype=np.float64)
         mass_means = np.zeros_like(frac_means)
         for i, left_bin_edge in enumerate(left_bin_edges):
@@ -161,30 +172,21 @@ def main(args: argparse.Namespace) -> None:
             frac_means[i] = np.nanmean(cool_fractions[where])
             mass_means[i] = np.nanmean(cool_masses[where])
 
-        # Step 2: overplot running mean
+        # Step 2: Overplot running average
         outline = [pe.Stroke(linewidth=5, foreground="white"), pe.Normal()]
-        axes[0].plot(
-            left_bin_edges + 0.05,
-            np.log10(frac_means),
-            linestyle="solid",
-            color=plot_config["color"],
-            zorder=20,
-            lw=2,
-            path_effects=outline,
-        )
-        axes[1].plot(
-            left_bin_edges + 0.05,
-            mass_means,
-            linestyle="solid",
-            color=plot_config["color"],
-            zorder=20,
-            lw=2,
-            path_effects=outline,
-        )
+        line_config = {
+            "linestyle": "solid",
+            "color": plot_config["color"],
+            "zorder": 20,
+            "lw": 2,
+            "path_effects": outline,
+        }
+        axes[0].plot(left_bin_edges + 0.1, np.log10(frac_means), **line_config)
+        axes[1].plot(left_bin_edges + 0.1, mass_means, **line_config)
 
     # Step 3: save the figure to file
-    axes[0].legend(loc="lower right", fontsize=9)
-    axes[1].legend(loc="lower right", fontsize=9)
+    axes[0].legend(loc="lower right", fontsize=8)
+    axes[1].legend(loc="lower right", fontsize=8)
     filepath = figures_home / f"resolution_effects.{args.fig_ext}"
     fig.savefig(filepath, bbox_inches="tight")
     # close figure

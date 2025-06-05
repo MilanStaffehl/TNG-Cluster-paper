@@ -24,6 +24,7 @@ N_CLUSTERS = {
     "TNG300-2": 278,
     "TNG100-1": 14,
     "TNG100-2": 14,
+    "TNG100-3": 14,
 }
 
 # physical constants (copied to minimize lookup time)
