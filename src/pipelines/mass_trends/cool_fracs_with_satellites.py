@@ -308,7 +308,7 @@ class CoolGasMassTrendSatellitesPipeline(
         overall_means = np.zeros_like(left_bin_edges, dtype=np.float64)
         satellite_means = np.zeros_like(overall_means)
         for i, left_bin_edge in enumerate(left_bin_edges):
-            right_bin_edge = left_bin_edge + 0.2
+            right_bin_edge = left_bin_edge + 0.1
             if i == len(left_bin_edges) - 1:
                 right_bin_edge += 0.01  # catch the one cluster to right
             where = np.logical_and(
