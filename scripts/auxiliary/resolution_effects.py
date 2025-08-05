@@ -196,10 +196,10 @@ def main(args: argparse.Namespace) -> None:
 
 DESCRIPTION = """Estimate the effects of resolution on cool gas fraction.
 
-Script plots the cool gas mass and cool gas fraction of TNG100-1, TNG300-1,
-and TNG300-2 into a two-panel figure. This allows estimating what impact
-simulation resolution has on the cool gas fraction and cool gas mass in
-simulated clusters.
+Script plots the cool gas mass and cool gas fraction of TNG100-1, TNG100-2,
+TNG100-3, TNG300-1, and TNG300-2 into a two-panel figure. This allows
+estimating what impact simulation resolution has on the cool gas fraction
+and cool gas mass in simulated clusters.
 """
 
 if __name__ == "__main__":
