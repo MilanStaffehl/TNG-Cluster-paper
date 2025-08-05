@@ -28,7 +28,7 @@ def index_to_global(
     Indices in the cool gas history archive file are indices into the
     contiguous array of particles of type 0, 4, and 5 of only that
     zoom-in, i.e. they point to particles in an artificial array that
-    one constructs by loading all gas, star and BH particles of only
+    one constructs by loading all gas, star, and BH particles of only
     the cluster FoF and the fuzz of that zoom-in and concatenates them
     in that order. This is useful for quick access to particle data, but
     not useful when working with the full simulation box. Here, it is

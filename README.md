@@ -408,4 +408,4 @@ This installs the pytest framework, dev tools, and especially `pre-commit`, whic
 
 ## License
 
-TBD
+The code in this repository is licensed under the MIT license. For details, see the [`LICENSE`](./LICENSE) file. 
