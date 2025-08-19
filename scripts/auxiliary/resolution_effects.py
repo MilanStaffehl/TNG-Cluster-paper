@@ -55,10 +55,6 @@ def main(args: argparse.Namespace) -> None:
 
     # Step 2: go through the simulations and load their data
     resolution_mapping = {
-        "TNG100-3":
-            {
-                "marker": "s", "color": "crimson", "res": r"$8.9 \times 10^7$"
-            },
         "TNG300-2":
             {
                 "marker": "d", "color": "blue", "res": r"$8.8 \times 10^7$"
@@ -66,6 +62,10 @@ def main(args: argparse.Namespace) -> None:
         "TNG300-1":
             {
                 "marker": "o", "color": "black", "res": r"$1.1 \times 10^7$"
+            },
+        "TNG100-3":
+            {
+                "marker": "s", "color": "crimson", "res": r"$8.9 \times 10^7$"
             },
         "TNG100-2":
             {
@@ -168,6 +168,10 @@ def main(args: argparse.Namespace) -> None:
             where = np.logical_and(
                 np.log10(halo_masses) >= left_bin_edge,
                 np.log10(halo_masses) < right_bin_edge
+            )
+            logging.info(
+                f"{sim}: Mass bin {left_bin_edge:.2f}-{right_bin_edge:.2f} "
+                f"contains {np.count_nonzero(where)} clusters."
             )
             frac_means[i] = np.nanmean(cool_fractions[where])
             mass_means[i] = np.nanmean(cool_masses[where])
