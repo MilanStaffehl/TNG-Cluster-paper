@@ -41,10 +41,10 @@ def main(args: argparse.Namespace) -> None:
     figures_home = cfg_obj.figures_home
 
     # Step 1: prepare figure
-    limits_frac = (-4.5, -1.5)
-    limits_mass = (1e9, 2e12)
+    limits_frac = (-4.5, -1.7)
+    limits_mass = (2e9, 1e12 + 5e11)
     logging.info("Preparing figure.")
-    fig, axes = plt.subplots(ncols=2, figsize=(10, 4.5))
+    fig, axes = plt.subplots(ncols=2, figsize=(10, 4))
     for ax in axes:
         ax.set_xlabel(r"Halo mass [$\log_{10} M_\odot$]")
     axes[0].set_ylabel(r"Cool gas mass fraction [$\log_{10}$]")
@@ -117,8 +117,8 @@ def main(args: argparse.Namespace) -> None:
         where = np.log10(halo_masses) <= 14.6
         avg_mass = np.log10(np.mean(cool_masses[where]))
         avg_frac = np.mean(cool_fractions[where])
-        logging.info(f"Average gas fraction up to log M 14.6: {avg_frac}")
-        logging.info(f"Average gas mass up to log M 14.6: 10^{avg_mass}")
+        logging.debug(f"Average gas fraction up to log M 14.6: {avg_frac}")
+        logging.debug(f"Average gas mass up to log M 14.6: 10^{avg_mass}")
 
         # Step 4: plot onto the figure
         logging.info("Plotting data points onto figure.")
@@ -169,7 +169,7 @@ def main(args: argparse.Namespace) -> None:
                 np.log10(halo_masses) >= left_bin_edge,
                 np.log10(halo_masses) < right_bin_edge
             )
-            logging.info(
+            logging.debug(
                 f"{sim}: Mass bin {left_bin_edge:.2f}-{right_bin_edge:.2f} "
                 f"contains {np.count_nonzero(where)} clusters."
             )
